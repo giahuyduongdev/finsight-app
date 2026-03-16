@@ -26,6 +26,6 @@ export const startJobs = () => {
   return [
     scheduleJob('Transaction', '* * * * *', processRecurringTransactions),
     //run 2:30am every first of the month
-    scheduleJob('Reports', '*/1 * * * *', processReportJob)
+    scheduleJob('Reports', '30 2 1 * *', processReportJob)
   ]
 }
