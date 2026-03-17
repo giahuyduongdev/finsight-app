@@ -361,6 +361,133 @@ export const chartAnalyticsService = async (
   }
 }
 
+export const expensePieChartBreakdownService = async (
+  userId: string,
+  dateRangePreset?: DateRangePreset,
+  customFrom?: Date,
+  customTo?: Date,
+  timezone: string = 'UTC'
+) => {
+  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
+  const { from, to, value: rangeValue } = range
+
+  const filter: any = {
+    userId: new mongoose.Types.ObjectId(userId),
+    type: TransactionTypeEnum.EXPENSE,
+    ...(from &&
+      to && {
+        date: {
+          $gte: from,
+          $lte: to
+        }
+      })
+  }
+
+  const pipleline: PipelineStage[] = [
+    {
+      $match: filter
+    },
+    {
+      $group: {
+        _id: '$category',
+        value: { $sum: { $abs: '$amount' } }
+      }
+    },
+    { $sort: { value: -1 } }, //
+
+    {
+      $facet: {
+        topThree: [{ $limit: 3 }],
+        others: [
+          { $skip: 3 },
+          {
+            $group: {
+              _id: 'others',
+              value: { $sum: '$value' }
+            }
+          }
+        ]
+      }
+    },
+
+    {
+      $project: {
+        categories: {
+          $concatArrays: ['$topThree', '$others']
+        }
+      }
+    },
+
+    { $unwind: '$categories' },
+
+    {
+      $group: {
+        _id: null,
+        totalSpent: { $sum: '$categories.value' },
+        breakdown: { $push: '$categories' }
+      }
+    },
+
+    {
+      $project: {
+        _id: 0,
+        totalSpent: 1,
+        breakdown: {
+          // .map((cat: any)=> )
+          $map: {
+            input: '$breakdown',
+            as: 'cat',
+            in: {
+              name: '$$cat._id',
+              value: '$$cat.value',
+              percentage: {
+                $cond: [
+                  { $eq: ['$totalSpent', 0] },
+                  0,
+                  {
+                    $round: [
+                      {
+                        $multiply: [
+                          { $divide: ['$$cat.value', '$totalSpent'] },
+                          100
+                        ]
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+
+  const result = await TransactionModel.aggregate(pipleline)
+
+  const data = result[0] || {
+    totalSpent: 0,
+    breakdown: []
+  }
+  const transformedData = {
+    totalSpent: convertToDollarUnit(data.totalSpent),
+    breakdown: data.breakdown.map((item: any) => ({
+      ...item,
+      value: convertToDollarUnit(item.value)
+    }))
+  }
+
+  return {
+    ...transformedData,
+    preset: {
+      ...range,
+      value: rangeValue || DateRangeEnum.ALL_TIME,
+      label: range?.label || 'All Time'
+    }
+  }
+}
+
 function calaulatePercentageChange(previous: number, current: number) {
   if (previous === 0) return current === 0 ? 0 : 100
   const changes = ((current - previous) / Math.abs(previous)) * 100
