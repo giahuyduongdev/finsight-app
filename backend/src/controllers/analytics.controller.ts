@@ -5,6 +5,7 @@ import { DateRangePreset } from '../enums/date-range.enum'
 import { fromZonedTime } from 'date-fns-tz'
 import {
   chartAnalyticsService,
+  expensePieChartBreakdownService,
   summaryAnalyticsService
 } from '../services/analytics.service'
 
@@ -63,6 +64,36 @@ export const chartAnalyticsController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: 'Chart fetched successfully',
       data: chartData
+    })
+  }
+)
+
+export const expensePieChartBreakdownController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const timezone = req.user?.timezone || 'UTC'
+
+    const { preset, from, to } = req.query
+
+    const filter = {
+      dateRangePreset: preset as DateRangePreset,
+      customFrom: from
+        ? fromZonedTime(new Date(from as string), timezone)
+        : undefined, // ✅
+      customTo: to ? fromZonedTime(new Date(to as string), timezone) : undefined
+    }
+
+    const pieChartData = await expensePieChartBreakdownService(
+      userId,
+      filter.dateRangePreset,
+      filter.customFrom,
+      filter.customTo,
+      timezone
+    )
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: 'Expense breakdown fetched successfully',
+      data: pieChartData
     })
   }
 )
