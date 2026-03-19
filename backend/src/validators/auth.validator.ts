@@ -22,5 +22,10 @@ export const loginSchema = z.object({
   timezone: z.string().optional()
 })
 
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required')
+})
+
+export type RefreshTokenSchemaType = z.infer<typeof refreshTokenSchema>
 export type RegisterSchemaType = z.infer<typeof registerSchema>
 export type LoginSchemaType = z.infer<typeof loginSchema>
