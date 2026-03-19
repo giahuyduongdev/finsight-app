@@ -20,6 +20,8 @@ import analyticsRoutes from './routes/analytics.route'
 import morgan from 'morgan'
 import helmet from 'helmet'
 import compression from 'compression'
+import { rateLimiter, authRateLimiter } from './config/redis.config'
+
 const app = express()
 const BASE_PATH = Env.BASE_PATH
 
@@ -38,8 +40,9 @@ app.use(
     credentials: true
   })
 )
+app.use(rateLimiter)
 
-app.use(`${BASE_PATH}/auth`, authRoutes)
+app.use(`${BASE_PATH}/auth`, authRateLimiter, authRoutes)
 app.use(`${BASE_PATH}/user`, passportAuthenticateJwt, userRoutes)
 app.use(`${BASE_PATH}/transaction`, passportAuthenticateJwt, transactionRoutes)
 app.use(`${BASE_PATH}/report`, passportAuthenticateJwt, reportRoutes)

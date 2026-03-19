@@ -78,14 +78,19 @@ export const loginService = async (
     $or: [{ isRevoked: true }, { expiresAt: { $lt: new Date() } }]
   })
 
-  await RefreshTokenModel.create({
-    userId: user.id,
-    token: refreshToken,
-    expiresAt: new Date(
-      Date.now() + ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
-    ),
-    userAgent: userAgent || ''
-  })
+  await RefreshTokenModel.findOneAndUpdate(
+    { token: refreshToken },
+    {
+      userId: user.id,
+      token: refreshToken,
+      expiresAt: new Date(
+        Date.now() + ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+      ),
+      userAgent: userAgent || '',
+      isRevoked: false
+    },
+    { upsert: true, new: true }
+  )
 
   const reportSetting = await ReportSettingModel.findOne(
     {

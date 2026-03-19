@@ -2,12 +2,12 @@ import app from './src/app'
 import { Env } from './src/config/env.config'
 import connectDB from './src/config/database.config'
 import { initializeCrons } from './src/cron'
-import { checkOverload, countConnect } from './src/utils/check-db-connect'
+import { checkOverload } from './src/utils/check-db-connect'
 
 const startServer = async () => {
   try {
     await connectDB()
-    checkOverload()
+    // checkOverload()
 
     if (Env.NODE_ENV === 'development') {
       await initializeCrons()
