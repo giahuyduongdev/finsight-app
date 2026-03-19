@@ -22,6 +22,11 @@ const accessTokenSignOptions: SignOptsAndSecret = {
   secret: Env.JWT_SECRET
 }
 
+export const refreshTokenSignOptions: SignOptsAndSecret = {
+  expiresIn: Env.JWT_REFRESH_EXPIRES_IN as TimeString,
+  secret: Env.JWT_REFRESH_SECRET
+}
+
 export const signJwtToken = (
   payload: AccessTokenPayload,
   options?: SignOptsAndSecret

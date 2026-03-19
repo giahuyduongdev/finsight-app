@@ -22,6 +22,8 @@ const envConfig = () => ({
   RESEND_API_KEY: getEnv('RESEND_API_KEY'),
   RESEND_MAILER_SENDER: getEnv('RESEND_MAILER_SENDER', ''),
 
+  REDIS_URL: getEnv('REDIS_URL', 'redis://localhost:6379'),
+
   FRONTEND_ORIGIN: getEnv('FRONTEND_ORIGIN', 'localhost')
 })
 

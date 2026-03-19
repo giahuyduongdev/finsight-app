@@ -16,6 +16,9 @@ import { passportAuthenticateJwt } from './config/passport.config'
 import { initializeCrons } from './cron'
 import reportRoutes from './routes/report.route'
 import analyticsRoutes from './routes/analytics.route'
+import './config/redis.config'
+import { checkBlacklist } from './middlewares/blacklist.middleware'
+import cookieParser from 'cookie-parser'
 
 const app = express()
 const BASE_PATH = Env.BASE_PATH
@@ -23,7 +26,10 @@ const BASE_PATH = Env.BASE_PATH
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+app.use(cookieParser())
+
 app.use(passport.initialize())
+app.use(checkBlacklist)
 
 app.use(
   cors({
