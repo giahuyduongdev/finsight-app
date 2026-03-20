@@ -13,6 +13,7 @@ import TransactionModel, {
 } from '../models/transaction.model'
 import mongoose from 'mongoose'
 import { formatInTimeZone } from 'date-fns-tz'
+import { getExchangeRate } from '../utils/currency'
 
 export const getAllReportsService = async (
   userId: string,
@@ -79,7 +80,8 @@ export const generateReportService = async (
   userId: string,
   fromDate: Date,
   toDate: Date,
-  timezone: string
+  timezone: string,
+  preferredCurrency: string = 'USD'
 ) => {
   const results = await TransactionModel.aggregate([
     {
@@ -90,25 +92,25 @@ export const generateReportService = async (
     },
     {
       $facet: {
+        // Group theo currency
         summary: [
           {
             $group: {
-              _id: null,
+              _id: '$currency',
               totalIncome: {
                 $sum: {
                   $cond: [
                     { $eq: ['$type', TransactionTypeEnum.INCOME] },
-                    { $abs: '$amount' },
+                    '$amount',
                     0
                   ]
                 }
               },
-
               totalExpenses: {
                 $sum: {
                   $cond: [
                     { $eq: ['$type', TransactionTypeEnum.EXPENSE] },
-                    { $abs: '$amount' },
+                    '$amount',
                     0
                   ]
                 }
@@ -116,92 +118,98 @@ export const generateReportService = async (
             }
           }
         ],
-
+        // Group category theo currency
         categories: [
-          {
-            $match: { type: TransactionTypeEnum.EXPENSE }
-          },
+          { $match: { type: TransactionTypeEnum.EXPENSE } },
           {
             $group: {
-              _id: '$category',
-              total: { $sum: { $abs: '$amount' } }
+              _id: { category: '$category', currency: '$currency' },
+              total: { $sum: '$amount' }
             }
           },
-          {
-            $sort: { total: -1 }
-          },
-          {
-            $limit: 5
-          }
+          { $sort: { total: -1 } }
         ]
-      }
-    },
-    {
-      $project: {
-        totalIncome: {
-          $arrayElemAt: ['$summary.totalIncome', 0]
-        },
-        totalExpenses: {
-          $arrayElemAt: ['$summary.totalExpenses', 0]
-        },
-        categories: 1
       }
     }
   ])
 
-  if (
-    !results?.length ||
-    (results[0]?.totalIncome === 0 && results[0]?.totalExpenses === 0)
-  )
-    return null
+  if (!results?.length) return null
 
-  const {
-    totalIncome = 0,
-    totalExpenses = 0,
-    categories = []
-  } = results[0] || {}
+  const { summary = [], categories = [] } = results[0] || {}
 
-  console.log(results[0], 'results')
+  if (!summary.length) return null
 
-  const byCategory = categories.reduce(
-    (acc: any, { _id, total }: any) => {
-      acc[_id] = {
-        amount: convertToDollarUnit(total),
+  // Convert từng currency về preferredCurrency
+  let convertedIncome = 0
+  let convertedExpenses = 0
+
+  for (const item of summary) {
+    const fromCurrency = item._id || 'USD'
+    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
+    convertedIncome += item.totalIncome * rate
+    convertedExpenses += item.totalExpenses * rate
+  }
+
+  if (convertedIncome === 0 && convertedExpenses === 0) return null
+
+  // Convert categories theo currency
+  const categoryMap: Record<string, number> = {}
+  for (const item of categories) {
+    const { category, currency } = item._id
+    const fromCurrency = currency || 'USD'
+    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
+    const convertedTotal = item.total * rate
+    categoryMap[category] = (categoryMap[category] || 0) + convertedTotal
+  }
+
+  // Sort và limit top 5
+  const top5Categories = Object.entries(categoryMap)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+
+  const byCategory = top5Categories.reduce(
+    (acc, [name, amount]) => {
+      acc[name] = {
+        amount,
         percentage:
-          totalExpenses > 0 ? Math.round((total / totalExpenses) * 100) : 0
+          convertedExpenses > 0
+            ? Math.round((amount / convertedExpenses) * 100)
+            : 0
       }
       return acc
     },
     {} as Record<string, { amount: number; percentage: number }>
   )
 
-  const availableBalance = totalIncome - totalExpenses
-  const savingsRate = calculateSavingRate(totalIncome, totalExpenses)
+  const availableBalance = convertedIncome - convertedExpenses
+  const savingsRate = calculateSavingRate(convertedIncome, convertedExpenses)
 
   const periodLabel = `${formatInTimeZone(fromDate, timezone, 'MMMM d')} - ${formatInTimeZone(toDate, timezone, 'd, yyyy')}`
 
   const insights = await generateInsightsAI({
-    totalIncome,
-    totalExpenses,
+    totalIncome: convertedIncome,
+    totalExpenses: convertedExpenses,
     availableBalance,
     savingsRate,
     categories: byCategory,
-    periodLabel: periodLabel
+    periodLabel,
+    currency: preferredCurrency
   })
 
   return {
     period: periodLabel,
     summary: {
-      income: convertToDollarUnit(totalIncome),
-      expenses: convertToDollarUnit(totalExpenses),
-      balance: convertToDollarUnit(availableBalance),
+      income: convertedIncome,
+      expenses: convertedExpenses,
+      balance: availableBalance,
       savingsRate: Number(savingsRate.toFixed(1)),
-      topCategories: Object.entries(byCategory)?.map(([name, cat]: any) => ({
+      topCategories: Object.entries(byCategory).map(([name, cat]) => ({
         name,
         amount: cat.amount,
         percent: cat.percentage
       }))
     },
+    currency: preferredCurrency,
     insights
   }
 }
@@ -212,7 +220,8 @@ async function generateInsightsAI({
   availableBalance,
   savingsRate,
   categories,
-  periodLabel
+  periodLabel,
+  currency = 'USD'
 }: {
   totalIncome: number
   totalExpenses: number
@@ -220,15 +229,17 @@ async function generateInsightsAI({
   savingsRate: number
   categories: Record<string, { amount: number; percentage: number }>
   periodLabel: string
+  currency?: string
 }) {
   try {
     const prompt = reportInsightPrompt({
-      totalIncome: convertToDollarUnit(totalIncome),
-      totalExpenses: convertToDollarUnit(totalExpenses),
-      availableBalance: convertToDollarUnit(availableBalance),
+      totalIncome, // bỏ convertToDollarUnit
+      totalExpenses, //
+      availableBalance,
       savingsRate: Number(savingsRate.toFixed(1)),
       categories,
-      periodLabel
+      periodLabel,
+      currency
     })
 
     const result = await genAI.models.generateContent({

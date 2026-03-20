@@ -1,29 +1,35 @@
 import { PaymentMethodEnum } from '../models/transaction.model'
+import { CurrencyEnum } from '../enums/currency.enum'
+import { formatCurrency } from '../utils/format-currency'
 
 export const receiptPrompt = `
 You are a financial assistant that helps users analyze and extract transaction details from receipt image (base64 encoded)
 Analyze this receipt image (base64 encoded) and extract transaction details matching this exact JSON format:
 {
   "title": "string",          // Merchant/store name or brief description
-  "amount": number,           // Total amount (positive number)
+  "amount": number,           // Total amount (positive number, without currency symbol)
+  "currency": "string",       // One of: ${Object.values(CurrencyEnum).join(',')} - detect from receipt symbol or country, default USD
   "date": "ISO date string",  // Transaction date in YYYY-MM-DD format
   "description": "string",    // Items purchased summary (max 50 words)
   "category": "string",       // category of the transaction 
-  "type": "EXPENSE",           // Always "EXPENSE" for receipts
+  "type": "EXPENSE",          // Always "EXPENSE" for receipts
   "paymentMethod": "string",  // One of: ${Object.values(PaymentMethodEnum).join(',')}
 }
 
 Rules:
 1. Amount must be positive
 2. Date must be valid and in ISO format
-3. Category must match our enum values and  must have only the first letter capitalized
-4. If uncertain about any field, omit it
-5. If not a receipt, return {}
+3. Category must match our enum values and must have only the first letter capitalized
+4. Currency must be one of: ${Object.values(CurrencyEnum).join(',')}
+5. If currency symbol not found on receipt, default to USD
+6. If uncertain about any field, omit it
+7. If not a receipt, return {}
 
 Example valid response:
 {
   "title": "Walmart Groceries",
   "amount": 58.43,
+  "currency": "USD",
   "date": "2025-05-08",
   "description": "Groceries: milk, eggs, bread",
   "category": "groceries",
@@ -38,7 +44,8 @@ export const reportInsightPrompt = ({
   availableBalance,
   savingsRate,
   categories,
-  periodLabel
+  periodLabel,
+  currency = 'USD' // ✅
 }: {
   totalIncome: number
   totalExpenses: number
@@ -46,15 +53,14 @@ export const reportInsightPrompt = ({
   savingsRate: number
   categories: Record<string, { amount: number; percentage: number }>
   periodLabel: string
+  currency?: string // ✅
 }) => {
   const categoryList = Object.entries(categories)
     .map(
       ([name, { amount, percentage }]) =>
-        `- ${name}: ${amount} (${percentage}%)`
+        `- ${name}: ${formatCurrency(amount, currency)} (${percentage}%)` // ✅
     )
     .join('\n')
-
-  console.log(categoryList, 'category list')
 
   return `
   You are a friendly and smart financial coach, not a robot.
@@ -64,9 +70,9 @@ Your job is to give **exactly 3 good short insights** to the user based on their
 Each insight should reflect the actual data and sound like something a smart money coach would say based on the data — short, clear, and practical.
 
 🧾 Report for: ${periodLabel}
-- Total Income: $${totalIncome.toFixed(2)}
-- Total Expenses: $${totalExpenses.toFixed(2)}
-- Available Balance: $${availableBalance.toFixed(2)}
+- Total Income: ${formatCurrency(totalIncome, currency)}
+- Total Expenses: ${formatCurrency(totalExpenses, currency)}
+- Available Balance: ${formatCurrency(availableBalance, currency)}
 - Savings Rate: ${savingsRate}%
 
 Top Expense Categories:
@@ -83,7 +89,7 @@ ${categoryList}
 
 ✅ Example:
 [
-   "Nice! You kept $7,458 after expenses — that’s solid breathing room.",
+   "Nice! You kept ${formatCurrency(7458, currency)} after expenses — that's solid breathing room.",
    "You spent the most on 'Meals' this period — 32%. Maybe worth keeping an eye on.",
    "You stayed under budget this time. That's a win — keep the momentum"
 ]

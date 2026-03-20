@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose'
 import { compareValue, hashValue } from '../utils/bcrypt'
+import { CurrencyEnum } from '../enums/currency.enum'
 
 export interface UserDocument extends Document {
   name: string
@@ -7,6 +8,7 @@ export interface UserDocument extends Document {
   password: string
   profilePicture: string | null
   timezone: string
+  preferredCurrency: string
   createdAt: Date
   updatedAt: Date
   comparePassword: (password: string) => Promise<boolean>
@@ -39,6 +41,11 @@ const userSchema = new Schema<UserDocument>(
     timezone: {
       type: String,
       default: 'UTC'
+    },
+    preferredCurrency: {
+      type: String,
+      enum: Object.values(CurrencyEnum),
+      default: CurrencyEnum.USD
     }
   },
   {

@@ -13,6 +13,7 @@ export const summaryAnalyticsController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?._id
     const timezone = req.user?.timezone || 'UTC'
+    const preferredCurrency = req.user?.preferredCurrency || 'USD'
 
     const { preset, from, to } = req.query
 
@@ -23,12 +24,14 @@ export const summaryAnalyticsController = asyncHandler(
         : undefined,
       customTo: to ? fromZonedTime(new Date(to as string), timezone) : undefined
     }
+
     const stats = await summaryAnalyticsService(
       userId,
       filter.dateRangePreset,
       filter.customFrom,
       filter.customTo,
-      timezone
+      timezone,
+      preferredCurrency
     )
 
     return res.status(HTTPSTATUS.OK).json({
@@ -42,6 +45,7 @@ export const chartAnalyticsController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?._id
     const timezone = req.user?.timezone || 'UTC'
+    const preferredCurrency = req.user?.preferredCurrency || 'USD'
 
     const { preset, from, to } = req.query
 
@@ -58,7 +62,8 @@ export const chartAnalyticsController = asyncHandler(
       filter.dateRangePreset,
       filter.customFrom,
       filter.customTo,
-      timezone
+      timezone,
+      preferredCurrency
     )
 
     return res.status(HTTPSTATUS.OK).json({
@@ -72,6 +77,7 @@ export const expensePieChartBreakdownController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?._id
     const timezone = req.user?.timezone || 'UTC'
+    const preferredCurrency = req.user?.preferredCurrency || 'USD'
 
     const { preset, from, to } = req.query
 
@@ -79,7 +85,7 @@ export const expensePieChartBreakdownController = asyncHandler(
       dateRangePreset: preset as DateRangePreset,
       customFrom: from
         ? fromZonedTime(new Date(from as string), timezone)
-        : undefined, // ✅
+        : undefined,
       customTo: to ? fromZonedTime(new Date(to as string), timezone) : undefined
     }
 
@@ -88,7 +94,8 @@ export const expensePieChartBreakdownController = asyncHandler(
       filter.dateRangePreset,
       filter.customFrom,
       filter.customTo,
-      timezone
+      timezone,
+      preferredCurrency
     )
 
     return res.status(HTTPSTATUS.OK).json({

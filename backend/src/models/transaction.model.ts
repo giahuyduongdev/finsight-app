@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose'
-import { convertToCents, convertToDollarUnit } from '../utils/format-currency'
+import { CurrencyEnum } from '../enums/currency.enum'
 
 export enum TransactionStatusEnum {
   PENDING = 'PENDING',
@@ -33,6 +33,7 @@ export interface TransactionDocument extends Document {
   type: keyof typeof TransactionTypeEnum
   title: string
   amount: number
+  currency: string
   category: string
   receiptUrl?: string
   recurringInterval?: keyof typeof RecurringIntervalEnum
@@ -65,9 +66,12 @@ const transactionSchema = new Schema<TransactionDocument>(
     },
     amount: {
       type: Number,
-      required: true,
-      set: (value: number) => convertToCents(value),
-      get: (value: number) => convertToDollarUnit(value)
+      required: true
+    },
+    currency: {
+      type: String,
+      enum: Object.values(CurrencyEnum),
+      default: CurrencyEnum.USD
     },
     description: {
       type: String
@@ -113,8 +117,8 @@ const transactionSchema = new Schema<TransactionDocument>(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true, getters: true },
-    toObject: { virtuals: true, getters: true }
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 )
 

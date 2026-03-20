@@ -54,7 +54,8 @@ export const processReportJob = async () => {
           user.id,
           fromUTC,
           toUTC,
-          timezone
+          timezone,
+          user.preferredCurrency
         )
 
         console.log(report, 'resport data')
@@ -72,7 +73,8 @@ export const processReportJob = async () => {
                 availableBalance: report.summary.balance,
                 savingsRate: report.summary.savingsRate,
                 topSpendingCategories: report.summary.topCategories,
-                insights: report.insights
+                insights: report.insights,
+                currency: report.currency || 'USD'
               },
               frequency: setting.frequency!
             })

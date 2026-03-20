@@ -36,6 +36,7 @@ export const createTransactionService = async (
     userId,
     category: body.category,
     amount: Number(body.amount),
+    currency: body.currency || 'USD',
     isRecurring: body.isRecurring,
     recurringInterval: body.recurringInterval || null,
     nextRecurringDate,
@@ -186,6 +187,7 @@ export const updateTransactionService = async (
     ...(body.type && { type: body.type }),
     ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
     ...(body.amount !== undefined && { amount: Number(body.amount) }),
+    ...(body.currency && { currency: body.currency }),
     date,
     isRecurring,
     recurringInterval,
@@ -310,6 +312,7 @@ export const scanReceiptService = async (
     return {
       title: data.title || 'Receipt',
       amount: data.amount,
+      currency: data.currency || 'USD',
       date: data.date,
       description: data.description,
       category: data.category,
