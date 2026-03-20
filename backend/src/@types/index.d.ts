@@ -5,6 +5,7 @@ declare global {
     interface User extends UserDocument {
       _id?: any
       timezone?: string
+      preferredCurrency?: string
     }
   }
 }

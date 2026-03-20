@@ -13,7 +13,8 @@ export const registerSchema = z.object({
   name: z.string().trim().min(1).max(255),
   email: emailSchema,
   password: passwordSchema,
-  timezone: z.string().optional()
+  timezone: z.string().optional(),
+  preferredCurrency: z.string().optional()
 })
 
 export const loginSchema = z.object({

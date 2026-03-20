@@ -14,7 +14,8 @@ export const getReportEmailTemplate = (
     availableBalance,
     savingsRate,
     topSpendingCategories,
-    insights
+    insights,
+    currency = 'USD'
   } = reportData
 
   const reportTitle = `${capitalizeFirstLetter(frequency)} Report`
@@ -22,7 +23,7 @@ export const getReportEmailTemplate = (
   const categoryList = topSpendingCategories
     .map(
       (cat: any) => `<li>
-      ${cat.name} - ${formatCurrency(cat.amount)} (${cat.percent}%)
+      ${cat.name} - ${formatCurrency(cat.amount, currency)} (${cat.percent}%)
       </li>
     `
     )
@@ -39,7 +40,6 @@ export const getReportEmailTemplate = (
    <head>
      <meta charset="UTF-8" />
      <title>${reportTitle}</title>
-     <!-- Google Fonts Link -->
      <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
    </head>
    <body style="margin: 0; padding: 0; font-family: 'Roboto', Arial, sans-serif; background-color: #f7f7f7; font-size: 16px;">
@@ -60,15 +60,15 @@ export const getReportEmailTemplate = (
                  <table width="100%" style="border-collapse: collapse;">
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Total Income:</strong></td>
-                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalIncome)}</td>
+                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalIncome, currency)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Total Expenses:</strong></td>
-                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalExpenses)}</td>
+                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalExpenses, currency)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Available Balance:</strong></td>
-                     <td style="text-align: right; font-size: 16px;">${formatCurrency(availableBalance)}</td>
+                     <td style="text-align: right; font-size: 16px;">${formatCurrency(availableBalance, currency)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Savings Rate:</strong></td>

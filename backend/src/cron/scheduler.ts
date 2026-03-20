@@ -26,8 +26,10 @@ const scheduleJob = (name: string, time: string, job: Function) => {
 export const startJobs = () => {
   return [
     // scheduleJob('Transaction', '* * * * *', processRecurringTransactions),
+
     //Run 2:30am every first of the month
-    // scheduleJob('Reports', '30 2 1 * *', processReportJob)
+    // scheduleJob('Reports', '30 2 1 * *', processReportJob),
+
     // Chạy 00:00 mỗi ngày
     scheduleJob('Cleanup Tokens', '0 0 * * *', async () => {
       await RefreshTokenModel.deleteMany({

@@ -6,4 +6,5 @@ export type ReportType = {
   savingsRate: number
   topSpendingCategories: Array<{ name: string; percent: number }>
   insights: string[]
+  currency?: string
 }

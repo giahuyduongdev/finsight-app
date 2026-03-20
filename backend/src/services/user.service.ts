@@ -20,7 +20,9 @@ export const updateUserService = async (
   }
 
   user.set({
-    name: body.name
+    name: body.name,
+    timezone: body.timezone,
+    preferredCurrency: body.preferredCurrency
   })
 
   await user.save()

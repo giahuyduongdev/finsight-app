@@ -4,6 +4,7 @@ import {
   RecurringIntervalEnum,
   TransactionTypeEnum
 } from '../models/transaction.model'
+import { CurrencyEnum } from '../enums/currency.enum'
 
 export const transactionIdSchema = z.string().trim().min(1)
 
@@ -15,6 +16,9 @@ export const baseTransactionSchema = z.object({
     })
   }),
   amount: z.number().positive('Amount must be postive').min(1),
+  currency: z
+    .enum(Object.values(CurrencyEnum) as [string, ...string[]])
+    .default(CurrencyEnum.USD),
   category: z.string().min(1, 'Category is required'),
   date: z
     .union([z.string().datetime({ message: 'Invalid date string' }), z.date()])

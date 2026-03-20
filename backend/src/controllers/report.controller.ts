@@ -46,6 +46,7 @@ export const generateReportController = asyncHandler(
     const userId = req.user?._id
     const { from, to } = req.query
     const timezone = req.user?.timezone || 'UTC'
+    const preferredCurrency = req.user?.preferredCurrency || 'USD'
     const fromDate = fromZonedTime(`${from}T00:00:00`, timezone as string)
     const toDate = fromZonedTime(`${to}T23:59:59`, timezone as string)
 
@@ -53,7 +54,8 @@ export const generateReportController = asyncHandler(
       userId,
       fromDate,
       toDate,
-      timezone as string
+      timezone as string,
+      preferredCurrency
     )
 
     return res.status(HTTPSTATUS.OK).json({
