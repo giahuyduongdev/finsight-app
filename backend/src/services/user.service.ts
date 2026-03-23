@@ -1,6 +1,7 @@
 import UserModel from '../models/user.model'
 import { NotFoundException } from '../utils/app-error'
 import { UpdateUserType } from '../validators/user.validator'
+import { redis } from '../config/redis.config'
 
 export const findByIdUserService = async (userId: string) => {
   const user = await UserModel.findById(userId)
@@ -25,6 +26,7 @@ export const updateUserService = async (
     preferredCurrency: body.preferredCurrency
   })
 
+  await redis.del(`user:${userId}`) // Xóa cache khi update
   await user.save()
 
   return user.omitPassword()
