@@ -6,6 +6,7 @@ declare global {
       _id?: any
       timezone?: string
       preferredCurrency?: string
+      role?: string
     }
   }
 }

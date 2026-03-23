@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose'
 import { compareValue, hashValue } from '../utils/bcrypt'
 import { CurrencyEnum } from '../enums/currency.enum'
+import { RoleUserEnum } from '../enums/role-user.enum'
 
 export interface UserDocument extends Document {
   name: string
@@ -9,6 +10,7 @@ export interface UserDocument extends Document {
   profilePicture: string | null
   timezone: string
   preferredCurrency: string
+  role: string
   createdAt: Date
   updatedAt: Date
   comparePassword: (password: string) => Promise<boolean>
@@ -46,6 +48,11 @@ const userSchema = new Schema<UserDocument>(
       type: String,
       enum: Object.values(CurrencyEnum),
       default: CurrencyEnum.USD
+    },
+    role: {
+      type: String,
+      enum: Object.values(RoleUserEnum),
+      default: RoleUserEnum.USER
     }
   },
   {
