@@ -45,7 +45,7 @@ export const reportInsightPrompt = ({
   savingsRate,
   categories,
   periodLabel,
-  currency = 'USD' // ✅
+  currency = 'USD'
 }: {
   totalIncome: number
   totalExpenses: number
@@ -53,12 +53,12 @@ export const reportInsightPrompt = ({
   savingsRate: number
   categories: Record<string, { amount: number; percentage: number }>
   periodLabel: string
-  currency?: string // ✅
+  currency?: string
 }) => {
   const categoryList = Object.entries(categories)
     .map(
       ([name, { amount, percentage }]) =>
-        `- ${name}: ${formatCurrency(amount, currency)} (${percentage}%)` // ✅
+        `- ${name}: ${formatCurrency(amount, currency)} (${percentage}%)`
     )
     .join('\n')
 

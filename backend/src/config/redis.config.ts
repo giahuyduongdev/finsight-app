@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit'
 import RedisStore from 'rate-limit-redis'
 
 export const redis = new Redis(Env.REDIS_URL || 'redis://localhost:6379')
-
+// export const redis = new Redis(Env.UPSTASH_REDIS_URL)
 redis.on('connect', () => console.log('Connected to Redis'))
 redis.on('error', (err) => console.error('Redis error:', err))
 

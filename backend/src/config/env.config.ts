@@ -33,6 +33,7 @@ const envConfig = () => ({
   RESEND_MAILER_SENDER: getEnv('RESEND_MAILER_SENDER', ''),
 
   REDIS_URL: getEnv('REDIS_URL', 'redis://localhost:6379'),
+  UPSTASH_REDIS_URL: getEnv('UPSTASH_REDIS_URL'),
 
   FRONTEND_ORIGIN: getEnv('FRONTEND_ORIGIN', 'localhost')
 })

@@ -69,7 +69,7 @@ export const processRecurringTransactions = async () => {
       }
     }
 
-    console.log(`✅Processed: ${processedCount} transaction`)
+    console.log(`Processed: ${processedCount} transaction`)
     console.log(`❌ Failed: ${failedCount} transaction`)
 
     return {
