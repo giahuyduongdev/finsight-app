@@ -12,6 +12,7 @@ import axios from 'axios'
 import { genAI, genAIModel } from '../config/google-ai.config'
 import { createPartFromBase64, createUserContent } from '@google/genai'
 import { receiptPrompt } from '../utils/prompt'
+import { redis } from '../config/redis.config'
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -42,6 +43,10 @@ export const createTransactionService = async (
     nextRecurringDate,
     lastProcess: null
   })
+
+  // Invalidate analytics cache
+  const keys = await redis.keys(`analytics:*:${userId}:*`)
+  if (keys.length) await redis.del(...keys)
 
   return transaction
 }
@@ -196,6 +201,10 @@ export const updateTransactionService = async (
 
   await existingTransaction.save()
 
+  // Invalidate analytics cache
+  const keys = await redis.keys(`analytics:*:${userId}:*`)
+  if (keys.length) await redis.del(...keys)
+
   return existingTransaction
 }
 
@@ -208,6 +217,10 @@ export const deleteTransactionService = async (
     userId
   })
   if (!deleted) throw new NotFoundException('Transaction not found')
+
+  // Invalidate analytics cache
+  const keys = await redis.keys(`analytics:*:${userId}:*`)
+  if (keys.length) await redis.del(...keys)
 
   return
 }
@@ -223,6 +236,10 @@ export const bulkDeleteTransactionService = async (
 
   if (result.deletedCount === 0)
     throw new NotFoundException('No transations found')
+
+  // Invalidate analytics cache
+  const keys = await redis.keys(`analytics:*:${userId}:*`)
+  if (keys.length) await redis.del(...keys)
 
   return {
     sucess: true,
@@ -253,6 +270,10 @@ export const bulkTransactionService = async (
     const result = await TransactionModel.bulkWrite(bulkOps, {
       ordered: true
     })
+
+    // Invalidate analytics cache
+    const keys = await redis.keys(`analytics:*:${userId}:*`)
+    if (keys.length) await redis.del(...keys)
 
     return {
       insertedCount: result.insertedCount,

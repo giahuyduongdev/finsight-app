@@ -7,6 +7,7 @@ import { getDateRange } from '../utils/date'
 import { differenceInDays, subDays, subYears } from 'date-fns'
 import { convertToDollarUnit } from '../utils/format-currency'
 import { getExchangeRate } from '../utils/currency'
+import { redis } from '../config/redis.config'
 
 export const summaryAnalyticsService = async (
   userId: string,
@@ -14,8 +15,18 @@ export const summaryAnalyticsService = async (
   customFrom?: Date,
   customTo?: Date,
   timezone: string = 'UTC',
-  preferredCurrency: string = 'USD' // ✅
+  preferredCurrency: string = 'USD'
 ) => {
+  // Tạo cache key unique theo user + preset + currency
+  const cacheKey = `analytics:summary:${userId}:${dateRangePreset || 'allTime'}:${preferredCurrency}`
+
+  // Check Redis cache trước
+  const cached = await redis.get(cacheKey)
+  if (cached) {
+    console.log('Cache hit:', cacheKey)
+    return JSON.parse(cached)
+  }
+
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
@@ -155,8 +166,8 @@ export const summaryAnalyticsService = async (
     }
   }
 
-  return {
-    availableBalance, // Bỏ convertToDollarUnit
+  const result = {
+    availableBalance,
     totalIncome,
     totalExpenses,
     savingRate: {
@@ -165,13 +176,18 @@ export const summaryAnalyticsService = async (
     },
     transactionCount,
     percentageChange,
-    currency: preferredCurrency, // ✅
+    currency: preferredCurrency,
     preset: {
       ...range,
       value: rangeValue || DateRangeEnum.ALL_TIME,
       label: range?.label || 'All Time'
     }
   }
+
+  // Lưu Redis TTL = 5 phút
+  await redis.set(cacheKey, JSON.stringify(result), 'EX', 300)
+
+  return result
 }
 
 export const chartAnalyticsService = async (
@@ -182,6 +198,11 @@ export const chartAnalyticsService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD' //
 ) => {
+  // Check Redis cache trước
+  const cacheKey = `analytics:chart:${userId}:${dateRangePreset || 'allTime'}:${preferredCurrency}`
+  const cached = await redis.get(cacheKey)
+  if (cached) return JSON.parse(cached)
+
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
@@ -285,17 +306,22 @@ export const chartAnalyticsService = async (
     0
   )
 
-  return {
+  const result2 = {
     chartData,
     totalIncomeCount,
     totalExpenseCount,
-    currency: preferredCurrency, //
+    currency: preferredCurrency,
     preset: {
       ...range,
       value: rangeValue || DateRangeEnum.ALL_TIME,
       label: range?.label || 'All Time'
     }
   }
+
+  // Lưu Redis TTL = 5 phút
+  await redis.set(cacheKey, JSON.stringify(result2), 'EX', 300)
+
+  return result2
 }
 
 export const expensePieChartBreakdownService = async (
@@ -306,6 +332,11 @@ export const expensePieChartBreakdownService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD' //
 ) => {
+  // Check Redis cache trước
+  const cacheKey = `analytics:pie:${userId}:${dateRangePreset || 'allTime'}:${preferredCurrency}`
+  const cached = await redis.get(cacheKey)
+  if (cached) return JSON.parse(cached)
+
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
@@ -367,7 +398,7 @@ export const expensePieChartBreakdownService = async (
       : [])
   ]
 
-  return {
+  const resultData = {
     totalSpent,
     breakdown,
     currency: preferredCurrency,
@@ -377,6 +408,11 @@ export const expensePieChartBreakdownService = async (
       label: range?.label || 'All Time'
     }
   }
+
+  // Lưu Redis TTL = 5 phút
+  await redis.set(cacheKey, JSON.stringify(resultData), 'EX', 300)
+
+  return resultData
 }
 
 function calaulatePercentageChange(previous: number, current: number) {

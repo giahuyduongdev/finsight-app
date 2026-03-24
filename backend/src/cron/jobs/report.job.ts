@@ -166,7 +166,7 @@ export const processReportJob = async () => {
       }
     }
 
-    console.log(`✅Processed: ${processedCount} report`)
+    console.log(`Processed: ${processedCount} report`)
     console.log(`❌ Failed: ${failedCount} report`)
 
     return {

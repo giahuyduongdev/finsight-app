@@ -35,7 +35,7 @@ export const startJobs = () => {
       await RefreshTokenModel.deleteMany({
         $or: [{ isRevoked: true }, { expiresAt: { $lt: new Date() } }]
       })
-      console.log('✅ Cleaned up expired tokens')
+      console.log('Cleaned up expired tokens')
     })
   ]
 }
