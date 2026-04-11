@@ -1,6 +1,6 @@
 import { ReportType } from '../../@types/report.type'
-import { formatCurrency } from '../../utils/format-currency'
-import { capitalizeFirstLetter } from '../../utils/helper'
+import { formatCurrency } from '../../utils/format-currency.util'
+import { capitalizeFirstLetter } from '../../utils/string.util'
 
 export const getReportEmailTemplate = (
   reportData: ReportType & { username: string },
@@ -90,7 +90,7 @@ export const getReportEmailTemplate = (
              </tr>
              <tr>
                <td style="background-color: #f0f0f0; text-align: center; padding: 15px; font-size: 12px; color: #999;">
-                 &copy; ${currentYear} Finbase. All rights reserved.
+                 &copy; ${currentYear} Finsight. All rights reserved.
                </td>
              </tr>
            </table>

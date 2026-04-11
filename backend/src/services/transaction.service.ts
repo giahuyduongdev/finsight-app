@@ -2,17 +2,18 @@ import { title } from 'process'
 import TransactionModel, {
   TransactionTypeEnum
 } from '../models/transaction.model'
-import { calculateNextOccurrence } from '../utils/helper'
+import { calculateNextOccurrence } from '../utils/dates/index'
 import {
   CreateTransactionType,
   UpdateTransactionType
 } from '../validators/transaction.validator'
-import { BadRequestException, NotFoundException } from '../utils/app-error'
+import { BadRequestException, NotFoundException } from '../utils/errors/index'
 import axios from 'axios'
 import { genAI, genAIModel } from '../config/google-ai.config'
 import { createPartFromBase64, createUserContent } from '@google/genai'
-import { receiptPrompt } from '../utils/prompt'
+import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { redis } from '../config/redis.config'
+import { CurrencyType } from '../enums/currency.enum'
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -57,13 +58,14 @@ export const getAllTransactionService = async (
     keyword?: string
     type?: keyof typeof TransactionTypeEnum
     recurringStatus?: 'RECURRING' | 'NON_RECURRING'
+    currency?: CurrencyType
   },
   pagination: {
     pageSize: number
     pageNumber: number
   }
 ) => {
-  const { keyword, type, recurringStatus } = filters
+  const { keyword, type, recurringStatus, currency } = filters
 
   const filterConditions: Record<string, any> = {
     userId
@@ -80,6 +82,10 @@ export const getAllTransactionService = async (
     filterConditions.type = type
   }
 
+  if (currency) {
+    filterConditions.currency = currency
+  }
+
   if (recurringStatus) {
     if (recurringStatus === 'RECURRING') {
       filterConditions.isRecurring = true
@@ -91,7 +97,7 @@ export const getAllTransactionService = async (
   const { pageSize, pageNumber } = pagination
   const skip = (pageNumber - 1) * pageSize
 
-  const [transations, totalCount] = await Promise.all([
+  const [transactions, totalCount] = await Promise.all([
     TransactionModel.find(filterConditions)
       .skip(skip)
       .limit(pageSize)
@@ -102,7 +108,7 @@ export const getAllTransactionService = async (
   const totalPages = Math.ceil(totalCount / pageSize)
 
   return {
-    transations,
+    transactions,
     pagination: {
       pageSize,
       pageNumber,
@@ -291,8 +297,6 @@ export const scanReceiptService = async (
 
   try {
     if (!file.path) throw new BadRequestException('failed to upload file')
-
-    console.log(file.path)
 
     const responseData = await axios.get(file.path, {
       responseType: 'arraybuffer'

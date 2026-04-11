@@ -2,7 +2,7 @@ import { v2 as cloudinary } from 'cloudinary'
 import { CloudinaryStorage } from 'multer-storage-cloudinary'
 import { Env } from './env.config'
 import multer from 'multer'
-import { BadRequestException } from '../utils/app-error'
+import { BadRequestException } from '../utils/errors/index'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
 
 cloudinary.config({

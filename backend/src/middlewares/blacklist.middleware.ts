@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { redis } from '../config/redis.config'
-import { UnauthorizedException } from '../utils/app-error'
+import { UnauthorizedException } from '../utils/errors/index'
 
 export const checkBlacklist = async (
   req: Request,

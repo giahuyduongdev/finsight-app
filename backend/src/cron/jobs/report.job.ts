@@ -4,21 +4,16 @@ import { UserDocument } from '../../models/user.model'
 import mongoose from 'mongoose'
 import { generateReportService } from '../../services/report.service'
 import ReportModel, { ReportStatusEnum } from '../../models/report.model'
-import { calculateNextReportDate } from '../../utils/helper'
+import { calculateNextReportDate } from '../../utils/dates/index'
 import { sendReportEmail } from '../../mailers/report.mailer'
 import { fromZonedTime, toZonedTime } from 'date-fns-tz'
+import { logger } from '../../config/logger.config'
 
 export const processReportJob = async () => {
   const now = new Date()
 
   let processedCount = 0
   let failedCount = 0
-
-  //Today july 1, then run report for -> june 1 - 30
-  //Get Last Month because this will run on the first of the month
-
-  // const from = "2025-04-01T23:00:00.000Z";
-  // const to = "2025-04-T23:00:00.000Z";
 
   try {
     const reportSettingCursor = ReportSettingModel.find({
@@ -28,19 +23,16 @@ export const processReportJob = async () => {
       .populate<{ userId: UserDocument }>('userId')
       .cursor()
 
-    console.log('Running report ')
+    logger.info('🔄 Starting report job...')
 
     for await (const setting of reportSettingCursor) {
       const user = setting.userId as UserDocument
       if (!user) {
-        console.log(`User not found for setting: ${setting._id}`)
+        logger.warn(`User not found for setting: ${setting._id}`)
         continue
       }
 
-      // Lấy timezone của từng user
       const timezone = user.timezone || 'UTC'
-
-      // Tính from/to theo timezone của user
       const nowInUserTz = toZonedTime(now, timezone)
       const from = startOfMonth(subMonths(nowInUserTz, 1))
       const to = endOfMonth(subMonths(nowInUserTz, 1))
@@ -58,7 +50,10 @@ export const processReportJob = async () => {
           user.preferredCurrency
         )
 
-        console.log(report, 'resport data')
+        logger.debug('Report data generated', {
+          userId: user.id,
+          period: report?.period
+        })
 
         let emailSent = false
         if (report) {
@@ -79,8 +74,12 @@ export const processReportJob = async () => {
               frequency: setting.frequency!
             })
             emailSent = true
+            logger.info('📧 Email sent successfully', { userId: user.id })
           } catch (error) {
-            console.log(`Email failed for ${user.id}`)
+            logger.error('Email failed', {
+              userId: user.id,
+              error: (error as Error).message
+            })
           }
         }
 
@@ -152,33 +151,31 @@ export const processReportJob = async () => {
               ReportSettingModel.bulkWrite(bulkSettings, { ordered: false })
             ])
           },
-          {
-            maxCommitTimeMS: 10000
-          }
+          { maxCommitTimeMS: 10000 }
         )
 
         processedCount++
       } catch (error) {
-        console.log(`Failed to process report`, error)
+        logger.error('Failed to process report', {
+          userId: user.id,
+          error: (error as Error).message
+        })
         failedCount++
       } finally {
         await session.endSession()
       }
     }
 
-    console.log(`Processed: ${processedCount} report`)
-    console.log(`❌ Failed: ${failedCount} report`)
+    logger.info(`✅ Processed: ${processedCount} reports`)
+    if (failedCount > 0) {
+      logger.warn(`❌ Failed: ${failedCount} reports`)
+    }
 
-    return {
-      success: true,
-      processedCount,
-      failedCount
-    }
+    return { success: true, processedCount, failedCount }
   } catch (error) {
-    console.error('Error processing reports', error)
-    return {
-      success: false,
-      error: 'Report process failed'
-    }
+    logger.error('Error processing reports', {
+      error: (error as Error).message
+    })
+    return { success: false, error: 'Report process failed' }
   }
 }

@@ -3,10 +3,9 @@ import { DateRangeEnum, DateRangePreset } from '../enums/date-range.enum'
 import TransactionModel, {
   TransactionTypeEnum
 } from '../models/transaction.model'
-import { getDateRange } from '../utils/date'
+import { getDateRange } from '../utils/dates'
 import { differenceInDays, subDays, subYears } from 'date-fns'
-import { convertToDollarUnit } from '../utils/format-currency'
-import { getExchangeRate } from '../utils/currency'
+import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { redis } from '../config/redis.config'
 
 export const summaryAnalyticsService = async (
@@ -23,7 +22,6 @@ export const summaryAnalyticsService = async (
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
   if (cached) {
-    console.log('Cache hit:', cacheKey)
     return JSON.parse(cached)
   }
 
@@ -153,9 +151,9 @@ export const summaryAnalyticsService = async (
     const prevBalance = prevIncome - prevExpenses
 
     percentageChange = {
-      income: calaulatePercentageChange(prevIncome, totalIncome),
-      expenses: calaulatePercentageChange(prevExpenses, totalExpenses),
-      balance: calaulatePercentageChange(prevBalance, availableBalance),
+      income: calculatePercentageChange(prevIncome, totalIncome),
+      expenses: calculatePercentageChange(prevExpenses, totalExpenses),
+      balance: calculatePercentageChange(prevBalance, availableBalance),
       prevPeriodFrom,
       prevPeriodTo,
       previousValues: {
@@ -415,9 +413,15 @@ export const expensePieChartBreakdownService = async (
   return resultData
 }
 
-function calaulatePercentageChange(previous: number, current: number) {
+function calculatePercentageChange(previous: number, current: number) {
+  // Nếu kỳ trước bằng 0:
+  // - Nếu kỳ này cũng bằng 0 -> Không thay đổi (0%)
+  // - Nếu kỳ này có tiền -> Tính là tăng 100% (quy ước UI phổ biến để tránh lỗi chia cho 0)
   if (previous === 0) return current === 0 ? 0 : 100
+
+  // Tính phần trăm thực tế
   const changes = ((current - previous) / Math.abs(previous)) * 100
-  const cappedChange = Math.min(Math.max(changes, -100), 100)
-  return parseFloat(cappedChange.toFixed(2))
+
+  // Trả về số thực tế, làm tròn 2 chữ số thập phân (Không dùng Math.min/max nữa)
+  return parseFloat(changes.toFixed(2))
 }

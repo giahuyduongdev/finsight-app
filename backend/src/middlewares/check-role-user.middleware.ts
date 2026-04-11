@@ -1,6 +1,6 @@
 // middlewares/check-role.middleware.ts
 import { Request, Response, NextFunction } from 'express'
-import { ForbiddenException } from '../utils/app-error'
+import { ForbiddenException } from '../utils/errors/index'
 
 export const checkRoleUser = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {

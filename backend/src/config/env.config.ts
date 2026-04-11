@@ -1,4 +1,4 @@
-import { getEnv } from '../utils/get-env'
+import { getEnv } from '../utils/get-env.util'
 
 const envConfig = () => ({
   NODE_ENV: getEnv('NODE_ENV', 'development'),
@@ -34,6 +34,16 @@ const envConfig = () => ({
 
   REDIS_URL: getEnv('REDIS_URL', 'redis://localhost:6379'),
   UPSTASH_REDIS_URL: getEnv('UPSTASH_REDIS_URL'),
+
+  AUTH0_DOMAIN: getEnv('AUTH0_DOMAIN'),
+  AUTH0_CLIENT_ID: getEnv('AUTH0_CLIENT_ID'),
+  AUTH0_CLIENT_SECRET: getEnv('AUTH0_CLIENT_SECRET'),
+  AUTH0_CALLBACK_URL: getEnv('AUTH0_CALLBACK_URL'),
+
+  EXCHANGE_RATE_API_URL: getEnv(
+    'EXCHANGE_RATE_API_URL',
+    ' https://v6.exchangerate-api.com/v6/5b0010792044552642b6b98b'
+  ),
 
   FRONTEND_ORIGIN: getEnv('FRONTEND_ORIGIN', 'localhost')
 })
