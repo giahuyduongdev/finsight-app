@@ -1,37 +1,43 @@
-import { Response } from 'express'
-import { ErrorRequestHandler } from 'express'
-import { HTTPSTATUS } from '../config/http.config'
-import { AppError } from '../utils/app-error'
+import { ErrorRequestHandler, Response } from 'express'
 import { z, ZodError } from 'zod'
-import { ErrorCodeEnum } from '../enums/error-code.enum'
 import { MulterError } from 'multer'
+import { HTTPSTATUS } from '../config/http.config'
+import { AppError } from '../utils/errors/index'
+import { ErrorCodeEnum } from '../enums/error-code.enum'
+import { logger } from '../config/logger.config'
 
-const formatZodError = (res: Response, error: z.ZodError) => {
-  const errors = error?.issues.map((err) => ({
-    field: err.path.join('.'),
-    message: err.message
-  }))
-  return res.status(HTTPSTATUS.BAD_REQUEST).json({
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const formatZodError = (error: ZodError) => ({
+  status: HTTPSTATUS.BAD_REQUEST,
+  body: {
     message: 'Validation failed',
-    errors: errors,
+    errors: error.issues.map((err) => ({
+      field: err.path.join('.'),
+      message: err.message
+    })),
     errorCode: ErrorCodeEnum.VALIDATION_ERROR
-  })
-}
+  }
+})
 
-const handleMulterError = (error: MulterError) => {
-  const messages = {
+const formatMulterError = (error: MulterError) => {
+  const messages: Record<string, string> = {
     LIMIT_UNEXPECTED_FILE: "Invalid file field name. Please use 'file'",
     LIMIT_FILE_SIZE: 'File size exceeds the limit',
-    LIMIT_FILE_COUNT: 'Too many files uploaded',
-    default: 'File upload error'
+    LIMIT_FILE_COUNT: 'Too many files uploaded'
   }
 
   return {
     status: HTTPSTATUS.BAD_REQUEST,
-    message: messages[error.code as keyof typeof messages] || messages.default,
-    error: error.message
+    body: {
+      message: messages[error.code] ?? 'File upload error',
+      error: error.message,
+      errorCode: ErrorCodeEnum.FILE_UPLOAD_ERROR
+    }
   }
 }
+
+// ─── Error Handler ────────────────────────────────────────────────────────────
 
 export const errorHandler: ErrorRequestHandler = (
   error,
@@ -39,30 +45,39 @@ export const errorHandler: ErrorRequestHandler = (
   res,
   next
 ): any => {
-  console.log('Error occured on PATH:', req.path, 'Error:', error)
+  logger.error(`[${req.method}] ${req.path}`, {
+    message: error?.message,
+    stack: error?.stack,
+    body: req.body
+  })
+
+  if (error instanceof SyntaxError && 'body' in error) {
+    return res.status(HTTPSTATUS.BAD_REQUEST).json({
+      message: 'Invalid JSON format',
+      errorCode: ErrorCodeEnum.VALIDATION_ERROR
+    })
+  }
 
   if (error instanceof ZodError) {
-    return formatZodError(res, error)
+    const { status, body } = formatZodError(error)
+    return res.status(status).json(body)
   }
 
   if (error instanceof MulterError) {
-    const { status, message, error: err } = handleMulterError(error)
-    return res.status(status).json({
-      message,
-      error: err,
-      errorCode: ErrorCodeEnum.FILE_UPLOAD_ERROR
-    })
+    const { status, body } = formatMulterError(error)
+    return res.status(status).json(body)
   }
 
   if (error instanceof AppError) {
     return res.status(error.statusCode).json({
       message: error.message,
-      errorCode: error.errorCode
+      errorCode: error.errorCode,
+      ...(error.meta && { meta: error.meta })
     })
   }
 
   return res.status(HTTPSTATUS.INTERNAL_SERVER_ERROR).json({
     message: 'Internal Server Error',
-    error: error?.message || 'Unknown error occured'
+    error: error?.message ?? 'Unknown error occurred'
   })
 }

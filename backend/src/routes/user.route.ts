@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import {
+  changeUserPasswordController,
   getCurrentUserController,
   updateUserController
 } from '../controllers/user.controller'
@@ -12,6 +13,10 @@ userRoutes.put(
   '/update-user',
   upload.single('profilePicture'),
   updateUserController
+)
+userRoutes.put(
+  '/change-password', // ← verify accessToken, gắn req.user vào
+  changeUserPasswordController
 )
 
 export default userRoutes

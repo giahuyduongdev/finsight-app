@@ -4,6 +4,7 @@ import { HTTPSTATUS } from '../config/http.config'
 import {
   generateReportService,
   getAllReportsService,
+  resendReportService,
   updateReportSettingService
 } from '../services/report.service'
 import { updateReportSettingSchema } from '../validators/report.validator'
@@ -62,5 +63,16 @@ export const generateReportController = asyncHandler(
       message: 'Report generated successfully',
       ...result
     })
+  }
+)
+
+export const resendReportController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const reportId = req.params.reportId as string
+
+    const result = await resendReportService(userId, reportId)
+
+    return res.status(HTTPSTATUS.OK).json(result)
   }
 )

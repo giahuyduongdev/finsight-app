@@ -18,7 +18,8 @@ export const CurrencyEnum = {
   PHP: 'PHP', // Philippines
   IDR: 'IDR', // Indonesia
   SAR: 'SAR', // Saudi Arabia
-  AED: 'AED' // UAE
+  AED: 'AED', // UAE
+  BRL: 'BRL' // Brazil
 } as const
 
 export type CurrencyType = keyof typeof CurrencyEnum
@@ -46,5 +47,6 @@ export const CurrencyInfo: Record<
   PHP: { name: 'Philippine Peso', country: 'Philippines' },
   IDR: { name: 'Indonesian Rupiah', country: 'Indonesia' },
   SAR: { name: 'Saudi Riyal', country: 'Saudi Arabia' },
-  AED: { name: 'UAE Dirham', country: 'UAE' }
+  AED: { name: 'UAE Dirham', country: 'UAE' },
+  BRL: { name: 'Brazilian Real', country: 'Brazil' }
 }

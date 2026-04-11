@@ -127,4 +127,6 @@ const TransactionModel = mongoose.model<TransactionDocument>(
   transactionSchema
 )
 
+transactionSchema.index({ userId: 1, createdAt: -1 })
+
 export default TransactionModel

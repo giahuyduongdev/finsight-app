@@ -2,19 +2,31 @@ import { Request, Response } from 'express'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import {
+  changeUserPasswordService,
   findByIdUserService,
   updateUserService
 } from '../services/user.service'
-import { updateUserSchema } from '../validators/user.validator'
+import {
+  changePasswordSchema,
+  updateUserSchema
+} from '../validators/user.validator'
+import { sanitizeUser } from '../dtos/user.dtos'
 
 export const getCurrentUserController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?._id
 
     const user = await findByIdUserService(userId)
+
+    if (!user) {
+      return res
+        .status(HTTPSTATUS.NOT_FOUND)
+        .json({ message: 'User not found' })
+    }
+
     return res.status(HTTPSTATUS.OK).json({
       message: 'User fetched successfully',
-      user
+      user: sanitizeUser(user)
     })
   }
 )
@@ -29,7 +41,16 @@ export const updateUserController = asyncHandler(
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'User profile updated successfully',
-      data: user
+      data: sanitizeUser(user)
     })
+  }
+)
+
+export const changeUserPasswordController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = changePasswordSchema.parse(req.body)
+    const userId = req.user?._id // ← lấy từ passport
+    const result = await changeUserPasswordService(userId, body)
+    return res.status(HTTPSTATUS.OK).json(result)
   }
 )

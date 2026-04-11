@@ -1,4 +1,4 @@
-import { formatCurrency } from '../utils/format-currency'
+import { formatCurrency } from '../utils/format-currency.util'
 import { getReportEmailTemplate } from './templates/report.template'
 import { sendEmail } from './mailer'
 import { ReportType } from '../@types/report.type'
@@ -30,8 +30,6 @@ export const sendReportEmail = async (params: ReportEmailParams) => {
 
     ${report.insights.join('\n')}
 `
-
-  console.log(text, 'text mail')
 
   return sendEmail({
     to: email,

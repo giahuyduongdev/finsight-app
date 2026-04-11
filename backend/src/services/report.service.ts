@@ -1,19 +1,21 @@
 import { createUserContent } from '@google/genai'
 import { genAI, genAIModel } from '../config/google-ai.config'
 import ReportSettingModel from '../models/report-setting.model'
-import ReportModel from '../models/report.model'
-import { NotFoundException } from '../utils/app-error'
-import { convertToDollarUnit } from '../utils/format-currency'
-import { calculateNextReportDate } from '../utils/helper'
-import { reportInsightPrompt } from '../utils/prompt'
+import ReportModel, { ReportStatusEnum } from '../models/report.model'
+import { NotFoundException } from '../utils/errors/index'
+
+import { calculateNextReportDate } from '../utils/dates/index'
+import { reportInsightPrompt } from '../lib/prompts/report.prompt'
 import { UpdateReportSettingType } from '../validators/report.validator'
-import { format } from 'date-fns'
+import { endOfMonth, startOfMonth, subMonths } from 'date-fns'
 import TransactionModel, {
   TransactionTypeEnum
 } from '../models/transaction.model'
 import mongoose from 'mongoose'
-import { formatInTimeZone } from 'date-fns-tz'
-import { getExchangeRate } from '../utils/currency'
+import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
+import { getExchangeRate } from '../lib/exchange-rate-currency'
+import { sendReportEmail } from '../mailers/report.mailer'
+import UserModel from '../models/user.model'
 
 export const getAllReportsService = async (
   userId: string,
@@ -64,8 +66,6 @@ export const updateReportSettingService = async (
       nextReportDate = currentNextReportDate
     }
   }
-
-  console.log(nextReportDate, 'nextReportDate')
 
   existingReportSetting.set({
     ...body,
@@ -233,8 +233,8 @@ async function generateInsightsAI({
 }) {
   try {
     const prompt = reportInsightPrompt({
-      totalIncome, // bỏ convertToDollarUnit
-      totalExpenses, //
+      totalIncome,
+      totalExpenses,
       availableBalance,
       savingsRate: Number(savingsRate.toFixed(1)),
       categories,
@@ -266,4 +266,78 @@ function calculateSavingRate(totalIncome: number, totalExpenses: number) {
   if (totalIncome <= 0) return 0
   const savingRate = ((totalIncome - totalExpenses) / totalIncome) * 100
   return parseFloat(savingRate.toFixed(2))
+}
+
+export const resendReportService = async (userId: string, reportId: string) => {
+  // 1. Lấy report từ DB
+  const report = await ReportModel.findOne({
+    _id: reportId,
+    userId
+  })
+  if (!report) throw new NotFoundException('Report not found')
+
+  // 2. Lấy user info
+  const user = await UserModel.findById(userId)
+  if (!user) throw new NotFoundException('User not found')
+
+  // 3. Lấy report setting để lấy frequency
+  const reportSetting = await ReportSettingModel.findOne({ userId })
+
+  // 4. Parse period từ report (vd: "February 1 - 28, 2026")
+  // Dùng lại from/to từ period đã lưu
+  const timezone = user.timezone || 'UTC'
+  const now = new Date()
+  const nowInUserTz = toZonedTime(now, timezone)
+
+  // Lấy tháng từ sentDate của report
+  const sentDate = new Date(report.sentDate)
+  const reportMonth = subMonths(sentDate, 0)
+
+  const from = fromZonedTime(
+    startOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
+    timezone
+  )
+  const to = fromZonedTime(
+    endOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
+    timezone
+  )
+
+  // 5. Generate report data
+  const reportData = await generateReportService(
+    userId,
+    from,
+    to,
+    timezone,
+    user.preferredCurrency
+  )
+
+  if (!reportData) {
+    throw new NotFoundException('No activity found for this period')
+  }
+
+  // 6. Gửi email
+  await sendReportEmail({
+    email: user.email!,
+    username: user.name!,
+    report: {
+      period: reportData.period,
+      totalIncome: reportData.summary.income,
+      totalExpenses: reportData.summary.expenses,
+      availableBalance: reportData.summary.balance,
+      savingsRate: reportData.summary.savingsRate,
+      topSpendingCategories: reportData.summary.topCategories,
+      insights: reportData.insights,
+      currency: reportData.currency || user.preferredCurrency || 'USD'
+    },
+    frequency: reportSetting?.frequency || 'MONTHLY'
+  })
+
+  await ReportModel.findByIdAndUpdate(reportId, {
+    $set: {
+      sentDate: new Date(), // ← cập nhật thời gian gửi mới nhất
+      status: ReportStatusEnum.SENT // ← đảm bảo status là SENT
+    }
+  })
+
+  return { message: 'Report resent successfully' }
 }

@@ -1,0 +1,38 @@
+import { PaymentMethodEnum } from '../../models/transaction.model'
+import { CurrencyEnum } from '../../enums/currency.enum'
+
+export const receiptPrompt = `
+You are a financial assistant that helps users analyze and extract transaction details from receipt image (base64 encoded)
+Analyze this receipt image (base64 encoded) and extract transaction details matching this exact JSON format:
+{
+  "title": "string",          // Merchant/store name or brief description
+  "amount": number,           // Total amount (positive number, without currency symbol)
+  "currency": "string",       // One of: ${Object.values(CurrencyEnum).join(',')} - detect from receipt symbol or country, default USD
+  "date": "ISO date string",  // Transaction date in YYYY-MM-DD format
+  "description": "string",    // Items purchased summary (max 50 words)
+  "category": "string",       // category of the transaction 
+  "type": "EXPENSE",          // Always "EXPENSE" for receipts
+  "paymentMethod": "string",  // One of: ${Object.values(PaymentMethodEnum).join(',')}
+}
+
+Rules:
+1. Amount must be positive
+2. Date must be valid and in ISO format
+3. Category must match our enum values and must have only the first letter capitalized
+4. Currency must be one of: ${Object.values(CurrencyEnum).join(',')}
+5. If currency symbol not found on receipt, default to USD
+6. If uncertain about any field, omit it
+7. If not a receipt, return {}
+
+Example valid response:
+{
+  "title": "Walmart Groceries",
+  "amount": 58.43,
+  "currency": "USD",
+  "date": "2025-05-08",
+  "description": "Groceries: milk, eggs, bread",
+  "category": "groceries",
+  "paymentMethod": "CARD",
+  "type": "EXPENSE"
+}
+`

@@ -2,20 +2,35 @@ import { Request, Response } from 'express'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import {
+  forgotPasswordSchema,
   loginSchema,
   refreshTokenSchema,
-  registerSchema
+  registerSchema,
+  resendOTPSchema,
+  resetPasswordSchema,
+  verifyForgotOTPSchema,
+  verifyOTPSchema
 } from '../validators/auth.validator'
 import {
+  forgotPasswordService,
   loginService,
   logoutAllService,
   logoutService,
+  oauthCallbackService,
   refreshTokenService,
-  registerService
+  registerOTPService,
+  registerService,
+  resendForgotPasswordOTPService,
+  resendRegisterVerifyOTPService,
+  resetPasswordService,
+  verifyForgotPasswordOTPService,
+  verifyRegisterOTPService
 } from '../services/auth.service'
 import { Env } from '../config/env.config'
 import ms from 'ms'
-import { UnauthorizedException } from '../utils/app-error'
+import { UnauthorizedException } from '../utils/errors/index'
+import { sanitizeUser } from '../dtos/user.dtos'
+import { logger } from '../config/logger.config'
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -25,6 +40,64 @@ export const registerController = asyncHandler(
       message: 'User registered successfully',
       data: result
     })
+  }
+)
+
+export const registerOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = registerSchema.parse(req.body)
+    const result = await registerOTPService(body)
+    return res.status(HTTPSTATUS.ACCEPTED).json({ message: result.message })
+  }
+)
+
+export const verifyRegisterOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = verifyOTPSchema.parse(req.body)
+    const result = await verifyRegisterOTPService(body)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const resendRegisterOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = resendOTPSchema.parse(req.body)
+    const result = await resendRegisterVerifyOTPService(body)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const forgotPasswordController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = forgotPasswordSchema.parse(req.body)
+    const result = await forgotPasswordService(body)
+    return res.status(HTTPSTATUS.ACCEPTED).json({ message: result.message })
+  }
+)
+
+export const verifyForgotPasswordOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = verifyForgotOTPSchema.parse(req.body)
+    const result = await verifyForgotPasswordOTPService(body)
+    return res.status(HTTPSTATUS.CREATED).json(result)
+  }
+)
+
+export const resendForgotPasswordOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = resendOTPSchema.parse(req.body)
+    const result = await resendForgotPasswordOTPService(body)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const resetPasswordController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = resetPasswordSchema.parse(req.body)
+
+    const result = await resetPasswordService(body)
+
+    return res.status(HTTPSTATUS.OK).json(result)
   }
 )
 
@@ -44,7 +117,7 @@ export const loginController = asyncHandler(
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'User logged in successfully',
-      user,
+      user: sanitizeUser(user),
       accessToken,
       expiresAt,
       reportSetting
@@ -54,8 +127,9 @@ export const loginController = asyncHandler(
 
 export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response) => {
-    const refreshToken =
-      req.cookies?.refreshToken || refreshTokenSchema.parse(req.body)
+    const { refreshToken } = refreshTokenSchema.parse({
+      refreshToken: req.cookies?.refreshToken ?? req.body?.refreshToken
+    })
 
     const result = await refreshTokenService(refreshToken)
 
@@ -76,7 +150,12 @@ export const logoutController = asyncHandler(
 
     await logoutService(refreshToken, accessToken)
 
-    res.clearCookie('refreshToken')
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict', // PHẢI khớp với lúc res.cookie
+      path: '/' // Thường mặc định là '/', nhưng thêm vào cho chắc chắn
+    })
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Logged out successfully'
@@ -98,5 +177,65 @@ export const logoutAllController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: 'Logged out from all devices successfully'
     })
+  }
+)
+
+export const oauthRedirectController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { provider } = req.params
+    const timezone = (req.query.tz as string) || 'UTC'
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: Env.AUTH0_CLIENT_ID,
+      redirect_uri: Env.AUTH0_CALLBACK_URL,
+      scope: 'openid profile email',
+      connection: provider === 'github' ? 'github' : 'google-oauth2',
+      state: Buffer.from(JSON.stringify({ timezone })).toString('base64') // ← encode timezone vào state
+    })
+
+    const url = `https://${Env.AUTH0_DOMAIN}/authorize?${params}`
+    res.redirect(url)
+  }
+)
+
+export const oauthCallbackController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { code, error, state } = req.query // Hứng thêm cả lỗi từ Auth0 nếu có
+
+    // Kiểm tra nếu user từ chối đăng nhập hoặc lỗi từ Auth0
+    if (error || !code) {
+      logger.warn('Auth0 Error:', error)
+      return res.redirect(`${Env.FRONTEND_ORIGIN}/?error=auth_failed`)
+    }
+
+    // Decode timezone từ state
+    let timezone = 'UTC'
+    try {
+      const decoded = JSON.parse(
+        Buffer.from(state as string, 'base64').toString()
+      )
+      timezone = decoded.timezone || 'UTC'
+    } catch {}
+
+    const result = await oauthCallbackService(code as string, timezone) // ← truyền timezone
+
+    // Thiết lập Cookie RefreshToken (Quá chuẩn!)
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: Env.NODE_ENV === 'production',
+      sameSite: 'lax', // Dùng 'lax' sẽ tốt hơn cho việc redirect giữa các domain khác nhau
+      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+    })
+
+    // 6. Build URL Redirect dùng URLSearchParams cho an toàn
+    const queryParams = new URLSearchParams({
+      accessToken: result.accessToken,
+      expiresAt: result.expiresAt?.toString() || ''
+    })
+
+    res.redirect(
+      `${Env.FRONTEND_ORIGIN}/oauth-callback?${queryParams.toString()}`
+    )
   }
 )

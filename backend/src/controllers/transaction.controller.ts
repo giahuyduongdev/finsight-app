@@ -20,6 +20,7 @@ import {
   updateTransactionService
 } from '../services/transaction.service'
 import { TransactionTypeEnum } from '../models/transaction.model'
+import { CurrencyType } from '../enums/currency.enum'
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -45,7 +46,8 @@ export const getAllTransactionController = asyncHandler(
       recurringStatus: req.query.recurringStatus as
         | 'RECURRING'
         | 'NON_RECURRING'
-        | undefined
+        | undefined,
+      currency: req.query.currency as CurrencyType | undefined
     }
 
     const pagination = {

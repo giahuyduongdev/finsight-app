@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose'
-import { compareValue, hashValue } from '../utils/bcrypt'
+import { compareValue, hashValue } from '../utils/bcrypt.util'
 import { CurrencyEnum } from '../enums/currency.enum'
 import { RoleUserEnum } from '../enums/role-user.enum'
 
@@ -11,6 +11,7 @@ export interface UserDocument extends Document {
   timezone: string
   preferredCurrency: string
   role: string
+  auth0Ids?: string[]
   createdAt: Date
   updatedAt: Date
   comparePassword: (password: string) => Promise<boolean>
@@ -53,6 +54,14 @@ const userSchema = new Schema<UserDocument>(
       type: String,
       enum: Object.values(RoleUserEnum),
       default: RoleUserEnum.USER
+    },
+    auth0Ids: {
+      type: [String],
+      default: undefined, // Mặc định là mảng rỗng cho user mới
+      index: {
+        unique: true,
+        sparse: true
+      }
     }
   },
   {

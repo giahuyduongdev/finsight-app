@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import TransactionModel from '../../models/transaction.model'
-import { calculateNextOccurrence } from '../../utils/helper'
+import { calculateNextOccurrence } from '../../utils/dates/index'
+import { logger } from '../../config/logger.config'
 
 export const processRecurringTransactions = async () => {
   const now = new Date()
@@ -13,9 +14,10 @@ export const processRecurringTransactions = async () => {
       nextRecurringDate: { $lte: now }
     }).cursor()
 
-    console.log('Starting recurring process')
+    logger.info('🚀 Starting recurring process')
 
     const session = await mongoose.startSession()
+
     for await (const tx of transactionCursor) {
       const nextDate = calculateNextOccurrence(
         tx.nextRecurringDate!,
@@ -25,7 +27,6 @@ export const processRecurringTransactions = async () => {
       try {
         await session.withTransaction(
           async () => {
-            // console.log(tx, 'transaction')
             await TransactionModel.create(
               [
                 {
@@ -55,22 +56,26 @@ export const processRecurringTransactions = async () => {
               { session }
             )
           },
-          {
-            maxCommitTimeMS: 20000
-          }
+          { maxCommitTimeMS: 20000 }
         )
 
         processedCount++
       } catch (error: any) {
         failedCount++
-        console.log(`Failed recurring tx: ${tx._id}`, error)
+        logger.error(`Failed recurring tx: ${tx._id}`, {
+          error: error?.message,
+          txId: tx._id
+        })
       } finally {
         await session.endSession()
       }
     }
 
-    console.log(`Processed: ${processedCount} transaction`)
-    console.log(`❌ Failed: ${failedCount} transaction`)
+    logger.info(`✅ Processed: ${processedCount} transaction`)
+
+    if (failedCount > 0) {
+      logger.warn(`⚠️ Failed: ${failedCount} transaction`)
+    }
 
     return {
       success: true,
@@ -78,7 +83,9 @@ export const processRecurringTransactions = async () => {
       failedCount
     }
   } catch (error: any) {
-    console.error('Error occur processing transaction', error)
+    logger.error('Error occurred processing transaction', {
+      error: error?.message
+    })
 
     return {
       success: false,
