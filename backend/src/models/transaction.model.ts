@@ -46,6 +46,7 @@ export interface TransactionDocument extends Document {
   paymentMethod: keyof typeof PaymentMethodEnum
   createdAt: Date
   updatedAt: Date
+  recurringSourceId?: mongoose.Types.ObjectId
 }
 
 const transactionSchema = new Schema<TransactionDocument>(
@@ -113,6 +114,11 @@ const transactionSchema = new Schema<TransactionDocument>(
       type: String,
       enum: Object.values(PaymentMethodEnum),
       default: PaymentMethodEnum.CASH
+    },
+    recurringSourceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Transaction',
+      default: null
     }
   },
   {
