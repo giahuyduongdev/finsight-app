@@ -58,11 +58,18 @@ export const transactionApi = apiClient.injectEndpoints({
       keepUnusedDataFor: 60
     }),
 
+    // 👇 ĐÂY LÀ NƠI PHÉP THUẬT XẢY RA 👇
     getSingleTransaction: builder.query<GetSingleTransactionResponse, string>({
       query: (id) => ({
         url: `/transaction/${id}`,
-        method: 'GET'
-      })
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache', // Ép trình duyệt tuyệt đối không dùng Cache cũ
+          Pragma: 'no-cache',
+          Expires: '0'
+        }
+      }),
+      providesTags: ['transactions'] // Kế nối Cache này vào nhóm 'transactions'
     }),
 
     duplicateTransaction: builder.mutation<void, string>({
@@ -79,7 +86,7 @@ export const transactionApi = apiClient.injectEndpoints({
         method: 'PUT',
         body: transaction
       }),
-      invalidatesTags: ['transactions']
+      invalidatesTags: ['transactions', 'analytics'] // Update xong sẽ tự động giật sập Cache của GET ở trên
     }),
 
     bulkImportTransaction: builder.mutation<void, BulkImportTransactionPayload>(

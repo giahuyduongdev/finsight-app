@@ -1,7 +1,7 @@
 import * as z from 'zod'
-import { useEffect, useState } from 'react'
+import { useState } from 'react' // Đã xóa useEffect vì không cần nữa
 import { Calendar, Loader } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { useForm, Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import {
@@ -102,9 +102,10 @@ const TransactionForm = (props: {
   const [updateTransaction, { isLoading: isUpdating }] =
     useUpdateTransactionMutation()
 
+  // 🚀 BÍ KÍP Ở ĐÂY: Dùng tính năng 'values' của RHF thay cho useEffect + form.reset()
+  // Tránh hoàn toàn mọi lỗi chớp nháy và mất đồng bộ giao diện
   const form = useForm<FormValues>({
-    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-    resolver: zodResolver(formSchema) as any,
+    resolver: zodResolver(formSchema) as unknown as Resolver<FormValues>,
     defaultValues: {
       title: '',
       amount: '',
@@ -117,25 +118,26 @@ const TransactionForm = (props: {
       frequency: null,
       description: '',
       receiptUrl: ''
-    }
+    },
+    // RHF sẽ TỰ ĐỘNG reset Form một cách an toàn mỗi khi mảng 'values' này có dữ liệu
+    values:
+      isEdit && editData
+        ? {
+            title: editData.title || '',
+            amount: editData.amount ? editData.amount.toString() : '',
+            currency: editData.currency || 'USD',
+            type: editData.type || _TRANSACTION_TYPE.INCOME,
+            category: editData.category?.toLowerCase() || '',
+            date: editData.date ? new Date(editData.date) : new Date(),
+            paymentMethod: editData.paymentMethod || '',
+            isRecurring: editData.isRecurring || false,
+            frequency: editData.recurringInterval || null,
+            description: editData.description || ''
+          }
+        : undefined
   })
 
-  useEffect(() => {
-    if (isEdit && transactionId && editData) {
-      form.reset({
-        title: editData?.title,
-        amount: editData.amount.toString(),
-        currency: editData.currency || 'USD',
-        type: editData.type,
-        category: editData.category?.toLowerCase(),
-        date: new Date(editData.date),
-        paymentMethod: editData.paymentMethod,
-        isRecurring: editData.isRecurring,
-        frequency: editData.recurringInterval,
-        description: editData.description
-      })
-    }
-  }, [editData, form, isEdit, transactionId])
+  // ĐÃ XOÁ HOÀN TOÀN useEffect GÂY LỖI RACE CONDITION
 
   const frequencyOptions = Object.entries(_TRANSACTION_FREQUENCY).map(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -164,7 +166,6 @@ const TransactionForm = (props: {
 
   // Handle form submission
   const onSubmit = (values: FormValues) => {
-    // if (isCreating || isUpdating) return;
     const payload = {
       title: values.title,
       type: values.type,
@@ -217,8 +218,7 @@ const TransactionForm = (props: {
 
             {/* Transaction Type */}
             <FormField
-              /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-              control={form.control as any}
+              control={form.control}
               name="type"
               render={({ field }) => (
                 <FormItem className="space-y-1">
@@ -274,8 +274,7 @@ const TransactionForm = (props: {
 
             {/* Title */}
             <FormField
-              /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-              control={form.control as any}
+              control={form.control}
               name="title"
               render={({ field }) => (
                 <FormItem>
@@ -292,75 +291,69 @@ const TransactionForm = (props: {
               )}
             />
 
-            {/* Amount */}
             {/* Amount & Currency Selection */}
-            <FormField
-              /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-              control={form.control as any}
-              name="amount"
-              render={({ field }) => (
-                <FormItem className="space-y-1">
-                  <FormLabel>Amount</FormLabel>
-                  <FormControl>
-                    {/* Thêm flex-row và items-center để đảm bảo nằm cùng 1 hàng */}
-                    <div className="flex flex-row items-center gap-2 w-full">
-                      {/* 1. Input nhập số tiền (Bên trái) */}
-                      <div className="flex-1">
-                        <CurrencyInputField
-                          {...field}
-                          disabled={isScanning}
-                          onValueChange={(value) => field.onChange(value || '')}
-                          placeholder="0.00"
-                          prefix={
-                            CURRENCY_SYMBOLS[
-                              form.watch(
-                                'currency'
-                              ) as keyof typeof CURRENCY_SYMBOLS
-                            ] || '$'
-                          }
-                          decimalsLimit={
-                            form.watch('currency') === 'VND' ? 0 : 2
-                          }
-                          className="h-10 w-full"
-                        />
-                      </div>
-
-                      {/* 2. Select loại tiền tệ (Bên phải) */}
-                      <FormField
-                        control={form.control}
-                        name="currency"
-                        render={({ field: currencyField }) => (
-                          <FormItem className="space-y-0 flex-shrink-0">
-                            <Select
-                              onValueChange={currencyField.onChange}
-                              value={currencyField.value}
-                              disabled={isScanning}
-                            >
-                              <FormControl>
-                                <SelectTrigger className="h-10 w-[80px] bg-muted/50 font-bold uppercase focus:ring-0">
-                                  <SelectValue placeholder="USD" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {CURRENCY_OPTIONS.map((option) => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.value}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )}
+            <div className="flex flex-row items-start gap-2 w-full">
+              {/* 1. Trường nhập Số tiền (Amount) */}
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem className="flex-1 space-y-1">
+                    <FormLabel>Amount</FormLabel>
+                    <FormControl>
+                      <CurrencyInputField
+                        {...field}
+                        disabled={isScanning}
+                        onValueChange={(value) => field.onChange(value || '')}
+                        placeholder="0.00"
+                        prefix={
+                          CURRENCY_SYMBOLS[
+                            form.watch(
+                              'currency'
+                            ) as keyof typeof CURRENCY_SYMBOLS
+                          ] || '$'
+                        }
+                        decimalsLimit={form.watch('currency') === 'VND' ? 0 : 2}
+                        className="h-10 w-full"
                       />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* 2. Trường chọn Tiền tệ (Currency) */}
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem className="space-y-1 flex-shrink-0">
+                    <FormLabel className="text-transparent select-none">
+                      Currency
+                    </FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || undefined} // 👈 ĐÃ SỬA: ÉP SANG UNDEFINED ĐỂ CHỐNG LỖI SHADCN UI
+                      disabled={isScanning}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="h-10 w-[80px] bg-muted/50 font-bold uppercase focus:ring-0">
+                          <SelectValue placeholder="USD" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CURRENCY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.value}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             {/* Category */}
             <FormField
@@ -398,6 +391,7 @@ const TransactionForm = (props: {
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
+                          type="button"
                           variant={'outline'}
                           className={cn(
                             'w-full pl-3 text-left font-normal',
@@ -421,7 +415,7 @@ const TransactionForm = (props: {
                         mode="single"
                         selected={field.value}
                         onSelect={(date) => {
-                          field.onChange(date) // This updates the form value
+                          field.onChange(date)
                         }}
                         disabled={(date) => date < new Date('2023-01-01')}
                         initialFocus
@@ -442,7 +436,7 @@ const TransactionForm = (props: {
                   <FormLabel>Payment Method</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    value={field.value}
+                    value={field.value || undefined} // 👈 ĐÃ SỬA THÀNH UNDEFINED NẾU CHUỖI RỖNG
                     disabled={isScanning}
                   >
                     <FormControl className="w-full">
@@ -509,7 +503,7 @@ const TransactionForm = (props: {
                     <FormLabel>Frequency</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value ?? undefined}
+                      value={field.value || undefined} // 👈 ĐÃ SỬA THÀNH UNDEFINED NẾU CHUỖI RỖNG
                       disabled={isScanning}
                     >
                       <FormControl className="w-full">
@@ -537,6 +531,7 @@ const TransactionForm = (props: {
                 )}
               />
             )}
+
             {/* Description */}
             <FormField
               control={form.control}
