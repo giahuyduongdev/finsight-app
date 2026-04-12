@@ -83,76 +83,48 @@ export const processReportJob = async () => {
           }
         }
 
+        // 🚀 BẮT ĐẦU VÙNG AN TOÀN (TRANSACTION)
         await session.withTransaction(
           async () => {
-            const bulkReports: any[] = []
-            const bulkSettings: any[] = []
+            const isSuccess = report && emailSent
 
-            if (report && emailSent) {
-              bulkReports.push({
-                insertOne: {
-                  document: {
-                    userId: user.id,
-                    sentDate: now,
-                    period: report.period,
-                    status: ReportStatusEnum.SENT,
-                    createdAt: now,
-                    updatedAt: now
-                  }
-                }
-              })
-
-              bulkSettings.push({
-                updateOne: {
-                  filter: { _id: setting._id },
-                  update: {
-                    $set: {
-                      lastSentDate: now,
-                      nextReportDate: calculateNextReportDate(now),
-                      updatedAt: now
-                    }
-                  }
-                }
-              })
-            } else {
-              bulkReports.push({
-                insertOne: {
-                  document: {
-                    userId: user.id,
-                    sentDate: now,
-                    period:
-                      report?.period ||
-                      `${format(from, 'MMMM d')}–${format(to, 'd, yyyy')}`,
-                    status: report
+            // 1. Lưu lịch sử Report
+            await ReportModel.create(
+              [
+                {
+                  userId: user.id,
+                  sentDate: now,
+                  period:
+                    report?.period ||
+                    `${format(from, 'MMMM d')}–${format(to, 'd, yyyy')}`,
+                  status: isSuccess
+                    ? ReportStatusEnum.SENT
+                    : report
                       ? ReportStatusEnum.FAILED
                       : ReportStatusEnum.NO_ACTIVITY,
-                    createdAt: now,
-                    updatedAt: now
-                  }
+                  createdAt: now,
+                  updatedAt: now
                 }
-              })
+              ],
+              { session } // Bắt buộc đính kèm session
+            )
 
-              bulkSettings.push({
-                updateOne: {
-                  filter: { _id: setting._id },
-                  update: {
-                    $set: {
-                      lastSentDate: null,
-                      nextReportDate: calculateNextReportDate(now),
-                      updatedAt: now
-                    }
-                  }
+            // 2. Cập nhật lại ngày gửi tiếp theo cho ReportSetting
+            await ReportSettingModel.updateOne(
+              { _id: setting._id },
+              {
+                $set: {
+                  lastSentDate: isSuccess ? now : null,
+                  nextReportDate: calculateNextReportDate(now),
+                  updatedAt: now
                 }
-              })
-            }
-
-            await Promise.all([
-              ReportModel.bulkWrite(bulkReports, { ordered: false }),
-              ReportSettingModel.bulkWrite(bulkSettings, { ordered: false })
-            ])
+              },
+              { session } // Bắt buộc đính kèm session
+            )
           },
           { maxCommitTimeMS: 10000 }
         )
+        // 🚀 KẾT THÚC VÙNG AN TOÀN
 
         processedCount++
       } catch (error) {

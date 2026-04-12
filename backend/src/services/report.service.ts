@@ -283,15 +283,12 @@ export const resendReportService = async (userId: string, reportId: string) => {
   // 3. Lấy report setting để lấy frequency
   const reportSetting = await ReportSettingModel.findOne({ userId })
 
-  // 4. Parse period từ report (vd: "February 1 - 28, 2026")
-  // Dùng lại from/to từ period đã lưu
+  // 4. Phân tích mốc thời gian từ Report cũ
   const timezone = user.timezone || 'UTC'
   const now = new Date()
-  const nowInUserTz = toZonedTime(now, timezone)
 
-  // Lấy tháng từ sentDate của report
+  // Lấy thời điểm gửi của báo cáo cũ để làm mốc tính toán
   const sentDate = new Date(report.sentDate)
-  const reportMonth = subMonths(sentDate, 0)
 
   const from = fromZonedTime(
     startOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
@@ -332,12 +329,29 @@ export const resendReportService = async (userId: string, reportId: string) => {
     frequency: reportSetting?.frequency || 'MONTHLY'
   })
 
-  await ReportModel.findByIdAndUpdate(reportId, {
-    $set: {
-      sentDate: new Date(), // ← cập nhật thời gian gửi mới nhất
-      status: ReportStatusEnum.SENT // ← đảm bảo status là SENT
-    }
-  })
+  // 7. CẬP NHẬT DATABASE (Chạy song song để tối ưu tốc độ)
+  await Promise.all([
+    // 7a. Cập nhật Report (Ghi nhận thời gian gửi lại)
+    ReportModel.findByIdAndUpdate(reportId, {
+      $set: {
+        sentDate: now,
+        status: ReportStatusEnum.SENT,
+        updatedAt: now // Đã bổ sung
+      }
+    }),
+
+    // 7b. Cập nhật ReportSetting
+    // LƯU Ý QUAN TRỌNG: Chỉ cập nhật lastSentDate, TUYỆT ĐỐI GIỮ NGUYÊN nextReportDate để không phá chu kỳ Cronjob
+    ReportSettingModel.updateOne(
+      { userId },
+      {
+        $set: {
+          lastSentDate: now, // Đã bổ sung
+          updatedAt: now // Đã bổ sung
+        }
+      }
+    )
+  ])
 
   return { message: 'Report resent successfully' }
 }

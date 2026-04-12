@@ -1,4 +1,4 @@
-import { ErrorRequestHandler, Response } from 'express'
+import { ErrorRequestHandler } from 'express'
 import { z, ZodError } from 'zod'
 import { MulterError } from 'multer'
 import { HTTPSTATUS } from '../config/http.config'
@@ -45,39 +45,54 @@ export const errorHandler: ErrorRequestHandler = (
   res,
   next
 ): any => {
-  logger.error(`[${req.method}] ${req.path}`, {
-    message: error?.message,
-    stack: error?.stack,
-    body: req.body
-  })
+  // 1. Khởi tạo mặc định là lỗi 500 (Internal Server Error)
+  let statusCode = HTTPSTATUS.INTERNAL_SERVER_ERROR
+  let responseBody: any = {
+    message: 'Internal Server Error',
+    error: error?.message ?? 'Unknown error occurred'
+  }
 
+  // 2. Phân loại lỗi và gán lại statusCode + responseBody
   if (error instanceof SyntaxError && 'body' in error) {
-    return res.status(HTTPSTATUS.BAD_REQUEST).json({
+    statusCode = HTTPSTATUS.BAD_REQUEST
+    responseBody = {
       message: 'Invalid JSON format',
       errorCode: ErrorCodeEnum.VALIDATION_ERROR
-    })
-  }
-
-  if (error instanceof ZodError) {
-    const { status, body } = formatZodError(error)
-    return res.status(status).json(body)
-  }
-
-  if (error instanceof MulterError) {
-    const { status, body } = formatMulterError(error)
-    return res.status(status).json(body)
-  }
-
-  if (error instanceof AppError) {
-    return res.status(error.statusCode).json({
+    }
+  } else if (error instanceof ZodError) {
+    const formatted = formatZodError(error)
+    statusCode = formatted.status
+    responseBody = formatted.body
+  } else if (error instanceof MulterError) {
+    const formatted = formatMulterError(error)
+    statusCode = formatted.status
+    responseBody = formatted.body
+  } else if (error instanceof AppError) {
+    statusCode = error.statusCode
+    responseBody = {
       message: error.message,
       errorCode: error.errorCode,
       ...(error.meta && { meta: error.meta })
+    }
+  }
+
+  // 3. CHIẾN THUẬT LOG THÔNG MINH
+  const logMessage = `[${req.method}] ${req.path} - ${responseBody.message}`
+
+  if (statusCode < 500) {
+    // Lỗi Client (400, 401, 403, 404...): Chỉ đánh log cảnh báo (warn), KHÔNG in stack trace
+    logger.warn(logMessage, {
+      error: error?.message
+    })
+  } else {
+    // Lỗi Server (500): Đánh log lỗi nghiêm trọng (error), CÓ in stack trace và payload để debug
+    logger.error(logMessage, {
+      message: error?.message,
+      stack: error?.stack,
+      body: req.body
     })
   }
 
-  return res.status(HTTPSTATUS.INTERNAL_SERVER_ERROR).json({
-    message: 'Internal Server Error',
-    error: error?.message ?? 'Unknown error occurred'
-  })
+  // 4. Trả response về cho Client
+  return res.status(statusCode).json(responseBody)
 }

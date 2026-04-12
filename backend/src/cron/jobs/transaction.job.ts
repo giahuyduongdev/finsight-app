@@ -8,67 +8,73 @@ export const processRecurringTransactions = async () => {
   let processedCount = 0
   let failedCount = 0
 
+  logger.info('🚀 Starting recurring process')
+
   try {
     const transactionCursor = TransactionModel.find({
       isRecurring: true,
       nextRecurringDate: { $lte: now }
     }).cursor()
 
-    logger.info('🚀 Starting recurring process')
-
+    // Khởi tạo session ở ngoài
     const session = await mongoose.startSession()
 
-    for await (const tx of transactionCursor) {
-      const nextDate = calculateNextOccurrence(
-        tx.nextRecurringDate!,
-        tx.recurringInterval!
-      )
-
-      try {
-        await session.withTransaction(
-          async () => {
-            await TransactionModel.create(
-              [
-                {
-                  ...tx.toObject(),
-                  _id: new mongoose.Types.ObjectId(),
-                  title: `Recurring - ${tx.title}`,
-                  date: tx.nextRecurringDate,
-                  isRecurring: false,
-                  nextRecurringDate: null,
-                  recurringInterval: null,
-                  lastProcessed: null,
-                  createdAt: undefined,
-                  updatedAt: undefined
-                }
-              ],
-              { session }
-            )
-
-            await TransactionModel.updateOne(
-              { _id: tx._id },
-              {
-                $set: {
-                  nextRecurringDate: nextDate,
-                  lastProcessed: now
-                }
-              },
-              { session }
-            )
-          },
-          { maxCommitTimeMS: 20000 }
+    try {
+      for await (const tx of transactionCursor) {
+        const nextDate = calculateNextOccurrence(
+          tx.nextRecurringDate!,
+          tx.recurringInterval!
         )
 
-        processedCount++
-      } catch (error: any) {
-        failedCount++
-        logger.error(`Failed recurring tx: ${tx._id}`, {
-          error: error?.message,
-          txId: tx._id
-        })
-      } finally {
-        await session.endSession()
+        try {
+          await session.withTransaction(
+            async () => {
+              // 1. Tạo child transaction
+              await TransactionModel.create(
+                [
+                  {
+                    ...tx.toObject(),
+                    _id: new mongoose.Types.ObjectId(),
+                    title: `Recurring - ${tx.title}`,
+                    date: tx.nextRecurringDate,
+                    isRecurring: false,
+                    nextRecurringDate: null,
+                    recurringInterval: null,
+                    lastProcessed: null,
+                    createdAt: undefined,
+                    updatedAt: undefined
+                  }
+                ],
+                { session }
+              )
+
+              // 2. Cập nhật parent transaction
+              await TransactionModel.updateOne(
+                { _id: tx._id },
+                {
+                  $set: {
+                    nextRecurringDate: nextDate,
+                    lastProcessed: now
+                  }
+                },
+                { session }
+              )
+            },
+            { maxCommitTimeMS: 20000 }
+          )
+
+          processedCount++
+        } catch (error: any) {
+          failedCount++
+          logger.error(`Failed recurring tx: ${tx._id}`, {
+            error: error?.message,
+            txId: tx._id
+          })
+        }
       }
+    } finally {
+      // Đóng session MỘT LẦN DUY NHẤT sau khi vòng lặp chạy xong toàn bộ
+      await session.endSession()
     }
 
     logger.info(`✅ Processed: ${processedCount} transaction`)
