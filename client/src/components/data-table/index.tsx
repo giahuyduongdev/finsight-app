@@ -4,13 +4,14 @@ import {
   ColumnDef,
   getCoreRowModel,
   getFilteredRowModel,
-  //getPaginationRowModel,
   getSortedRowModel,
+  getExpandedRowModel, // Kích hoạt tính năng expand
   useReactTable,
   flexRender,
   SortingState,
   VisibilityState,
-  ColumnFiltersState
+  ColumnFiltersState,
+  ExpandedState // Import ExpandedState
 } from '@tanstack/react-table'
 import { Loader, PlusCircleIcon, Trash, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -64,6 +65,9 @@ interface DataTableProps<TData> {
   onPageChange?: (pageNumber: number) => void
   onPageSizeChange?: (pageSize: number) => void
   onHoverPage?: (page: number) => void
+  // Thêm 2 props này để nhận state từ component cha
+  expanded?: ExpandedState
+  onExpandedChange?: React.Dispatch<React.SetStateAction<ExpandedState>>
 }
 
 export function DataTable<TData>({
@@ -83,7 +87,9 @@ export function DataTable<TData>({
   pagination,
   onPageChange,
   onPageSizeChange,
-  onHoverPage
+  onHoverPage,
+  expanded = {},
+  onExpandedChange
 }: DataTableProps<TData>) {
   const [searchTerm, setSearchTerm] = React.useState('')
   const [filterValues, setFilterValues] = React.useState<
@@ -104,18 +110,21 @@ export function DataTable<TData>({
       sorting,
       columnFilters,
       columnVisibility,
-      rowSelection: selection ? rowSelection : {}
+      rowSelection: selection ? rowSelection : {},
+      expanded: expanded // Gắn state expanded vào table
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: selection ? setRowSelection : undefined,
+    onExpandedChange: onExpandedChange, // Lắng nghe sự kiện expand
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel()
-    // getPaginationRowModel: isShowPagination
-    // ? getPaginationRowModel()
-    // : undefined,
+    getFilteredRowModel: getFilteredRowModel(),
+    getExpandedRowModel: getExpandedRowModel(), // Bật model expand
+    getSubRows: (row: any) => row.subRows, // Xác định dòng con
+    getRowId: (row: any) => row._id || row.id, // ĐỊNH DANH ID CHO DÒNG ĐỂ EXPAND HOẠT ĐỘNG
+    autoResetExpanded: false
   })
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
@@ -148,7 +157,6 @@ export function DataTable<TData>({
   }
 
   const handleDelete = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const selectedIds = selectedRows.map((row) => (row.original as any).id)
     onBulkDelete?.(selectedIds)
     setRowSelection({})
