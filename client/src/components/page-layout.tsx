@@ -1,42 +1,52 @@
-import { cn } from "@/lib/utils";
-import PageHeader from "./page-header";
+import { cn } from '@/lib/utils'
+import PageHeader from './page-header'
 
 interface PropsType {
-  children: React.ReactNode;
+  children: React.ReactNode
   className?: string
-  title?: string;
-  subtitle?: string;
-  rightAction?: React.ReactNode;
-  showHeader?: boolean;
-  addMarginTop?: boolean;
+  title?: string
+  subtitle?: string
+  rightAction?: React.ReactNode
+  showHeader?: boolean
+  addMarginTop?: boolean
   renderPageHeader?: React.ReactNode
+  isFullWidth?: boolean // 👈 1. Thêm prop này
 }
 
-const PageLayout = ({ children, className,
+const PageLayout = ({
+  children,
+  className,
   title,
   subtitle,
   rightAction,
   showHeader = true,
   addMarginTop = false,
   renderPageHeader,
- }: PropsType) => {
+  isFullWidth = false // 👈 2. Mặc định là false để không ảnh hưởng trang khác
+}: PropsType) => {
   return (
     <div>
       {showHeader && (
-        <PageHeader 
-          title={title} 
-          subtitle={subtitle} 
-          rightAction={rightAction} 
+        <PageHeader
+          title={title}
+          subtitle={subtitle}
+          rightAction={rightAction}
           renderPageHeader={renderPageHeader}
         />
       )}
-    <div className={cn("w-full max-w-[var(--max-width)] mx-auto pt-8",
-      addMarginTop && "-mt-20",
-      className)}>
-      {children}
+      <div
+        className={cn(
+          'w-full pt-8',
+          // 👈 3. Nếu không full width thì mới gắn max-width và canh giữa (mx-auto)
+          !isFullWidth && 'max-w-[var(--max-width)] mx-auto',
+          addMarginTop && '-mt-20',
+          className
+        )}
+      >
+        {children}
+      </div>
     </div>
-    </div>
-  );
-};
+  )
+}
 
-export default PageLayout;
+export default PageLayout

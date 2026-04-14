@@ -86,6 +86,7 @@ export const getReportEmailTemplate = (
                    ${insightsList}
                  </ul>
                  <p style="margin-top: 30px; font-size: 13px; color: #888;">This report was generated automatically based on your recent activity.</p>
+                 <p style="margin-top: 8px; font-size: 12px; color: #aaa;">* All amounts are converted to <strong>${currency}</strong> using approximate exchange rates at the time this report was generated. Actual values may vary slightly due to market fluctuations.</p>
                </td>
              </tr>
              <tr>

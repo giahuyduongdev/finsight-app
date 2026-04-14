@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import { useState } from 'react' // Đã xóa useEffect vì không cần nữa
+import { useState } from 'react'
 import { Calendar, Loader } from 'lucide-react'
 import { useForm, Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -65,6 +65,7 @@ const formSchema = z.object({
   paymentMethod: z
     .string()
     .min(1, { message: 'Please select a payment method.' }),
+  status: z.enum(['COMPLETED', 'PENDING', 'FAILED']).default('COMPLETED'),
   isRecurring: z.boolean(),
   frequency: z
     .enum([
@@ -102,8 +103,6 @@ const TransactionForm = (props: {
   const [updateTransaction, { isLoading: isUpdating }] =
     useUpdateTransactionMutation()
 
-  // 🚀 BÍ KÍP Ở ĐÂY: Dùng tính năng 'values' của RHF thay cho useEffect + form.reset()
-  // Tránh hoàn toàn mọi lỗi chớp nháy và mất đồng bộ giao diện
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as unknown as Resolver<FormValues>,
     defaultValues: {
@@ -114,12 +113,12 @@ const TransactionForm = (props: {
       category: '',
       date: new Date(),
       paymentMethod: '',
+      status: 'COMPLETED',
       isRecurring: false,
       frequency: null,
       description: '',
       receiptUrl: ''
     },
-    // RHF sẽ TỰ ĐỘNG reset Form một cách an toàn mỗi khi mảng 'values' này có dữ liệu
     values:
       isEdit && editData
         ? {
@@ -130,14 +129,15 @@ const TransactionForm = (props: {
             category: editData.category?.toLowerCase() || '',
             date: editData.date ? new Date(editData.date) : new Date(),
             paymentMethod: editData.paymentMethod || '',
+            status:
+              (editData.status as 'COMPLETED' | 'PENDING' | 'FAILED') ||
+              'COMPLETED',
             isRecurring: editData.isRecurring || false,
             frequency: editData.recurringInterval || null,
             description: editData.description || ''
           }
         : undefined
   })
-
-  // ĐÃ XOÁ HOÀN TOÀN useEffect GÂY LỖI RACE CONDITION
 
   const frequencyOptions = Object.entries(_TRANSACTION_FREQUENCY).map(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -157,6 +157,7 @@ const TransactionForm = (props: {
       category: data.category?.toLowerCase() || '',
       date: new Date(data.date),
       paymentMethod: data.paymentMethod || '',
+      status: 'COMPLETED',
       isRecurring: false,
       frequency: null,
       description: data.description || '',
@@ -164,13 +165,13 @@ const TransactionForm = (props: {
     })
   }
 
-  // Handle form submission
   const onSubmit = (values: FormValues) => {
     const payload = {
       title: values.title,
       type: values.type,
       category: values.category,
       paymentMethod: values.paymentMethod,
+      status: values.status,
       description: values.description || '',
       amount: Number(values.amount),
       currency: values.currency as CurrencyType,
@@ -207,7 +208,6 @@ const TransactionForm = (props: {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 px-4">
           <div className="space-y-6">
-            {/* Receipt Upload Section */}
             {!isEdit && (
               <RecieptScanner
                 loadingChange={isScanning}
@@ -216,7 +216,6 @@ const TransactionForm = (props: {
               />
             )}
 
-            {/* Transaction Type */}
             <FormField
               control={form.control}
               name="type"
@@ -272,7 +271,6 @@ const TransactionForm = (props: {
               )}
             />
 
-            {/* Title */}
             <FormField
               control={form.control}
               name="title"
@@ -291,9 +289,7 @@ const TransactionForm = (props: {
               )}
             />
 
-            {/* Amount & Currency Selection */}
             <div className="flex flex-row items-start gap-2 w-full">
-              {/* 1. Trường nhập Số tiền (Amount) */}
               <FormField
                 control={form.control}
                 name="amount"
@@ -322,7 +318,6 @@ const TransactionForm = (props: {
                 )}
               />
 
-              {/* 2. Trường chọn Tiền tệ (Currency) */}
               <FormField
                 control={form.control}
                 name="currency"
@@ -333,7 +328,7 @@ const TransactionForm = (props: {
                     </FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      value={field.value || undefined} // 👈 ĐÃ SỬA: ÉP SANG UNDEFINED ĐỂ CHỐNG LỖI SHADCN UI
+                      value={field.value || undefined}
                       disabled={isScanning}
                     >
                       <FormControl>
@@ -355,7 +350,6 @@ const TransactionForm = (props: {
               />
             </div>
 
-            {/* Category */}
             <FormField
               control={form.control}
               name="category"
@@ -380,7 +374,6 @@ const TransactionForm = (props: {
               )}
             />
 
-            {/* Date */}
             <FormField
               control={form.control}
               name="date"
@@ -394,7 +387,7 @@ const TransactionForm = (props: {
                           type="button"
                           variant={'outline'}
                           className={cn(
-                            'w-full pl-3 text-left font-normal',
+                            'w-full pl-3 text-left font-normal h-10',
                             !field.value && 'text-muted-foreground'
                           )}
                         >
@@ -427,7 +420,6 @@ const TransactionForm = (props: {
               )}
             />
 
-            {/* Payment Method */}
             <FormField
               control={form.control}
               name="paymentMethod"
@@ -436,11 +428,11 @@ const TransactionForm = (props: {
                   <FormLabel>Payment Method</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    value={field.value || undefined} // 👈 ĐÃ SỬA THÀNH UNDEFINED NẾU CHUỖI RỖNG
+                    value={field.value || undefined}
                     disabled={isScanning}
                   >
                     <FormControl className="w-full">
-                      <SelectTrigger>
+                      <SelectTrigger className="h-10">
                         <SelectValue placeholder="Select payment method" />
                       </SelectTrigger>
                     </FormControl>
@@ -452,6 +444,127 @@ const TransactionForm = (props: {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* PHẦN STATUS ĐÃ ĐƯỢC ĐỒNG BỘ CHIỀU CAO H-10 */}
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Status</FormLabel>
+                  <FormControl>
+                    <div
+                      className={cn(
+                        'grid gap-2',
+                        isEdit ? 'grid-cols-3' : 'grid-cols-2'
+                      )}
+                    >
+                      {/* Nút COMPLETED */}
+                      <label
+                        className={cn(
+                          'flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 transition-colors hover:bg-muted',
+                          field.value === 'COMPLETED'
+                            ? 'border-green-500 bg-green-50/50 text-green-700 dark:bg-green-950/20 dark:text-green-400'
+                            : 'border-input text-muted-foreground'
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
+                            field.value === 'COMPLETED'
+                              ? 'border-green-500'
+                              : 'border-primary/50'
+                          )}
+                        >
+                          {field.value === 'COMPLETED' && (
+                            <div className="h-2 w-2 rounded-full bg-green-500" />
+                          )}
+                        </div>
+                        <span className="text-[12.5px] font-medium whitespace-nowrap">
+                          Completed
+                        </span>
+                        <input
+                          type="radio"
+                          className="hidden"
+                          value="COMPLETED"
+                          checked={field.value === 'COMPLETED'}
+                          onChange={() => field.onChange('COMPLETED')}
+                        />
+                      </label>
+
+                      {/* Nút PENDING */}
+                      <label
+                        className={cn(
+                          'flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 transition-colors hover:bg-muted',
+                          field.value === 'PENDING'
+                            ? 'border-yellow-500 bg-yellow-50/50 text-yellow-700 dark:bg-yellow-950/20 dark:text-yellow-500'
+                            : 'border-input text-muted-foreground'
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
+                            field.value === 'PENDING'
+                              ? 'border-yellow-500'
+                              : 'border-primary/50'
+                          )}
+                        >
+                          {field.value === 'PENDING' && (
+                            <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                          )}
+                        </div>
+                        <span className="text-[12.5px] font-medium whitespace-nowrap">
+                          Pending
+                        </span>
+                        <input
+                          type="radio"
+                          className="hidden"
+                          value="PENDING"
+                          checked={field.value === 'PENDING'}
+                          onChange={() => field.onChange('PENDING')}
+                        />
+                      </label>
+
+                      {/* Nút FAILED (Chỉ hiện khi Edit) */}
+                      {isEdit && (
+                        <label
+                          className={cn(
+                            'flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 transition-colors hover:bg-muted',
+                            field.value === 'FAILED'
+                              ? 'border-red-500 bg-red-50/50 text-red-700 dark:bg-red-950/20 dark:text-red-500'
+                              : 'border-input text-muted-foreground'
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
+                              field.value === 'FAILED'
+                                ? 'border-red-500'
+                                : 'border-primary/50'
+                            )}
+                          >
+                            {field.value === 'FAILED' && (
+                              <div className="h-2 w-2 rounded-full bg-red-500" />
+                            )}
+                          </div>
+                          <span className="text-[12.5px] font-medium whitespace-nowrap">
+                            Failed
+                          </span>
+                          <input
+                            type="radio"
+                            className="hidden"
+                            value="FAILED"
+                            checked={field.value === 'FAILED'}
+                            onChange={() => field.onChange('FAILED')}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -503,11 +616,11 @@ const TransactionForm = (props: {
                     <FormLabel>Frequency</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      value={field.value || undefined} // 👈 ĐÃ SỬA THÀNH UNDEFINED NẾU CHUỖI RỖNG
+                      value={field.value || undefined}
                       disabled={isScanning}
                     >
                       <FormControl className="w-full">
-                        <SelectTrigger>
+                        <SelectTrigger className="h-10">
                           <SelectValue
                             placeholder="Select frequency"
                             className="!capitalize"
@@ -532,7 +645,6 @@ const TransactionForm = (props: {
               />
             )}
 
-            {/* Description */}
             <FormField
               control={form.control}
               name="description"
@@ -556,7 +668,7 @@ const TransactionForm = (props: {
           <div className="sticky bottom-0 bg-white dark:bg-background pb-2">
             <Button
               type="submit"
-              className="w-full !text-white"
+              className="w-full !text-white h-10"
               disabled={isScanning || isCreating || isUpdating}
             >
               {isCreating || isUpdating ? (

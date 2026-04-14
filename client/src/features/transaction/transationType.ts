@@ -28,6 +28,7 @@ export interface GetAllTransactionParams {
   type?: _TransactionType
   recurringStatus?: 'RECURRING' | 'NON_RECURRING'
   currency?: CurrencyType
+  status?: 'COMPLETED' | 'PENDING' | 'FAILED'
   pageNumber?: number
   pageSize?: number
 }
@@ -105,4 +106,10 @@ export interface BulkTransactionType {
 
 export interface BulkImportTransactionPayload {
   transactions: BulkTransactionType[]
+}
+
+export interface GetChildTransactionsResponse {
+  message: string
+  parent: TransactionType
+  children: TransactionType[]
 }

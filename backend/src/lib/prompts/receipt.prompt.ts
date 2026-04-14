@@ -10,15 +10,16 @@ Analyze this receipt image (base64 encoded) and extract transaction details matc
   "currency": "string",       // One of: ${Object.values(CurrencyEnum).join(',')} - detect from receipt symbol or country, default USD
   "date": "ISO date string",  // Transaction date in YYYY-MM-DD format
   "description": "string",    // Items purchased summary (max 50 words)
-  "category": "string",       // category of the transaction 
+  "category": "string",       // Prefer one of: groceries, dining, transportation, utilities, entertainment, shopping, healthcare, travel, housing, income, investments. If none fit, use a short descriptive word in lowercase (e.g. "coffee", "pet", "gym")
   "type": "EXPENSE",          // Always "EXPENSE" for receipts
   "paymentMethod": "string",  // One of: ${Object.values(PaymentMethodEnum).join(',')}
+  "status": "COMPLETED",      // Always "COMPLETED" for receipts
 }
 
 Rules:
 1. Amount must be positive
 2. Date must be valid and in ISO format
-3. Category must match our enum values and must have only the first letter capitalized
+3. Category must be lowercase. Prefer matching the suggested list, but if none fit use a short descriptive word — never use "other"
 4. Currency must be one of: ${Object.values(CurrencyEnum).join(',')}
 5. If currency symbol not found on receipt, default to USD
 6. If uncertain about any field, omit it
@@ -33,6 +34,7 @@ Example valid response:
   "description": "Groceries: milk, eggs, bread",
   "category": "groceries",
   "paymentMethod": "CARD",
-  "type": "EXPENSE"
+  "type": "EXPENSE",
+  "status": "COMPLETED"
 }
 `
