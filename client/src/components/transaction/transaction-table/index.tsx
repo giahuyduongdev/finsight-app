@@ -15,7 +15,13 @@ import {
   usePrefetch
 } from '@/features/transaction/transactionAPI'
 import { toast } from 'sonner'
-import { ColumnDef } from '@tanstack/react-table'
+import {
+  ColumnDef,
+  ExpandedState,
+  sortingFns,
+  Row,
+  SortingFn // Import thêm type này
+} from '@tanstack/react-table'
 import { TransactionType } from '@/features/transaction/transationType'
 
 type FilterType = {
@@ -46,10 +52,10 @@ const TransactionTable = (props: {
     pageSize: props.pageSize || 10
   })
 
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  const [childrenMap, setChildrenMap] = useState<ChildrenMapType>({}) // 👈 fix
+  const [expanded, setExpanded] = useState<ExpandedState>({})
+  const [childrenMap, setChildrenMap] = useState<ChildrenMapType>({})
 
-  const [fetchChildren] = useLazyGetChildTransactionsQuery() // 👈 fix
+  const [fetchChildren] = useLazyGetChildTransactionsQuery()
   const { debouncedTerm, setSearchTerm } = useDebouncedSearch('', {
     delay: 500
   })
@@ -66,7 +72,11 @@ const TransactionTable = (props: {
     pageSize: filter.pageSize
   })
 
-  const transactions = data?.transactions || []
+  const transactions = useMemo(
+    () => data?.transactions || [],
+    [data?.transactions]
+  )
+
   const pagination = {
     totalItems: data?.pagination?.totalCount || 0,
     totalPages: data?.pagination?.totalPages || 0,
@@ -76,10 +86,17 @@ const TransactionTable = (props: {
 
   const handleExpandRow = useCallback(
     async (transactionId: string) => {
-      if (expandedRows.has(transactionId)) {
-        setExpandedRows((prev) => {
-          const next = new Set(prev)
-          next.delete(transactionId)
+      // 1. KIỂM TRA EXPAND AN TOÀN (Fix lỗi ts 7053)
+      const isExpanded =
+        typeof expanded === 'object'
+          ? expanded[transactionId]
+          : expanded === true
+
+      if (isExpanded) {
+        setExpanded((prev) => {
+          // Khởi tạo object an toàn trước khi spread (Fix lỗi ts 2698)
+          const next = typeof prev === 'object' ? { ...prev } : {}
+          delete next[transactionId]
           return next
         })
         return
@@ -89,7 +106,6 @@ const TransactionTable = (props: {
         try {
           const result = await fetchChildren(transactionId).unwrap()
           setChildrenMap((prev: ChildrenMapType) => ({
-            // 👈 fix
             ...prev,
             [transactionId]: result
           }))
@@ -99,50 +115,108 @@ const TransactionTable = (props: {
         }
       }
 
-      setExpandedRows((prev) => new Set([...prev, transactionId]))
+      setExpanded((prev) => {
+        const next = typeof prev === 'object' ? { ...prev } : {}
+        next[transactionId] = true
+        return next
+      })
     },
-    [expandedRows, childrenMap, fetchChildren]
+    [expanded, childrenMap, fetchChildren]
   )
 
-  const displayTransactions = useMemo((): DisplayTransaction[] => {
-    const result: DisplayTransaction[] = []
+  const displayTransactions = useMemo(() => {
+    type TransactionWithSubRows = DisplayTransaction & {
+      subRows?: DisplayTransaction[]
+    }
+
+    const result: TransactionWithSubRows[] = []
 
     for (const tx of transactions) {
-      result.push(tx)
+      const parentTx: TransactionWithSubRows = { ...tx }
 
-      if (tx.isRecurring && expandedRows.has(tx._id)) {
+      if (tx.isRecurring && childrenMap[tx._id]) {
         const cached = childrenMap[tx._id]
-        if (cached) {
-          if (tx.nextRecurringDate) {
-            result.push({
-              ...tx,
-              _id: `upcoming-${tx._id}`,
-              date: tx.nextRecurringDate,
-              title: `${tx.title} - Upcoming`,
-              status: 'UPCOMING',
-              _rowType: 'upcoming'
-            } as DisplayTransaction)
-          }
+        parentTx.subRows = []
 
-          for (const child of cached.children) {
-            result.push({ ...child, _rowType: 'child' })
-          }
+        if (tx.nextRecurringDate) {
+          parentTx.subRows.push({
+            ...tx,
+            _id: `upcoming-${tx._id}`,
+            date: tx.nextRecurringDate,
+            title: `${tx.title} - Upcoming`,
+            status: 'UPCOMING',
+            _rowType: 'upcoming'
+          } as DisplayTransaction)
+        }
+
+        const sortedChildren = [...cached.children].sort((a, b) => {
+          return new Date(b.date).getTime() - new Date(a.date).getTime()
+        })
+
+        for (const child of sortedChildren) {
+          parentTx.subRows.push({
+            ...child,
+            _rowType: 'child'
+          } as DisplayTransaction)
         }
       }
+
+      result.push(parentTx)
     }
 
     return result
-  }, [transactions, expandedRows, childrenMap])
+  }, [transactions, childrenMap])
 
   const columns = useMemo(() => {
-    const cols = createTransactionColumns(expandedRows, handleExpandRow)
-    if (!props.hiddenColumns) return cols
-    return cols.filter((col) => {
+    // Ép kiểu an toàn để lấy mảng keys
+    const expandedSet = new Set(
+      typeof expanded === 'object' ? Object.keys(expanded) : []
+    )
+    const baseCols = createTransactionColumns(expandedSet, handleExpandRow)
+
+    // 2. KHAI BÁO TYPE CHUẨN ĐỂ FIX ESLINT "any"
+    const enhancedCols = baseCols.map((col) => {
+      // Định nghĩa type ép kiểu cho cột
+      const colDef = col as ColumnDef<TransactionType> & {
+        sortingFn?: SortingFn<TransactionType> | string
+      }
+      const originalSort = colDef.sortingFn
+
+      return {
+        ...col,
+        sortingFn: (
+          rowA: Row<TransactionType>,
+          rowB: Row<TransactionType>,
+          columnId: string
+        ) => {
+          if (rowA.parentId && rowB.parentId) {
+            return 0
+          }
+
+          if (typeof originalSort === 'function') {
+            return originalSort(rowA, rowB, columnId)
+          }
+          if (typeof originalSort === 'string' && originalSort in sortingFns) {
+            const sortFn = sortingFns[
+              originalSort as keyof typeof sortingFns
+            ] as SortingFn<TransactionType>
+            return sortFn(rowA, rowB, columnId)
+          }
+
+          // 3. FIX LỖI TS(2339): Đổi auto thành alphanumeric
+          return sortingFns.alphanumeric(rowA, rowB, columnId)
+        }
+      } as ColumnDef<TransactionType>
+    })
+
+    if (!props.hiddenColumns) return enhancedCols
+
+    return enhancedCols.filter((col) => {
       const key =
         'accessorKey' in col ? String(col.accessorKey) : (col.id ?? '')
       return !props.hiddenColumns!.includes(key)
     })
-  }, [expandedRows, handleExpandRow, props.hiddenColumns])
+  }, [expanded, handleExpandRow, props.hiddenColumns])
 
   const handleSearch = (value: string) => setSearchTerm(value)
 
@@ -217,6 +291,8 @@ const TransactionTable = (props: {
     <DataTable
       data={displayTransactions as TransactionType[]}
       columns={columns as ColumnDef<TransactionType>[]}
+      expanded={expanded}
+      onExpandedChange={setExpanded}
       searchPlaceholder="Search transactions..."
       isLoading={isFetching}
       isBulkDeleting={isBulkDeleting}
