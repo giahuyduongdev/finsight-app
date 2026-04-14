@@ -15,6 +15,7 @@ import {
   deleteTransactionService,
   duplicateTransactionService,
   getAllTransactionService,
+  getChildTransactionsService,
   getTransactionByIdService,
   scanReceiptService,
   updateTransactionService
@@ -47,7 +48,8 @@ export const getAllTransactionController = asyncHandler(
         | 'RECURRING'
         | 'NON_RECURRING'
         | undefined,
-      currency: req.query.currency as CurrencyType | undefined
+      currency: req.query.currency as CurrencyType | undefined,
+      status: req.query.status as 'COMPLETED' | 'PENDING' | 'FAILED' | undefined
     }
 
     const pagination = {
@@ -73,6 +75,20 @@ export const getAllTransactionByIdController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction fetched successfully',
       transaction
+    })
+  }
+)
+
+export const getChildTransactionsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const parentId = transactionIdSchema.parse(req.params.id)
+
+    const children = await getChildTransactionsService(userId, parentId)
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: 'Child transactions fetched successfully',
+      children
     })
   }
 )

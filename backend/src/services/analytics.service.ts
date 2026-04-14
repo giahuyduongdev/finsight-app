@@ -1,6 +1,7 @@
 import mongoose, { PipelineStage } from 'mongoose'
 import { DateRangeEnum, DateRangePreset } from '../enums/date-range.enum'
 import TransactionModel, {
+  TransactionStatusEnum,
   TransactionTypeEnum
 } from '../models/transaction.model'
 import { getDateRange } from '../utils/dates'
@@ -32,6 +33,7 @@ export const summaryAnalyticsService = async (
     {
       $match: {
         userId: new mongoose.Types.ObjectId(userId),
+        status: TransactionStatusEnum.COMPLETED,
         ...(from && to && { date: { $gte: from, $lte: to } })
       }
     },
@@ -107,6 +109,7 @@ export const summaryAnalyticsService = async (
       {
         $match: {
           userId: new mongoose.Types.ObjectId(userId),
+          status: TransactionStatusEnum.COMPLETED,
           date: { $gte: prevPeriodFrom, $lte: prevPeriodTo }
         }
       },
@@ -206,6 +209,7 @@ export const chartAnalyticsService = async (
 
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
+    status: TransactionStatusEnum.COMPLETED,
     ...(from && to && { date: { $gte: from, $lte: to } })
   }
 
@@ -341,6 +345,7 @@ export const expensePieChartBreakdownService = async (
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
     type: TransactionTypeEnum.EXPENSE,
+    status: TransactionStatusEnum.COMPLETED,
     ...(from && to && { date: { $gte: from, $lte: to } })
   }
 

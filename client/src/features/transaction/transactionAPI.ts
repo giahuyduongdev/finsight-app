@@ -5,6 +5,7 @@ import {
   CreateTransactionBody,
   GetAllTransactionParams,
   GetAllTransactionResponse,
+  GetChildTransactionsResponse,
   GetSingleTransactionResponse,
   UpdateTransactionPayload
 } from './transationType'
@@ -38,6 +39,7 @@ export const transactionApi = apiClient.injectEndpoints({
           type = undefined,
           recurringStatus = undefined,
           currency,
+          status, // 👈 1. Khai báo lấy status từ params
           pageNumber = 1,
           pageSize = 10
         } = params
@@ -47,6 +49,7 @@ export const transactionApi = apiClient.injectEndpoints({
         if (type) queryParams.type = type
         if (recurringStatus) queryParams.recurringStatus = recurringStatus
         if (currency) queryParams.currency = currency
+        if (status) queryParams.status = status // 👈 2. Nhét status vào URL gửi đi
 
         return {
           url: '/transaction/all',
@@ -58,7 +61,6 @@ export const transactionApi = apiClient.injectEndpoints({
       keepUnusedDataFor: 60
     }),
 
-    // 👇 ĐÂY LÀ NƠI PHÉP THUẬT XẢY RA 👇
     getSingleTransaction: builder.query<GetSingleTransactionResponse, string>({
       query: (id) => ({
         url: `/transaction/${id}`,
@@ -108,6 +110,14 @@ export const transactionApi = apiClient.injectEndpoints({
       invalidatesTags: ['transactions', 'analytics']
     }),
 
+    getChildTransactions: builder.query<GetChildTransactionsResponse, string>({
+      query: (id) => ({
+        url: `/transaction/${id}/children`,
+        method: 'GET'
+      }),
+      providesTags: ['transactions']
+    }),
+
     bulkDeleteTransaction: builder.mutation<void, string[]>({
       query: (transactionIds) => ({
         url: '/transaction/bulk-delete',
@@ -126,6 +136,8 @@ export const {
   useGetAllTransactionsQuery,
   useAiScanReceiptMutation,
   useGetSingleTransactionQuery,
+  useGetChildTransactionsQuery,
+  useLazyGetChildTransactionsQuery,
   useDuplicateTransactionMutation,
   useUpdateTransactionMutation,
   useBulkImportTransactionMutation,

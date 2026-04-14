@@ -10,6 +10,7 @@ export default function Transactions() {
       title="All Transactions"
       subtitle="Showing all transactions"
       addMarginTop
+      isFullWidth={true}
       rightAction={
         <div className="flex items-center gap-2">
           <ImportTransactionModal />

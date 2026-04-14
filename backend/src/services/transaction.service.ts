@@ -36,13 +36,14 @@ export const createTransactionService = async (
   const transaction = await TransactionModel.create({
     ...body,
     userId,
+    status: body.status || 'COMPLETED',
     category: body.category,
     amount: Number(body.amount),
     currency: body.currency || 'USD',
     isRecurring: body.isRecurring,
     recurringInterval: body.recurringInterval || null,
     nextRecurringDate,
-    lastProcess: null
+    lastProcessed: null
   })
 
   // Invalidate analytics cache
@@ -59,16 +60,18 @@ export const getAllTransactionService = async (
     type?: keyof typeof TransactionTypeEnum
     recurringStatus?: 'RECURRING' | 'NON_RECURRING'
     currency?: CurrencyType
+    status?: 'COMPLETED' | 'PENDING' | 'FAILED'
   },
   pagination: {
     pageSize: number
     pageNumber: number
   }
 ) => {
-  const { keyword, type, recurringStatus, currency } = filters
+  const { keyword, type, recurringStatus, currency, status } = filters
 
   const filterConditions: Record<string, any> = {
-    userId
+    userId,
+    recurringSourceId: null
   }
 
   if (keyword) {
@@ -84,6 +87,10 @@ export const getAllTransactionService = async (
 
   if (currency) {
     filterConditions.currency = currency
+  }
+
+  if (status) {
+    filterConditions.status = status
   }
 
   if (recurringStatus) {
@@ -133,6 +140,26 @@ export const getTransactionByIdService = async (
   return transaction
 }
 
+export const getChildTransactionsService = async (
+  userId: string,
+  parentId: string
+) => {
+  const parent = await TransactionModel.findOne({
+    _id: parentId,
+    userId,
+    isRecurring: true
+  })
+
+  if (!parent) throw new NotFoundException('Transaction not found')
+
+  const children = await TransactionModel.find({
+    recurringSourceId: parentId,
+    userId
+  }).sort({ date: -1 }) // mới nhất lên đầu
+
+  return children
+}
+
 export const duplicateTransactionService = async (
   userId: string,
   transactionId: string
@@ -150,9 +177,16 @@ export const duplicateTransactionService = async (
     description: transaction.description
       ? `${transaction.description} (Duplicate)`
       : 'Duplicated transaction',
+
+    // --- RESET CÁC THÔNG SỐ ĐỊNH KỲ ---
     isRecurring: false,
     recurringInterval: undefined,
     nextRecurringDate: undefined,
+
+    // --- NHỮNG TRƯỜNG MỚI CẦN UPDATE ---
+    status: 'COMPLETED', // Reset về trạng thái an toàn mặc định
+    recurringSourceId: null, // Cắt đứt quan hệ họ hàng với giao dịch gốc
+
     createdAt: undefined,
     updatedAt: undefined
   })
@@ -199,6 +233,7 @@ export const updateTransactionService = async (
     ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
     ...(body.amount !== undefined && { amount: Number(body.amount) }),
     ...(body.currency && { currency: body.currency }),
+    ...(body.status && { status: body.status }),
     date,
     isRecurring,
     recurringInterval,
@@ -253,9 +288,13 @@ export const bulkDeleteTransactionService = async (
   }
 }
 
+export type BulkTransactionItem = Omit<CreateTransactionType, 'status'> & {
+  status?: 'COMPLETED' | 'PENDING' | 'FAILED'
+}
+
 export const bulkTransactionService = async (
   userId: string,
-  transactions: CreateTransactionType[]
+  transactions: BulkTransactionItem[]
 ) => {
   try {
     const bulkOps = transactions.map((tx) => ({
@@ -343,6 +382,7 @@ export const scanReceiptService = async (
       category: data.category,
       paymentMethod: data.paymentMethod,
       type: data.type,
+      status: data.status || 'COMPLETED',
       receiptUrl: file.path
     }
   } catch (error) {

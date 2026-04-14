@@ -74,6 +74,25 @@ const transactionSchema = z.object({
       )
     ])
     .transform((val) => (val === '' ? undefined : val))
+    .optional(),
+
+  // 👇 THÊM VALIDATION STATUS VÀO ĐÂY (Cho phép chữ hoa/thường trong CSV)
+  status: z
+    .union([
+      z.literal(''),
+      z.undefined(),
+      z
+        .string()
+        .toUpperCase()
+        .pipe(
+          z.enum(['COMPLETED', 'PENDING', 'FAILED'], {
+            errorMap: () => ({
+              message: 'Status must be COMPLETED, PENDING, or FAILED'
+            })
+          })
+        )
+    ])
+    .transform((val) => (val === '' ? undefined : val))
     .optional()
 })
 
@@ -172,6 +191,9 @@ const ConfirmationStep = ({
                       'Payment method:- must be one of: ' +
                       Object.values(PAYMENT_METHODS_ENUM).join(', ')
                     )
+                  // 👇 Báo lỗi nếu map sai chữ cho Status
+                  if (e.path[0] === 'status')
+                    return 'Status:- must be COMPLETED, PENDING, or FAILED'
                   return `${e.path[0]}: ${e.message}`
                 })
                 .join('\n')

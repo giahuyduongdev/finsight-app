@@ -45,7 +45,8 @@ export const baseTransactionSchema = z.object({
       PaymentMethodEnum.CASH,
       PaymentMethodEnum.OTHER
     ])
-    .default(PaymentMethodEnum.CASH)
+    .default(PaymentMethodEnum.CASH),
+  status: z.enum(['COMPLETED', 'PENDING', 'FAILED']).default('COMPLETED')
 })
 
 export const bulkDeleteTransactionSchema = z.object({
@@ -71,7 +72,9 @@ export const bulkTransactionSchema = z.object({
     )
 })
 
-export const createTransactionSchema = baseTransactionSchema
+export const createTransactionSchema = baseTransactionSchema.extend({
+  status: z.enum(['COMPLETED', 'PENDING']).default('COMPLETED')
+})
 export const updateTransactionSchema = baseTransactionSchema.partial()
 
 export type CreateTransactionType = z.infer<typeof createTransactionSchema>

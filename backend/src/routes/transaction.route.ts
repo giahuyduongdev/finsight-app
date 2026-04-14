@@ -8,7 +8,8 @@ import {
   deleteTransactionController,
   bulkDeleteTransactionController,
   bulkTransactionController,
-  scanReceiptController
+  scanReceiptController,
+  getChildTransactionsController
 } from '../controllers/transaction.controller'
 import { upload } from '../config/cloudinary.config'
 
@@ -28,6 +29,7 @@ transactionRoutes.put('/duplicate/:id', duplicateTransactionController)
 transactionRoutes.put('/update/:id', updateTransactionController)
 
 transactionRoutes.get('/all', getAllTransactionController)
+transactionRoutes.get('/:id/children', getChildTransactionsController)
 transactionRoutes.get('/:id', getAllTransactionByIdController)
 transactionRoutes.delete('/delete/:id', deleteTransactionController)
 transactionRoutes.delete('/bulk-delete', bulkDeleteTransactionController)
