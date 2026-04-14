@@ -16,17 +16,32 @@ import { toast } from 'sonner'
 import { TransactionType } from '@/features/transaction/transationType'
 import { Row } from '@tanstack/react-table'
 
+// Định nghĩa kiểu mở rộng để tránh lỗi ESLint "any" cho các biến ảo/biến mới
+type ExtendedTransaction = TransactionType & {
+  recurringSourceId?: string | null
+  _rowType?: string
+}
+
 const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
   const transactionId = row.original.id ?? row.original._id
   const { onOpenDrawer } = useEditTransactionDrawer()
+
   const [duplicateTransaction, { isLoading: isDuplicating }] =
     useDuplicateTransactionMutation()
   const [deleteTransaction, { isLoading: isDeleting }] =
     useDeleteTransactionMutation()
 
+  // Ép kiểu an toàn để truy cập recurringSourceId và _rowType mà không dùng "any"
+  const tx = row.original as ExtendedTransaction
+
+  // Kiểm tra nếu là giao dịch con (sinh ra từ chu kỳ lặp)
+  const isChild = !!tx.recurringSourceId || tx._rowType === 'child'
+
   const handleDuplicate = (e: Event) => {
     e.preventDefault()
-    if (isDuplicating) return
+    // Chặn duplicate nếu đang xử lý hoặc nếu là giao dịch con
+    if (isDuplicating || isChild) return
+
     duplicateTransaction(transactionId)
       .unwrap()
       .then(() => toast.success('Transaction duplicated successfully'))
@@ -38,6 +53,7 @@ const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
   const handleDelete = (e: Event) => {
     e.preventDefault()
     if (isDeleting) return
+
     deleteTransaction(transactionId)
       .unwrap()
       .then(() => toast.success('Transaction deleted successfully'))
@@ -63,9 +79,11 @@ const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
         <DropdownMenuItem onClick={() => onOpenDrawer(transactionId)}>
           <Pencil className="mr-1 h-4 w-4" /> Edit
         </DropdownMenuItem>
+
         <DropdownMenuItem
           className="relative"
-          disabled={isDuplicating}
+          // 👇 KHÓA NÚT: Duplicate bị vô hiệu hóa nếu là giao dịch con
+          disabled={isDuplicating || isChild}
           onSelect={handleDuplicate}
         >
           <Copy className="mr-1 h-4 w-4" /> Duplicate
@@ -73,7 +91,9 @@ const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
             <Loader className="ml-1 h-4 w-4 absolute right-2 animate-spin" />
           )}
         </DropdownMenuItem>
+
         <DropdownMenuSeparator />
+
         <DropdownMenuItem
           className="relative !text-destructive"
           disabled={isDeleting}

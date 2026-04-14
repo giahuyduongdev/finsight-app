@@ -97,6 +97,9 @@ const TransactionForm = (props: {
   )
   const editData = data?.transaction
 
+  // Kiểm tra xem đây có phải là giao dịch con không (dựa vào DB)
+  const isChildTransaction = !!editData?.recurringSourceId
+
   const [createTransaction, { isLoading: isCreating }] =
     useCreateTransactionMutation()
 
@@ -225,18 +228,25 @@ const TransactionForm = (props: {
                   <RadioGroup
                     onValueChange={field.onChange}
                     value={field.value}
-                    className="flex space-x-2"
-                    disabled={isScanning}
+                    className={cn(
+                      'flex space-x-2',
+                      (isScanning || isChildTransaction) && 'opacity-60'
+                    )}
+                    // 👇 ĐÃ KHÓA: Nếu là giao dịch con thì không cho đổi Thu/Chi
+                    disabled={isScanning || isChildTransaction}
                   >
                     <label
                       htmlFor={_TRANSACTION_TYPE.INCOME}
                       className={cn(
-                        `text-sm font-normal leading-none cursor-pointer
+                        `text-sm font-normal leading-none
                         flex items-center space-x-2 rounded-md 
                         shadow-sm border p-2 flex-1 justify-center 
                         `,
                         field.value === _TRANSACTION_TYPE.INCOME &&
-                          '!border-primary'
+                          '!border-primary',
+                        isScanning || isChildTransaction
+                          ? 'cursor-not-allowed'
+                          : 'cursor-pointer'
                       )}
                     >
                       <RadioGroupItem
@@ -250,12 +260,15 @@ const TransactionForm = (props: {
                     <label
                       htmlFor={_TRANSACTION_TYPE.EXPENSE}
                       className={cn(
-                        `text-sm font-normal leading-none cursor-pointer
+                        `text-sm font-normal leading-none
                         flex items-center space-x-2 rounded-md 
                         shadow-sm border p-2 flex-1 justify-center 
                         `,
                         field.value === _TRANSACTION_TYPE.EXPENSE &&
-                          '!border-primary'
+                          '!border-primary',
+                        isScanning || isChildTransaction
+                          ? 'cursor-not-allowed'
+                          : 'cursor-pointer'
                       )}
                     >
                       <RadioGroupItem
@@ -329,7 +342,8 @@ const TransactionForm = (props: {
                     <Select
                       onValueChange={field.onChange}
                       value={field.value || undefined}
-                      disabled={isScanning}
+                      // 👇 ĐÃ KHÓA: Nếu là giao dịch con thì không cho đổi Tiền tệ
+                      disabled={isScanning || isChildTransaction}
                     >
                       <FormControl>
                         <SelectTrigger className="h-10 w-[80px] bg-muted/50 font-bold uppercase focus:ring-0">
@@ -449,7 +463,6 @@ const TransactionForm = (props: {
               )}
             />
 
-            {/* PHẦN STATUS ĐÃ ĐƯỢC ĐỒNG BỘ CHIỀU CAO H-10 */}
             <FormField
               control={form.control}
               name="status"
@@ -463,7 +476,6 @@ const TransactionForm = (props: {
                         isEdit ? 'grid-cols-3' : 'grid-cols-2'
                       )}
                     >
-                      {/* Nút COMPLETED */}
                       <label
                         className={cn(
                           'flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 transition-colors hover:bg-muted',
@@ -496,7 +508,6 @@ const TransactionForm = (props: {
                         />
                       </label>
 
-                      {/* Nút PENDING */}
                       <label
                         className={cn(
                           'flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 transition-colors hover:bg-muted',
@@ -529,7 +540,6 @@ const TransactionForm = (props: {
                         />
                       </label>
 
-                      {/* Nút FAILED (Chỉ hiện khi Edit) */}
                       {isEdit && (
                         <label
                           className={cn(
@@ -580,16 +590,22 @@ const TransactionForm = (props: {
                       Recurring Transaction
                     </FormLabel>
                     <p className="text-xs text-muted-foreground">
-                      {field.value
-                        ? 'This will repeat automatically'
-                        : 'Set recurring to repeat this transaction'}
+                      {isChildTransaction
+                        ? 'Child transactions cannot be made recurring'
+                        : field.value
+                          ? 'This will repeat automatically'
+                          : 'Set recurring to repeat this transaction'}
                     </p>
                   </div>
                   <FormControl>
                     <Switch
-                      disabled={isScanning}
+                      disabled={isScanning || isChildTransaction}
                       checked={field.value}
-                      className="cursor-pointer"
+                      className={
+                        isChildTransaction
+                          ? 'cursor-not-allowed opacity-50'
+                          : 'cursor-pointer'
+                      }
                       onCheckedChange={(checked) => {
                         field.onChange(checked)
                         if (checked) {

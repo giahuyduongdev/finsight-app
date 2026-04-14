@@ -52,6 +52,7 @@ export interface TransactionType {
   createdAt: string
   updatedAt: string
   id?: string
+  recurringSourceId?: string | null
 }
 
 export interface GetAllTransactionResponse {
