@@ -73,7 +73,8 @@ export const bulkTransactionSchema = z.object({
 })
 
 export const createTransactionSchema = baseTransactionSchema.extend({
-  status: z.enum(['COMPLETED', 'PENDING']).default('COMPLETED')
+  status: z.enum(['COMPLETED', 'PENDING']).default('COMPLETED'),
+  backfill: z.boolean().optional().default(false)
 })
 export const updateTransactionSchema = baseTransactionSchema.partial()
 

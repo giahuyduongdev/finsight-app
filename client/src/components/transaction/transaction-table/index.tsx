@@ -6,7 +6,7 @@ import {
   CURRENCY_OPTIONS,
   CurrencyType
 } from '@/constant'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import useDebouncedSearch from '@/hooks/use-debounce-search'
 import {
   useBulkDeleteTransactionMutation,
@@ -253,6 +253,34 @@ const TransactionTable = (props: {
   const prefetchTransactions = usePrefetch('getAllTransactions', {
     ifOlderThan: 60
   })
+
+  const previousFetching = useRef(isFetching)
+
+  useEffect(() => {
+    if (previousFetching.current && !isFetching) {
+      const expandedIds =
+        typeof expanded === 'object'
+          ? Object.keys(expanded).filter((k) => expanded[k])
+          : []
+      if (expandedIds.length > 0) {
+        expandedIds.forEach((id) => {
+          // Chỉ fetch lại nếu dòng cha đó vẫn nằm trong danh sách đang hiển thị
+          if (transactions.some((tx) => tx._id === id)) {
+            fetchChildren(id)
+              .unwrap()
+              .then((result) => {
+                setChildrenMap((prev: ChildrenMapType) => ({
+                  ...prev,
+                  [id]: result
+                }))
+              })
+              .catch(() => {})
+          }
+        })
+      }
+    }
+    previousFetching.current = isFetching
+  }, [isFetching, expanded, fetchChildren, transactions])
 
   useEffect(() => {
     if (!isFetching && data) {

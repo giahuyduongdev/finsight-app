@@ -50,6 +50,28 @@ import {
   useUpdateTransactionMutation
 } from '@/features/transaction/transactionAPI'
 import { toast } from 'sonner'
+import { useTypedSelector } from '@/app/hook'
+
+// Đặt ngoài component, trước dòng const TransactionForm = ...
+const countMissedOccurrences = (date?: Date, interval?: string): number => {
+  if (!date || !interval) return 0
+  const intervalMap: Record<string, (d: Date) => Date> = {
+    DAILY: (d) => new Date(new Date(d).setDate(d.getDate() + 1)),
+    WEEKLY: (d) => new Date(new Date(d).setDate(d.getDate() + 7)),
+    MONTHLY: (d) => new Date(new Date(d).setMonth(d.getMonth() + 1)),
+    YEARLY: (d) => new Date(new Date(d).setFullYear(d.getFullYear() + 1))
+  }
+  const next = intervalMap[interval]
+  if (!next) return 0
+  let count = 0
+  let cursor = new Date(date)
+  const now = new Date()
+  while (cursor <= now) {
+    count++
+    cursor = next(cursor)
+  }
+  return count
+}
 
 const formSchema = z.object({
   title: z.string().min(2, { message: 'Title must be at least 2 characters.' }),
@@ -77,7 +99,8 @@ const formSchema = z.object({
     .nullable()
     .optional(),
   description: z.string().optional(),
-  receiptUrl: z.string().optional()
+  receiptUrl: z.string().optional(),
+  backfill: z.boolean().optional().default(false)
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -88,6 +111,8 @@ const TransactionForm = (props: {
   onCloseDrawer?: () => void
 }) => {
   const { onCloseDrawer, isEdit = false, transactionId } = props
+  const preferredCurrency =
+    useTypedSelector((state) => state.auth?.user?.preferredCurrency) || 'USD'
 
   const [isScanning, setIsScanning] = useState(false)
 
@@ -111,7 +136,7 @@ const TransactionForm = (props: {
     defaultValues: {
       title: '',
       amount: '',
-      currency: 'USD',
+      currency: preferredCurrency,
       type: _TRANSACTION_TYPE.INCOME,
       category: '',
       date: new Date(),
@@ -120,14 +145,15 @@ const TransactionForm = (props: {
       isRecurring: false,
       frequency: null,
       description: '',
-      receiptUrl: ''
+      receiptUrl: '',
+      backfill: false
     },
     values:
       isEdit && editData
         ? {
             title: editData.title || '',
             amount: editData.amount ? editData.amount.toString() : '',
-            currency: editData.currency || 'USD',
+            currency: editData.currency || preferredCurrency,
             type: editData.type || _TRANSACTION_TYPE.INCOME,
             category: editData.category?.toLowerCase() || '',
             date: editData.date ? new Date(editData.date) : new Date(),
@@ -137,7 +163,8 @@ const TransactionForm = (props: {
               'COMPLETED',
             isRecurring: editData.isRecurring || false,
             frequency: editData.recurringInterval || null,
-            description: editData.description || ''
+            description: editData.description || '',
+            backfill: false // edit mode không bao giờ backfill
           }
         : undefined
   })
@@ -178,6 +205,7 @@ const TransactionForm = (props: {
       description: values.description || '',
       amount: Number(values.amount),
       currency: values.currency as CurrencyType,
+      backfill: values.backfill ?? false,
       date: values.date.toISOString(),
       isRecurring: values.isRecurring || false,
       recurringInterval: values.frequency || null
@@ -430,6 +458,12 @@ const TransactionForm = (props: {
                     </PopoverContent>
                   </Popover>
                   <FormMessage />
+                  {isEdit && !isChildTransaction && editData?.isRecurring && (
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+                      ⚠️ Changing date or frequency will reschedule future
+                      occurrences. Past transactions will not be affected.
+                    </p>
+                  )}
                 </FormItem>
               )}
             />
@@ -656,6 +690,57 @@ const TransactionForm = (props: {
                       </SelectContent>
                     </Select>
                     <FormMessage />
+                    {form.watch('isRecurring') &&
+                      !isEdit &&
+                      (() => {
+                        const watchDate = form.watch('date')
+                        const watchFrequency = form.watch('frequency')
+                        const isPast = watchDate < new Date()
+                        if (!isPast) return null
+
+                        const missedCount = countMissedOccurrences(
+                          watchDate,
+                          watchFrequency || undefined
+                        )
+                        const watchBackfill = form.watch('backfill')
+
+                        return (
+                          <FormField
+                            control={form.control}
+                            name="backfill"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-col rounded-lg border p-4 gap-2">
+                                <div className="flex flex-row items-center justify-between">
+                                  <div className="space-y-0.5">
+                                    <FormLabel className="text-[14.5px]">
+                                      Backfill History
+                                    </FormLabel>
+                                    <p className="text-xs text-muted-foreground">
+                                      Auto-create missed occurrences from start
+                                      date to today
+                                    </p>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      className="cursor-pointer"
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                      disabled={isScanning}
+                                    />
+                                  </FormControl>
+                                </div>
+                                {watchBackfill && missedCount > 0 && (
+                                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                                    ⚠️ {missedCount} occurrence
+                                    {missedCount > 1 ? 's' : ''} will be created
+                                    and applied to your balance immediately.
+                                  </p>
+                                )}
+                              </FormItem>
+                            )}
+                          />
+                        )
+                      })()}
                   </FormItem>
                 )}
               />

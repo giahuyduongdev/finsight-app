@@ -13,6 +13,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/express": "^7.0.0",
+    "@bull-board/ui": "^7.0.0",
     "@google/genai": "^0.13.0",
     "axios": "^1.13.5",
     "bcrypt": "^5.1.1",

@@ -1,4 +1,3 @@
-import { title } from 'process'
 import TransactionModel, {
   TransactionTypeEnum
 } from '../models/transaction.model'
@@ -45,6 +44,42 @@ export const createTransactionService = async (
     nextRecurringDate,
     lastProcessed: null
   })
+
+  // --- BACKFILL ---
+  if (
+    body.backfill &&
+    body.isRecurring &&
+    body.recurringInterval &&
+    body.date < currentDate
+  ) {
+    const children: any[] = []
+    let cursor = new Date(body.date)
+
+    while (cursor <= currentDate) {
+      children.push({
+        ...body,
+        userId,
+        date: new Date(cursor),
+        isRecurring: false,
+        recurringInterval: null,
+        nextRecurringDate: null,
+        lastProcessed: null,
+        recurringSourceId: transaction._id,
+        status: 'COMPLETED'
+      })
+      cursor = calculateNextOccurrence(cursor, body.recurringInterval)
+    }
+
+    if (children.length) await TransactionModel.insertMany(children)
+
+    // cursor sau vòng while = kỳ đầu tiên sau now
+    // Update lại parent để tránh cron tạo trùng
+    await TransactionModel.updateOne(
+      { _id: transaction._id },
+      { $set: { nextRecurringDate: cursor } }
+    )
+  }
+  // --- END BACKFILL ---
 
   // Invalidate analytics cache
   const keys = await redis.keys(`analytics:*:${userId}:*`)
@@ -225,6 +260,13 @@ export const updateTransactionService = async (
         : calulatedDate
   }
 
+  // Kiểm tra sự thay đổi schedule TRƯỚC KHI set data mới
+  const isScheduleChanged =
+    (body.date !== undefined &&
+      new Date(body.date).getTime() !== existingTransaction.date.getTime()) ||
+    (body.recurringInterval !== undefined &&
+      body.recurringInterval !== existingTransaction.recurringInterval)
+
   existingTransaction.set({
     ...(body.title && { title: body.title }),
     ...(body.description && { description: body.description }),
@@ -242,6 +284,14 @@ export const updateTransactionService = async (
 
   await existingTransaction.save()
 
+  if (existingTransaction.isRecurring && isScheduleChanged) {
+    // Xóa tất cả PENDING children → cron sẽ tạo lại theo schedule mới
+    await TransactionModel.deleteMany({
+      recurringSourceId: existingTransaction._id,
+      status: 'PENDING'
+    })
+  }
+
   // Invalidate analytics cache
   const keys = await redis.keys(`analytics:*:${userId}:*`)
   if (keys.length) await redis.del(...keys)
@@ -258,6 +308,12 @@ export const deleteTransactionService = async (
     userId
   })
   if (!deleted) throw new NotFoundException('Transaction not found')
+
+  // Xóa luôn các giao dịch con (nếu đây là giao dịch cha)
+  await TransactionModel.deleteMany({
+    recurringSourceId: transactionId,
+    userId
+  })
 
   // Invalidate analytics cache
   const keys = await redis.keys(`analytics:*:${userId}:*`)
@@ -277,6 +333,12 @@ export const bulkDeleteTransactionService = async (
 
   if (result.deletedCount === 0)
     throw new NotFoundException('No transations found')
+
+  // Xóa luôn các giao dịch con thuộc các giao dịch cha này
+  await TransactionModel.deleteMany({
+    recurringSourceId: { $in: transactionIds },
+    userId
+  })
 
   // Invalidate analytics cache
   const keys = await redis.keys(`analytics:*:${userId}:*`)
@@ -305,7 +367,7 @@ export const bulkTransactionService = async (
           isRecurring: false,
           nextRecurringDate: null,
           recurringInterval: null,
-          lastProcesses: null,
+          lastProcessed: null,
           createdAt: new Date(),
           updatedAt: new Date()
         }

@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import TableSkeleton from './table-skeleton-loader'
 import { DataTablePagination } from './table-pagination'
 import { EmptyState } from '../empty-state'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface FilterOption {
   key: string
@@ -102,6 +103,7 @@ export function DataTable<TData>({
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
 
   const table = useReactTable({
     data,
@@ -156,10 +158,13 @@ export function DataTable<TData>({
     setRowSelection({})
   }
 
-  const handleDelete = () => {
-    const selectedIds = selectedRows.map((row) => (row.original as any).id)
+  const handleDeleteConfirm = () => {
+    const selectedIds = selectedRows.map(
+      (row) => (row.original as any).id || (row.original as any)._id
+    )
     onBulkDelete?.(selectedIds)
     setRowSelection({})
+    setIsDeleteDialogOpen(false)
   }
 
   return (
@@ -219,7 +224,7 @@ export function DataTable<TData>({
             disabled={isLoading || isBulkDeleting}
             variant="destructive"
             size="sm"
-            onClick={handleDelete}
+            onClick={() => setIsDeleteDialogOpen(true)}
           >
             <Trash className="h-4 w-4 mr-1" />
             Delete ({selectedRows.length})
@@ -301,6 +306,17 @@ export function DataTable<TData>({
           />
         </div>
       )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Selected Transactions?"
+        description={`Are you sure you want to delete ${selectedRows.length} selected transaction(s)? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   )
 }

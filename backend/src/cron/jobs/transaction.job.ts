@@ -1,132 +1,45 @@
-import mongoose from 'mongoose'
-import TransactionModel, {
-  TransactionStatusEnum
-} from '../../models/transaction.model'
-import { calculateNextOccurrence } from '../../utils/dates/index'
+import TransactionModel from '../../models/transaction.model'
+import {
+  transactionQueue,
+  TRANSACTION_JOBS
+} from '../../queues/transaction.queue'
 import { logger } from '../../config/logger.config'
-import { format } from 'date-fns'
 
 export const processRecurringTransactions = async () => {
   const now = new Date()
-  let processedCount = 0
-  let failedCount = 0
-
-  logger.info('🚀 Starting recurring process')
+  logger.info('🚀 Enqueuing recurring transactions...')
 
   try {
-    const transactionCursor = TransactionModel.find({
+    // 1. Chọc vào Database (Có thể rủi ro lỗi kết nối DB)
+    const transactions = await TransactionModel.find({
       isRecurring: true,
       nextRecurringDate: { $lte: now }
-    }).cursor()
+    }).select('_id')
 
-    // Khởi tạo session ở ngoài để tối ưu hiệu năng DB
-    const session = await mongoose.startSession()
+    if (!transactions.length) {
+      logger.info('✅ No recurring transactions to process')
+      return
+    }
 
-    try {
-      for await (const tx of transactionCursor) {
-        const nextDate = calculateNextOccurrence(
-          tx.nextRecurringDate!,
-          tx.recurringInterval!
-        )
+    const todayStr = now.toISOString().split('T')[0]
 
-        try {
-          await session.withTransaction(
-            async () => {
-              // 1. Tạo child transaction (Giao dịch con / Bản sao thực tế)
-              await TransactionModel.create(
-                [
-                  {
-                    ...tx.toObject(),
-                    _id: new mongoose.Types.ObjectId(),
-                    title: `${tx.title} - ${format(tx.nextRecurringDate!, 'MMM yyyy')}`,
-                    date: tx.nextRecurringDate,
-
-                    isRecurring: false, // Con thì không tự lặp lại nữa
-                    recurringSourceId: tx._id, // Trỏ về ID của giao dịch gốc (Cha)
-                    status: TransactionStatusEnum.PENDING, // Đánh dấu là khoản nợ cần thanh toán
-
-                    // Reset các thông số cấu hình của bản sao
-                    nextRecurringDate: null,
-                    recurringInterval: null,
-                    lastProcessed: null,
-                    createdAt: undefined,
-                    updatedAt: undefined
-                  }
-                ],
-                { session }
-              )
-
-              // 2. Cập nhật parent transaction (Đẩy ngày tính toán sang chu kỳ sau)
-              await TransactionModel.updateOne(
-                { _id: tx._id },
-                {
-                  $set: {
-                    nextRecurringDate: nextDate,
-                    lastProcessed: now
-                  }
-                },
-                { session }
-              )
-            },
-            { maxCommitTimeMS: 20000 }
-          )
-
-          processedCount++
-        } catch (error: any) {
-          failedCount++
-          logger.error(`Failed recurring tx: ${tx._id}`, {
-            error: error?.message,
-            txId: tx._id
-          })
-
-          // 🚨 Xử lý "Poison Pill": Tạm ngưng giao dịch nếu bị lỗi để tránh lặp vô tận
-          try {
-            await TransactionModel.updateOne(
-              { _id: tx._id },
-              {
-                $set: {
-                  isRecurring: false,
-                  lastProcessed: now
-                }
-              }
-            )
-            logger.info(
-              `⏸️ The recurring transaction has been temporarily suspended due to an error: ${tx._id}`
-            )
-          } catch (updateError: any) {
-            logger.error(
-              `CRITICAL: CRITICAL: Transaction cannot be paused due to error ${tx._id}`,
-              {
-                error: updateError?.message
-              }
-            )
-          }
+    // 2. Chọc vào Redis/BullMQ (Có thể rủi ro lỗi kết nối Redis)
+    await transactionQueue.addBulk(
+      transactions.map((tx) => ({
+        name: TRANSACTION_JOBS.RECURRING,
+        data: { transactionId: tx._id.toString() },
+        opts: {
+          jobId: `recurring-${tx._id.toString()}-${todayStr}`
         }
-      }
-    } finally {
-      // Đóng session MỘT LẦN DUY NHẤT sau khi vòng lặp kết thúc
-      await session.endSession()
-    }
+      }))
+    )
 
-    logger.info(`✅ Processed: ${processedCount} transaction`)
-
-    if (failedCount > 0) {
-      logger.warn(`⚠️ Failed: ${failedCount} transaction`)
-    }
-
-    return {
-      success: true,
-      processedCount,
-      failedCount
-    }
+    logger.info(`📥 Enqueued ${transactions.length} recurring transactions`)
   } catch (error: any) {
-    logger.error('Error occurred processing transaction', {
-      error: error?.message
+    // 3. Gom hết rủi ro vào đây để Server không bao giờ bị Crash
+    logger.error('❌ Failed to enqueue recurring transactions', {
+      error: error?.message,
+      stack: error?.stack
     })
-
-    return {
-      success: false,
-      error: error?.message
-    }
   }
 }
