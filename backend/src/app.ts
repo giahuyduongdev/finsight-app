@@ -14,11 +14,12 @@ import userRoutes from './routes/user.route'
 import transactionRoutes from './routes/transaction.route'
 import reportRoutes from './routes/report.route'
 import analyticsRoutes from './routes/analytics.route'
-import morgan from 'morgan'
 import helmet from 'helmet'
 import compression from 'compression'
 import { rateLimiter } from './config/redis.config'
 import { morganMiddleware } from './middlewares/morgan.middleware'
+import { setupBullBoard } from './config/bull/bull-board.config'
+import { logger } from './config/logger.config'
 
 const app = express()
 const BASE_PATH = Env.BASE_PATH
@@ -42,6 +43,11 @@ app.use(
 
 app.set('trust proxy', 1)
 app.use(rateLimiter)
+
+if (Env.NODE_ENV === 'development') {
+  app.use('/admin/queues', setupBullBoard())
+  logger.info('🎯 Bull Board: http://localhost:8000/admin/queues')
+}
 
 app.use(`${BASE_PATH}/auth`, authRoutes)
 app.use(`${BASE_PATH}/user`, passportAuthenticateJwt, userRoutes)

@@ -10,6 +10,8 @@ import {
 } from './src/helpers/check-db-connect.helper'
 import { redis } from './src/config/redis.config'
 import { logger } from './src/config/logger.config'
+import { initializeWorkers, stopWorkers } from './src/workers'
+import { closeQueues } from './src/queues'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -59,6 +61,7 @@ const startServer = async (): Promise<void> => {
   }
 
   await initializeCrons()
+  initializeWorkers()
 
   const server = app.listen(Env.PORT, () => {
     logger.info(`🖥️  [Server] running on port ${Env.PORT} [${Env.NODE_ENV}]`)
@@ -100,7 +103,11 @@ const startServer = async (): Promise<void> => {
           ? closeGracefully('MongoDB', () => mongoose.connection.close())
           : Promise.resolve(),
 
-        redis ? closeGracefully('Redis', () => redis.quit()) : Promise.resolve()
+        redis
+          ? closeGracefully('Redis', () => redis.quit())
+          : Promise.resolve(),
+        closeGracefully('Workers', () => stopWorkers()),
+        closeGracefully('Queues', () => closeQueues())
       ])
 
       clearTimeout(forceExitTimer)

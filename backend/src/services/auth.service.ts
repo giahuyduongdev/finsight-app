@@ -273,7 +273,7 @@ export const resendRegisterVerifyOTPService = async (
 
   const results = await redis
     .pipeline()
-    .setex(REDIS_KEYS.registerOtp(email), REDIS_TTL.OTP, otp)
+    .setex(REDIS_KEYS.registerOtp(email), REDIS_TTL.OTP, hashedOtp)
     .setex(REDIS_KEYS.registerResend(email), REDIS_TTL.RESEND, '1')
     .expire(REDIS_KEYS.registerPending(email), REDIS_TTL.PENDING) // reset TTL pending
     .exec()

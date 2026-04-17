@@ -1,5 +1,7 @@
 import { Copy, Loader, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +27,7 @@ type ExtendedTransaction = TransactionType & {
 const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
   const transactionId = row.original.id ?? row.original._id
   const { onOpenDrawer } = useEditTransactionDrawer()
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const [duplicateTransaction, { isLoading: isDuplicating }] =
     useDuplicateTransactionMutation()
@@ -50,20 +53,32 @@ const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
       )
   }
 
-  const handleDelete = (e: Event) => {
-    e.preventDefault()
+  const handleDeleteConfirm = () => {
     if (isDeleting) return
 
     deleteTransaction(transactionId)
       .unwrap()
-      .then(() => toast.success('Transaction deleted successfully'))
+      .then(() => {
+        toast.success('Transaction deleted successfully')
+        setIsDeleteDialogOpen(false)
+      })
       .catch((error) =>
         toast.error(error.data?.message || 'Failed to delete transaction')
       )
   }
 
   return (
-    <DropdownMenu>
+    <>
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Transaction?"
+        description="Are you sure you want to delete this transaction? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
+      <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-8 w-8 p-0">
           <MoreHorizontal className="h-4 w-4" />
@@ -97,7 +112,10 @@ const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
         <DropdownMenuItem
           className="relative !text-destructive"
           disabled={isDeleting}
-          onSelect={handleDelete}
+          onSelect={(e) => {
+            e.preventDefault()
+            setIsDeleteDialogOpen(true)
+          }}
         >
           <Trash2 className="mr-1 h-4 w-4 !text-destructive" /> Delete
           {isDeleting && (
@@ -106,6 +124,7 @@ const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   )
 }
 

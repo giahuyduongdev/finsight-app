@@ -21,6 +21,7 @@ export interface CreateTransactionBody {
   isRecurring: boolean
   recurringInterval?: RecurringIntervalType | null
   paymentMethod: string
+  backfill?: boolean
 }
 
 export interface GetAllTransactionParams {
