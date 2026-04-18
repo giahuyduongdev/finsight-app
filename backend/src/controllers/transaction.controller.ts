@@ -22,6 +22,8 @@ import {
 } from '../services/transaction.service'
 import { TransactionTypeEnum } from '../models/transaction.model'
 import { CurrencyType } from '../enums/currency.enum'
+import { transactionQueue } from '../queues'
+import { TRANSACTION_JOBS } from '../queues/transaction.queue'
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -158,11 +160,15 @@ export const bulkTransactionController = asyncHandler(
     const userId = req.user?._id
     const { transactions } = bulkTransactionSchema.parse(req.body)
 
-    const result = await bulkTransactionService(userId, transactions)
+    const job = await transactionQueue.add(
+      TRANSACTION_JOBS.BULK_IMPORT,
+      { userId, transactions },
+      { jobId: `bulk-import-${userId}-${Date.now()}` }
+    )
 
     return res.status(HTTPSTATUS.OK).json({
-      message: 'Bulk transaction inserted successfully',
-      ...result
+      message: 'Bulk import is being processed',
+      jobId: job.id
     })
   }
 )

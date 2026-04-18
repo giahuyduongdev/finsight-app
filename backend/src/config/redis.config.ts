@@ -51,15 +51,24 @@ class RedisClient {
 
   private constructor() {
     this.client = new Redis(Env.REDIS_URL, {
-      maxRetriesPerRequest: 3
+      maxRetriesPerRequest: 3,
+      connectTimeout: 10000,
+      lazyConnect: true
     })
     this.setupEventListeners()
   }
 
   private setupEventListeners(): void {
-    this.client.on('connect', () =>
+    this.client.on('connect', async () => {
       logger.info('🟢 [Redis] Connected successfully!')
-    )
+
+      if (Env.NODE_ENV === 'production') {
+        await this.client.config('SET', 'maxmemory', '256mb')
+        await this.client.config('SET', 'maxmemory-policy', 'allkeys-lru')
+        logger.info('⚙️ [Redis] Memory policy configured')
+      }
+    })
+
     this.client.on('error', (err: Error) =>
       logger.error('❌ [Redis] Connection error:', err.message)
     )

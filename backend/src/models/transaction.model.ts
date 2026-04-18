@@ -128,11 +128,34 @@ const transactionSchema = new Schema<TransactionDocument>(
   }
 )
 
+// ─── Indexes ──────────────────────────────────────────────────────────────────
+
+// 1. Query danh sách transactions của user (dùng nhiều nhất)
+transactionSchema.index({ userId: 1, createdAt: -1 })
+
+// 2. Filter theo type + date (INCOME/EXPENSE theo thời gian)
+transactionSchema.index({ userId: 1, type: 1, date: -1 })
+
+// 3. Filter theo status (PENDING/COMPLETED/FAILED)
+transactionSchema.index({ userId: 1, status: 1 })
+
+// 4. Cron job tìm recurring transactions đến hạn
+transactionSchema.index({ isRecurring: 1, nextRecurringDate: 1 })
+
+// 5. Expandable rows — lấy children của parent
+transactionSchema.index({ recurringSourceId: 1, date: -1 })
+
+// 6. Analytics — tính tổng theo khoảng thời gian
+transactionSchema.index({ userId: 1, date: -1 })
+
+// 7. Search theo title + category (keyword search)
+transactionSchema.index({ userId: 1, title: 'text', category: 'text' })
+
+// ─── Model ────────────────────────────────────────────────────────────────────
+
 const TransactionModel = mongoose.model<TransactionDocument>(
   'Transaction',
   transactionSchema
 )
-
-transactionSchema.index({ userId: 1, createdAt: -1 })
 
 export default TransactionModel
