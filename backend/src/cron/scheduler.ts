@@ -3,6 +3,7 @@ import { processRecurringTransactions } from './jobs/transaction.job'
 import { processReportJob } from './jobs/report.job'
 import RefreshTokenModel from '../models/refresh-token.model'
 import { logger } from '../config/logger.config'
+import { redis } from '../config/redis.config'
 
 const scheduleJob = (name: string, time: string, job: Function) => {
   logger.info(`🗓️  [Scheduling] ${name} at ${time}`)
@@ -36,7 +37,24 @@ export const startJobs = () => {
       await RefreshTokenModel.deleteMany({
         $or: [{ isRevoked: true }, { expiresAt: { $lt: new Date() } }]
       })
-      logger.info('Cleaned up expired tokens')
+      logger.info('🧹 [Refresh Token] Cleaned up expired tokens')
+    }),
+
+    scheduleJob('Redis Cleanup', '0 3 * * *', async () => {
+      // Xóa analytics cache cũ hơn 7 ngày
+      const keys = await redis.keys('analytics:*')
+      const pipeline = redis.pipeline()
+
+      for (const key of keys) {
+        const ttl = await redis.ttl(key)
+        if (ttl === -1) {
+          // key không có TTL → xóa luôn
+          pipeline.del(key)
+        }
+      }
+
+      await pipeline.exec()
+      logger.info('🧹 [Redis] Cleanup completed')
     })
   ]
 }

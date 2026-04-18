@@ -350,10 +350,13 @@ export const bulkDeleteTransactionService = async (
   }
 }
 
-export type BulkTransactionItem = Omit<CreateTransactionType, 'status'> & {
-  status?: 'COMPLETED' | 'PENDING' | 'FAILED'
+export type BulkTransactionItem = Omit<
+  CreateTransactionType,
+  'status' | 'backfill'
+> & {
+  status: 'COMPLETED' | 'PENDING' | 'FAILED'
+  backfill?: boolean // Thêm dấu ? để biến nó thành optional (không bắt buộc)
 }
-
 export const bulkTransactionService = async (
   userId: string,
   transactions: BulkTransactionItem[]

@@ -1,26 +1,38 @@
 import { Queue } from 'bullmq'
 import { bullMQConnection } from '../config/bull/bullmq.config'
+import { BulkTransactionItem } from '../services/transaction.service'
 
-// Tên các loại việc
+// ─── Job Names ────────────────────────────────────────────────────────────────
+
 export const TRANSACTION_JOBS = {
-  RECURRING: 'process-recurring-transaction'
+  RECURRING: 'process-recurring-transaction',
+  BULK_IMPORT: 'bulk-import'
 } as const
 
-// Data bắt buộc phải có khi giao việc
+// ─── Job Data Types ───────────────────────────────────────────────────────────
+
 export type RecurringJobData = {
   transactionId: string
 }
 
-// Khởi tạo Queue
-export const transactionQueue = new Queue<RecurringJobData>(
+export type BulkImportJobData = {
+  userId: string
+  transactions: BulkTransactionItem[]
+}
+
+// ─── Queue ────────────────────────────────────────────────────────────────────
+
+const defaultJobOptions = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 5000 },
+  removeOnComplete: { count: 100 },
+  removeOnFail: { count: 50 }
+}
+
+export const transactionQueue = new Queue<RecurringJobData | BulkImportJobData>(
   'TRANSACTION_QUEUE',
   {
     connection: bullMQConnection,
-    defaultJobOptions: {
-      attempts: 3, // Thử lại 3 lần nếu DB bị lỗi (deadlock, timeout)
-      backoff: { type: 'exponential', delay: 5000 }, // Lần 1 chờ 5s, lần 2 chờ 10s...
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 }
-    }
+    defaultJobOptions
   }
 )
