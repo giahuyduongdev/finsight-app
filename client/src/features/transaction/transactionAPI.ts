@@ -97,8 +97,10 @@ export const transactionApi = apiClient.injectEndpoints({
           url: '/transaction/bulk-transaction',
           method: 'POST',
           body
-        }),
-        invalidatesTags: ['transactions']
+        })
+        // Không dùng invalidatesTags ở đây vì backend trả về 202 ngay lập tức
+        // (worker xử lý async), nên invalidate tức thì sẽ refetch khi DB còn trống.
+        // Thay vào đó, component sẽ tự dispatch invalidateTags sau một khoảng delay.
       }
     ),
 
