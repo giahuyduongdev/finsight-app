@@ -184,10 +184,10 @@ const SummaryCard: FC<SummaryCardProps> = ({
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-5 overflow-hidden">
         <div
           className={cn(
-            'text-4xl font-bold',
+            'text-3xl md:text-4xl lg:text-2xl xl:text-3xl 2xl:text-4xl font-bold truncate',
             cardType === 'balance' && value < 0 ? 'text-red-400' : 'text-white'
           )}
         >
@@ -203,13 +203,13 @@ const SummaryCard: FC<SummaryCardProps> = ({
 
         <div className="text-sm text-muted-foreground mt-2">
           {cardType === 'savings' ? (
-            <div className="flex items-center gap-1.5">
-              <status.Icon className={cn('size-3.5', status.color)} />
-              <span className={status.color}>
+            <div className="flex items-center gap-1.5 w-full overflow-hidden">
+              <status.Icon className={cn('size-3.5 shrink-0', status.color)} />
+              <span className={cn(status.color, "whitespace-nowrap shrink-0")}>
                 {status.label} {value !== 0 && `(${formatPercentage(value)})`}
               </span>
               {status.description && (
-                <span className="text-gray-400 ml-1">
+                <span className="text-gray-400 ml-1 truncate">
                   • {status.description}
                 </span>
               )}
@@ -217,22 +217,22 @@ const SummaryCard: FC<SummaryCardProps> = ({
           ) : dateRange?.value === DateRangeEnum.ALL_TIME ? (
             <span className="text-gray-400">Showing {dateRange?.label}</span>
           ) : value === 0 || status.label ? (
-            <div className="flex items-center gap-1.5">
-              <status.Icon className={cn('size-3.5', status.color)} />
-              <span className={status.color}>{status.label}</span>
+            <div className="flex items-center gap-1.5 w-full overflow-hidden">
+              <status.Icon className={cn('size-3.5 shrink-0', status.color)} />
+              <span className={cn(status.color, "whitespace-nowrap shrink-0")}>{status.label}</span>
               {status.description && (
-                <span className="text-gray-400">• {status.description}</span>
+                <span className="text-gray-400 truncate">• {status.description}</span>
               )}
               {!status.description && (
-                <span className="text-gray-400">• {dateRange?.label}</span>
+                <span className="text-gray-400 truncate">• {dateRange?.label}</span>
               )}
             </div>
           ) : showTrend ? (
-            <div className="flex items-center gap-1.5">
+             <div className="flex items-center gap-1.5 w-full overflow-hidden">
               {percentageChange !== 0 && (
                 <div
                   className={cn(
-                    'flex items-center gap-0.5',
+                    'flex items-center gap-0.5 whitespace-nowrap shrink-0',
                     trendDirection === 'positive'
                       ? 'text-green-500'
                       : 'text-red-500'
@@ -255,7 +255,7 @@ const SummaryCard: FC<SummaryCardProps> = ({
               )}
 
               {percentageChange === 0 && (
-                <div className="flex items-center gap-0.5 text-gray-400">
+                <div className="flex items-center gap-0.5 text-gray-400 whitespace-nowrap shrink-0">
                   <TrendingDownIcon className="size-3" />
                   <span>
                     {formatPercentage(0, {
@@ -265,7 +265,7 @@ const SummaryCard: FC<SummaryCardProps> = ({
                   </span>
                 </div>
               )}
-              <span className="text-gray-400">• {dateRange?.label}</span>
+              <span className="text-gray-400 truncate">• {dateRange?.label}</span>
             </div>
           ) : null}
         </div>

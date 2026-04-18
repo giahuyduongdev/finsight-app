@@ -14,6 +14,8 @@ import { MAX_IMPORT_LIMIT } from '@/constant'
 import { BulkTransactionType } from '@/features/transaction/transationType'
 import { useProgressLoader } from '@/hooks/use-progress-loader'
 import { useBulkImportTransactionMutation } from '@/features/transaction/transactionAPI'
+import { useDispatch } from 'react-redux'
+import { apiClient } from '@/app/api-client'
 
 type ConfirmationStepProps = {
   file: File | null
@@ -115,6 +117,7 @@ const ConfirmationStep = ({
   } = useProgressLoader({ initialProgress: 10, completionDelay: 500 })
 
   const [bulkImportTransaction] = useBulkImportTransactionMutation()
+  const dispatch = useDispatch()
 
   const handleImport = () => {
     const { transactions, hasValidationErrors } =
@@ -143,6 +146,11 @@ const ConfirmationStep = ({
       .then(() => {
         updateProgress(100)
         toast.success('Imported transactions successfully')
+        // Worker xử lý async — delay 2s trước khi invalidate cache
+        // để đảm bảo worker đã insert xong trước khi UI refetch
+        setTimeout(() => {
+          dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
+        }, 2000)
       })
       .catch((error) => {
         resetProgress()

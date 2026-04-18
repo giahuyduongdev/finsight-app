@@ -24,6 +24,7 @@ import { TransactionTypeEnum } from '../models/transaction.model'
 import { CurrencyType } from '../enums/currency.enum'
 import { transactionQueue } from '../queues'
 import { TRANSACTION_JOBS } from '../queues/transaction.queue'
+import importBatchModel from '../models/import-batch.model'
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -160,14 +161,31 @@ export const bulkTransactionController = asyncHandler(
     const userId = req.user?._id
     const { transactions } = bulkTransactionSchema.parse(req.body)
 
+    // 1. TẠO "VÉ GIỮ ĐỒ": Lưu toàn bộ 300 giao dịch vào MongoDB trước
+    const batch = await importBatchModel.create({
+      userId,
+      transactions,
+      totalItems: transactions.length,
+      status: 'PENDING'
+    })
+
+    // 2. GỌI WORKER: Chỉ nhét ID (Vé) vào Queue thay vì nhét cả mảng data
     const job = await transactionQueue.add(
       TRANSACTION_JOBS.BULK_IMPORT,
-      { userId, transactions },
-      { jobId: `bulk-import-${userId}-${Date.now()}` }
+      {
+        userId,
+        importBatchId: batch._id.toString() // Truyền mỗi ID siêu nhẹ này thôi!
+      },
+      {
+        // Đổi tên jobId gắn với batch._id để sau này dễ dàng dò lỗi (Traceability)
+        jobId: `bulk-import-${userId}-${batch._id}`
+      }
     )
 
+    // 3. TRẢ KẾT QUẢ CHO FE
     return res.status(HTTPSTATUS.OK).json({
       message: 'Bulk import is being processed',
+      batchId: batch._id, // Trả cái này về để FE có thể làm chức năng "Kiểm tra tiến độ"
       jobId: job.id
     })
   }
