@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { ChevronDown, ChevronLeft, FileCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import {
   DialogDescription,
   DialogHeader,
@@ -12,24 +11,35 @@ import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM } from '@/constant'
 import { toast } from 'sonner'
 import { MAX_IMPORT_LIMIT } from '@/constant'
 import { BulkTransactionType } from '@/features/transaction/transationType'
-import { useProgressLoader } from '@/hooks/use-progress-loader'
 import { useBulkImportTransactionMutation } from '@/features/transaction/transactionAPI'
-import { useDispatch } from 'react-redux'
-import { apiClient } from '@/app/api-client'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type CsvRow = Record<string, string | undefined>
 
 type ConfirmationStepProps = {
   file: File | null
   mappings: Record<string, string>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  csvData: any[]
+  csvData: CsvRow[]
   onComplete: () => void
   onBack: () => void
 }
 
+type ParsedTransaction = {
+  title: string
+  amount: number
+  date: string
+  type: 'INCOME' | 'EXPENSE'
+  category: string
+  paymentMethod?: string
+  status?: string
+  isRecurring: boolean
+  description: string
+}
+// ─── Schema ───────────────────────────────────────────────────────────────────
+
 const transactionSchema = z.object({
-  title: z.string({
-    required_error: 'Title is required'
-  }),
+  title: z.string({ required_error: 'Title is required' }),
   amount: z
     .number({
       invalid_type_error: 'Amount must be a number',
@@ -47,9 +57,7 @@ const transactionSchema = z.object({
     invalid_type_error: 'Invalid transaction type',
     required_error: 'Transaction type is required'
   }),
-  category: z.string({
-    required_error: 'Category is required'
-  }),
+  category: z.string({ required_error: 'Category is required' }),
   paymentMethod: z
     .union([
       z.literal(''),
@@ -67,9 +75,7 @@ const transactionSchema = z.object({
           errorMap: (issue) => ({
             message:
               issue.code === 'invalid_enum_value'
-                ? `Payment method must be one of: ${Object.values(
-                    PAYMENT_METHODS_ENUM
-                  ).join(', ')}`
+                ? `Payment method must be one of: ${Object.values(PAYMENT_METHODS_ENUM).join(', ')}`
                 : 'Invalid payment method'
           })
         }
@@ -77,8 +83,6 @@ const transactionSchema = z.object({
     ])
     .transform((val) => (val === '' ? undefined : val))
     .optional(),
-
-  // 👇 THÊM VALIDATION STATUS VÀO ĐÂY (Cho phép chữ hoa/thường trong CSV)
   status: z
     .union([
       z.literal(''),
@@ -98,6 +102,8 @@ const transactionSchema = z.object({
     .optional()
 })
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 const ConfirmationStep = ({
   file,
   mappings,
@@ -106,86 +112,42 @@ const ConfirmationStep = ({
   onBack
 }: ConfirmationStepProps) => {
   const [errors, setErrors] = useState<Record<string, string>>({})
-
-  const {
-    progress,
-    isLoading,
-    startProgress,
-    updateProgress,
-    doneProgress,
-    resetProgress
-  } = useProgressLoader({ initialProgress: 10, completionDelay: 500 })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [bulkImportTransaction] = useBulkImportTransactionMutation()
-  const dispatch = useDispatch()
-
-  const handleImport = () => {
-    const { transactions, hasValidationErrors } =
-      getAssignFieldToMappedTransactions()
-
-    if (hasErrors || hasValidationErrors) return
-
-    if (transactions.length > MAX_IMPORT_LIMIT) {
-      toast.error(`Cannot import more than ${MAX_IMPORT_LIMIT} transactions`)
-      return
-    }
-    resetProgress()
-    startProgress(10)
-    // Start progress
-    let currentProgress = 10
-    const interval = setInterval(() => {
-      const increment = currentProgress < 90 ? 10 : 1
-      currentProgress = Math.min(currentProgress + increment, 90)
-      updateProgress(currentProgress)
-    }, 250)
-
-    const payload = { transactions: transactions as BulkTransactionType[] }
-
-    bulkImportTransaction(payload)
-      .unwrap()
-      .then(() => {
-        updateProgress(100)
-        toast.success('Imported transactions successfully')
-        // Worker xử lý async — delay 2s trước khi invalidate cache
-        // để đảm bảo worker đã insert xong trước khi UI refetch
-        setTimeout(() => {
-          dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
-        }, 2000)
-      })
-      .catch((error) => {
-        resetProgress()
-        toast.error(error.data?.message || 'Failed to import transactions')
-      })
-      .finally(() => {
-        clearInterval(interval)
-        setTimeout(() => {
-          doneProgress()
-          resetProgress()
-          onComplete()
-        }, 500)
-      })
-  }
 
   const getAssignFieldToMappedTransactions = () => {
     let hasValidationErrors = false
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const results: Partial<any>[] = []
+    const results: ParsedTransaction[] = []
 
     csvData.forEach((row, index) => {
-      const transaction: Record<string, string> = {}
-      // Apply mappings
+      const transaction: Record<string, string | number | Date> = {}
+
       Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
-        if (transactionField === 'Skip' || row[csvColumn] === undefined) return
-        transaction[transactionField] =
-          transactionField === 'amount'
-            ? Number(row[csvColumn])
-            : transactionField === 'date'
-              ? new Date(row[csvColumn])
-              : row[csvColumn]
+        const value = row[csvColumn]
+        if (transactionField === 'Skip' || value === undefined) return
+
+        if (transactionField === 'amount') {
+          transaction[transactionField] = Number(value)
+        } else if (transactionField === 'date') {
+          transaction[transactionField] = new Date(value)
+        } else {
+          transaction[transactionField] = value
+        }
       })
+
       try {
         const validated = transactionSchema.parse(transaction)
-        results.push(validated)
+        results.push({
+          ...validated,
+          // 👇 Convert Date → ISO string
+          date:
+            validated.date instanceof Date
+              ? validated.date.toISOString()
+              : validated.date,
+          isRecurring: false,
+          description: ''
+        })
       } catch (error) {
         hasValidationErrors = true
         const message =
@@ -199,20 +161,54 @@ const ConfirmationStep = ({
                       'Payment method:- must be one of: ' +
                       Object.values(PAYMENT_METHODS_ENUM).join(', ')
                     )
-                  // 👇 Báo lỗi nếu map sai chữ cho Status
                   if (e.path[0] === 'status')
                     return 'Status:- must be COMPLETED, PENDING, or FAILED'
                   return `${e.path[0]}: ${e.message}`
                 })
                 .join('\n')
             : 'Invalid data'
-        setErrors((prev) => ({
-          ...prev,
-          [index + 1]: message
-        }))
+
+        setErrors((prev) => ({ ...prev, [index + 1]: message }))
       }
     })
+
     return { transactions: results, hasValidationErrors }
+  }
+
+  const handleImport = async () => {
+    const { transactions, hasValidationErrors } =
+      getAssignFieldToMappedTransactions()
+
+    if (hasErrors || hasValidationErrors) return
+
+    if (transactions.length > MAX_IMPORT_LIMIT) {
+      toast.error(`Cannot import more than ${MAX_IMPORT_LIMIT} transactions`)
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const payload = {
+        transactions: transactions as BulkTransactionType[]
+      }
+
+      await bulkImportTransaction(payload).unwrap()
+
+      // Đóng modal ngay
+      onComplete()
+
+      // Toast thông báo đang xử lý ở background
+      toast.info('Import is being processed in the background...', {
+        id: 'bulk-import',
+        duration: Infinity
+      })
+    } catch (error: unknown) {
+      const err = error as { data?: { message?: string } }
+      toast.error(err.data?.message || 'Failed to import transactions')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const hasErrors = Object.keys(errors).length > 0
@@ -248,7 +244,7 @@ const ConfirmationStep = ({
               <p>{csvData.length}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Transactions Limit </p>
+              <p className="text-muted-foreground">Transactions Limit</p>
               <p>{MAX_IMPORT_LIMIT}</p>
             </div>
           </div>
@@ -256,11 +252,8 @@ const ConfirmationStep = ({
 
         {hasErrors && (
           <div
-            className="w-full block border border-red-100 bg-[#fef2f2] dark:bg-background
-            rounded text-sm max-h-60 overflow-y-auto"
-            style={{
-              maxHeight: '250px'
-            }}
+            className="w-full block border border-red-100 bg-[#fef2f2] dark:bg-background rounded text-sm overflow-y-auto"
+            style={{ maxHeight: '250px' }}
           >
             <p className="font-medium mb-2 bg-[#fef2f2] dark:bg-background sticky top-0 px-2 py-1">
               Issues found:
@@ -282,24 +275,15 @@ const ConfirmationStep = ({
             </div>
           </div>
         )}
-
-        {isLoading && (
-          <div className="space-y-2">
-            <Progress value={progress} className="h-2" />
-            <p className="text-xs text-muted-foreground">
-              Importing... {progress}%
-            </p>
-          </div>
-        )}
       </div>
 
       <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack} disabled={isLoading}>
+        <Button variant="outline" onClick={onBack} disabled={isSubmitting}>
           <ChevronLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <Button onClick={handleImport} disabled={isLoading}>
-          {isLoading ? 'Importing...' : 'Confirm Import'}
+        <Button onClick={handleImport} disabled={isSubmitting}>
+          {isSubmitting ? 'Submitting...' : 'Confirm Import'}
         </Button>
       </div>
     </div>

@@ -1,9 +1,8 @@
 import { logger } from '../config/logger.config'
 
-import { recurringTransactionWorker } from './transactions/recurring-transaction.worker'
-import { bulkImportWorker } from './transactions/bulk-import.worker'
+import { transactionWorker } from './transaction.worker'
 
-const workers = [recurringTransactionWorker, bulkImportWorker]
+const workers = [transactionWorker]
 
 export const initializeWorkers = () => {
   logger.info(

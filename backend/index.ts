@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import readline from 'readline'
+import http from 'http'
 import app from './src/app'
 import { Env } from './src/config/env.config'
 import connectDB from './src/config/database.config'
@@ -12,6 +13,7 @@ import { redis } from './src/config/redis.config'
 import { logger } from './src/config/logger.config'
 import { initializeWorkers, stopWorkers } from './src/workers'
 import { closeQueues } from './src/queues'
+import { initializeSocket, getIO } from './src/config/socket.config' 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -63,7 +65,11 @@ const startServer = async (): Promise<void> => {
   await initializeCrons()
   initializeWorkers()
 
-  const server = app.listen(Env.PORT, () => {
+  const server = http.createServer(app)
+
+  initializeSocket(server)
+
+  server.listen(Env.PORT, () => {
     logger.info(`🖥️  [Server] running on port ${Env.PORT} [${Env.NODE_ENV}]`)
   })
 
@@ -106,8 +112,14 @@ const startServer = async (): Promise<void> => {
         redis
           ? closeGracefully('Redis', () => redis.quit())
           : Promise.resolve(),
+
         closeGracefully('Workers', () => stopWorkers()),
-        closeGracefully('Queues', () => closeQueues())
+        closeGracefully('Queues', () => closeQueues()),
+
+        closeGracefully(
+          'Socket',
+          () => new Promise<void>((resolve) => getIO().close(() => resolve()))
+        )
       ])
 
       clearTimeout(forceExitTimer)

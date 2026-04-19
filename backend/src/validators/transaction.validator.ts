@@ -59,7 +59,7 @@ export const bulkTransactionSchema = z.object({
   transactions: z
     .array(baseTransactionSchema)
     .min(1, 'At least one transaction is required')
-    .max(300, 'Must not be more than 300 transactions')
+    .max(1000, 'Must not be more than 1000 transactions')
     .refine(
       (txs) =>
         txs.every((tx) => {

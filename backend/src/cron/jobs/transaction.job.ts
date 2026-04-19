@@ -7,7 +7,7 @@ import { logger } from '../../config/logger.config'
 
 export const processRecurringTransactions = async () => {
   const now = new Date()
-  logger.info('🚀 Enqueuing recurring transactions...')
+  logger.info('🚀  Enqueuing recurring transactions...')
 
   try {
     // 1. Chọc vào Database (Có thể rủi ro lỗi kết nối DB)
@@ -17,7 +17,7 @@ export const processRecurringTransactions = async () => {
     }).select('_id')
 
     if (!transactions.length) {
-      logger.info('✅ No recurring transactions to process')
+      logger.info('✅  No recurring transactions to process')
       return
     }
 

@@ -39,7 +39,7 @@ export const transactionApi = apiClient.injectEndpoints({
           type = undefined,
           recurringStatus = undefined,
           currency,
-          status, // 👈 1. Khai báo lấy status từ params
+          status,
           pageNumber = 1,
           pageSize = 10
         } = params
@@ -49,7 +49,7 @@ export const transactionApi = apiClient.injectEndpoints({
         if (type) queryParams.type = type
         if (recurringStatus) queryParams.recurringStatus = recurringStatus
         if (currency) queryParams.currency = currency
-        if (status) queryParams.status = status // 👈 2. Nhét status vào URL gửi đi
+        if (status) queryParams.status = status
 
         return {
           url: '/transaction/all',
