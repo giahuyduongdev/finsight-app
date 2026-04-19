@@ -29,8 +29,8 @@ app.use(morganMiddleware)
 app.use(helmet())
 app.use(compression())
 
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ limit: '50mb', extended: true }))
 app.use(cookieParser())
 app.use(passport.initialize())
 app.use(checkBlacklist)
@@ -46,7 +46,7 @@ app.use(rateLimiter)
 
 if (Env.NODE_ENV === 'development') {
   app.use('/admin/queues', setupBullBoard())
-  logger.info('🎯 Bull Board: http://localhost:8000/admin/queues')
+  logger.info(`🎯 Bull Board: http://localhost:${Env.PORT}/admin/queues`)
 }
 
 app.use(`${BASE_PATH}/auth`, authRoutes)

@@ -10,7 +10,7 @@ interface PropsType {
   showHeader?: boolean
   addMarginTop?: boolean
   renderPageHeader?: React.ReactNode
-  isFullWidth?: boolean // 👈 1. Thêm prop này
+  isFullWidth?: boolean // 1. Thêm prop này
 }
 
 const PageLayout = ({
@@ -22,7 +22,7 @@ const PageLayout = ({
   showHeader = true,
   addMarginTop = false,
   renderPageHeader,
-  isFullWidth = false // 👈 2. Mặc định là false để không ảnh hưởng trang khác
+  isFullWidth = false //  2. Mặc định là false để không ảnh hưởng trang khác
 }: PropsType) => {
   return (
     <div>
@@ -37,7 +37,7 @@ const PageLayout = ({
       <div
         className={cn(
           'w-full pt-8',
-          // 👈 3. Nếu không full width thì mới gắn max-width và canh giữa (mx-auto)
+          // 3. Nếu không full width thì mới gắn max-width và canh giữa (mx-auto)
           !isFullWidth && 'max-w-[var(--max-width)] mx-auto',
           addMarginTop && '-mt-20',
           className

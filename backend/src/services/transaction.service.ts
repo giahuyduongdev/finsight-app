@@ -445,8 +445,8 @@ export const scanReceiptService = async (
       date: data.date,
       description: data.description,
       category: data.category,
-      paymentMethod: data.paymentMethod,
-      type: data.type,
+      paymentMethod: data.paymentMethod || 'CASH',
+      type: data.type || 'EXPENSE',
       status: data.status || 'COMPLETED',
       receiptUrl: file.path
     }

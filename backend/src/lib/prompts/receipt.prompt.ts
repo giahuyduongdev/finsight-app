@@ -12,7 +12,7 @@ Analyze this receipt image (base64 encoded) and extract transaction details matc
   "description": "string",    // Items purchased summary (max 50 words)
   "category": "string",       // Prefer one of: groceries, dining, transportation, utilities, entertainment, shopping, healthcare, travel, housing, income, investments. If none fit, use a short descriptive word in lowercase (e.g. "coffee", "pet", "gym")
   "type": "EXPENSE",          // Always "EXPENSE" for receipts
-  "paymentMethod": "string",  // One of: ${Object.values(PaymentMethodEnum).join(',')}
+  "paymentMethod": "string",  // One of: ${Object.values(PaymentMethodEnum).join(',')} - Infer from receipt cues (e.g. "Visa", "Cash", "Change", "Auth"). If it's a printed POS receipt and no specific method mentioned, default to CARD. If handwritten or no cues, default to CASH.
   "status": "COMPLETED",      // Always "COMPLETED" for receipts
 }
 
@@ -22,7 +22,7 @@ Rules:
 3. Category must be lowercase. Prefer matching the suggested list, but if none fit use a short descriptive word — never use "other"
 4. Currency must be one of: ${Object.values(CurrencyEnum).join(',')}
 5. If currency symbol not found on receipt, default to USD
-6. If uncertain about any field, omit it
+6. If uncertain about any field (except paymentMethod), omit it. For paymentMethod, ALWAYS provide a value based on inference or defaults.
 7. If not a receipt, return {}
 
 Example valid response:

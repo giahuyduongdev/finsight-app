@@ -98,11 +98,11 @@ const FileUploadStep = ({ onFileUpload }: FileUploadStepProps) => {
       </DialogHeader>
 
       <div
-        className="w-full border-2 border-dashed rounded-lg
-       text-center"
+        className="w-full border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-muted/50 transition-colors"
         style={{
           padding: '32px'
         }}
+        onClick={() => !isLoading && fileInputRef.current?.click()}
       >
         <input
           type="file"
