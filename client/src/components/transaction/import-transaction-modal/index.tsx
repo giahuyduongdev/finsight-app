@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ImportIcon } from 'lucide-react'
 import FileUploadStep from './fileupload-step'
@@ -90,16 +90,23 @@ const ImportTransactionModal = () => {
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <Button
-        variant="outline"
-        className="!shadow-none !cursor-pointer !border-gray-500
-       !text-white !bg-transparent"
-        onClick={() => setOpen(true)}
-      >
-        <ImportIcon className="!w-5 !h-5" />
-        Bulk Import
-      </Button>
+    <Dialog
+      open={open}
+      onOpenChange={(val) => {
+        if (!val) handleClose()
+        else setOpen(true)
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          className="!shadow-none !cursor-pointer !border-gray-500
+         !text-white !bg-transparent"
+        >
+          <ImportIcon className="!w-5 !h-5" />
+          Bulk Import
+        </Button>
+      </DialogTrigger>
       <DialogContent className="max-w-2xl min-h-[40vh]">
         {renderStep()}
       </DialogContent>

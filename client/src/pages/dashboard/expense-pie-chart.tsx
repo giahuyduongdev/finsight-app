@@ -43,13 +43,14 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     useSelector((state: any) => state.auth?.user?.preferredCurrency) || 'USD'
 
-  const { data, isFetching } = useExpensePieChartBreakdownQuery({
+  const { data, isLoading } = useExpensePieChartBreakdownQuery({
     preset: dateRange?.value
   })
   const categories = data?.data?.breakdown || []
   const totalSpent = data?.data?.totalSpent || 0
 
-  if (isFetching) {
+  // Chỉ hiện Skeleton nếu thực sự KHÔNG có dữ liệu (lần đầu load)
+  if (isLoading && !data) {
     return <PieChartSkeleton />
   }
   // Custom legend component

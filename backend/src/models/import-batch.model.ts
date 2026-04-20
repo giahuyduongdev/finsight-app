@@ -1,8 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose'
+import { TransactionDocument } from './transaction.model'
 
 export interface IImportBatch extends Document {
   userId: mongoose.Types.ObjectId
-  transactions: any[] // Lưu mảng 300 items vào đây (sau khi xử lý xong sẽ bị $unset)
+  transactions: Partial<TransactionDocument>[] // Lưu mảng các giao dịch vào đây
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
   totalItems: number
   processedCount: number

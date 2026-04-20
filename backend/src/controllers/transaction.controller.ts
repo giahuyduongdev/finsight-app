@@ -30,6 +30,7 @@ import { TRANSACTION_JOBS } from '../queues/transaction.queue'
 import importBatchModel from '../models/import-batch.model'
 import { processRecurringTransactions } from '../cron/jobs/transaction.job'
 import TransactionModel from '../models/transaction.model'
+import { getIO } from '../config/socket.config'
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -37,6 +38,9 @@ export const createTransactionController = asyncHandler(
     const userId = req.user?._id
 
     const transaction = await createTransactionService(body, userId)
+
+    const io = getIO()
+    io.to(userId).emit('transaction:created', transaction)
 
     return res.status(HTTPSTATUS.CREATED).json({
       message: 'Transaction created successfully',
@@ -108,6 +112,9 @@ export const duplicateTransactionController = asyncHandler(
 
     const transaction = await duplicateTransactionService(userId, transactionId)
 
+    const io = getIO()
+    io.to(userId).emit('transaction:created', transaction)
+
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction fetched successfully',
       data: transaction
@@ -127,6 +134,9 @@ export const updateTransactionController = asyncHandler(
       body
     )
 
+    const io = getIO()
+    io.to(userId).emit('transaction:updated', updatedTransaction)
+
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction updated successfully',
       data: updatedTransaction
@@ -141,6 +151,9 @@ export const deleteTransactionController = asyncHandler(
 
     await deleteTransactionService(userId, transactionId)
 
+    const io = getIO()
+    io.to(userId).emit('transaction:deleted', { _id: transactionId })
+
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction deleted successfully'
     })
@@ -153,6 +166,9 @@ export const bulkDeleteTransactionController = asyncHandler(
     const { transactionIds } = bulkDeleteTransactionSchema.parse(req.body)
 
     const result = await bulkDeleteTransactionService(userId, transactionIds)
+
+    const io = getIO()
+    io.to(userId).emit('transaction:bulk-deleted', { ids: transactionIds })
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction deleted successfully',
