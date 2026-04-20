@@ -20,11 +20,16 @@ import {
   scanReceiptService,
   updateTransactionService
 } from '../services/transaction.service'
-import { TransactionTypeEnum } from '../models/transaction.model'
-import { CurrencyType } from '../enums/currency.enum'
+import {
+  TransactionTypeEnum,
+  RecurringIntervalEnum
+} from '../models/transaction.model'
+import { CurrencyType, CurrencyEnum } from '../enums/currency.enum'
 import { transactionQueue } from '../queues'
 import { TRANSACTION_JOBS } from '../queues/transaction.queue'
 import importBatchModel from '../models/import-batch.model'
+import { processRecurringTransactions } from '../cron/jobs/transaction.job'
+import TransactionModel from '../models/transaction.model'
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -200,6 +205,55 @@ export const scanReceiptController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: 'Reciept scanned successfully',
       data: result
+    })
+  }
+)
+
+export const triggerRecurringTestController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+
+    // 1. Kiểm tra số lượng giao dịch định kỳ hiện có
+    const existingCount = await TransactionModel.countDocuments({
+      userId,
+      isRecurring: true
+    })
+
+    const TARGET_COUNT = 1000
+
+    if (existingCount < TARGET_COUNT) {
+      const needed = TARGET_COUNT - existingCount
+      const dummyTxs = Array.from({ length: needed }).map((_, i) => ({
+        userId,
+        title: `MOCK RECURRING #${existingCount + i + 1}`,
+        amount: Math.floor(Math.random() * 1000) + 1,
+        type: TransactionTypeEnum.EXPENSE,
+        category: 'Test',
+        currency: CurrencyEnum.USD,
+        isRecurring: true,
+        recurringInterval: RecurringIntervalEnum.DAILY,
+        nextRecurringDate: new Date(Date.now() - 86400000), // Hôm qua
+        date: new Date()
+      }))
+
+      await TransactionModel.insertMany(dummyTxs)
+    }
+
+    // 2. Ép tất cả giao dịch định kỳ của user này về trạng thái "đến hạn"
+    await TransactionModel.updateMany(
+      { userId, isRecurring: true },
+      { $set: { nextRecurringDate: new Date(Date.now() - 86400000) } }
+    )
+
+    // 3. Kích hoạt logic quét và enqueue của Cron Job
+    await processRecurringTransactions()
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: `Triggered ${TARGET_COUNT} recurring transactions test`,
+      data: {
+        totalTarget: TARGET_COUNT,
+        existingBefore: existingCount
+      }
     })
   }
 )

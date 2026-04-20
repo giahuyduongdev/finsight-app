@@ -140,7 +140,7 @@ const ConfirmationStep = ({
         const validated = transactionSchema.parse(transaction)
         results.push({
           ...validated,
-          // 👇 Convert Date → ISO string
+          // Convert Date → ISO string
           date:
             validated.date instanceof Date
               ? validated.date.toISOString()

@@ -79,51 +79,51 @@ const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
         cancelText="Cancel"
       />
       <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        className="w-44"
-        align="end"
-        onCloseAutoFocus={(e) => {
-          if (isDeleting || isDuplicating) e.preventDefault()
-        }}
-      >
-        <DropdownMenuItem onClick={() => onOpenDrawer(transactionId)}>
-          <Pencil className="mr-1 h-4 w-4" /> Edit
-        </DropdownMenuItem>
-
-        <DropdownMenuItem
-          className="relative"
-          // 👇 KHÓA NÚT: Duplicate bị vô hiệu hóa nếu là giao dịch con
-          disabled={isDuplicating || isChild}
-          onSelect={handleDuplicate}
-        >
-          <Copy className="mr-1 h-4 w-4" /> Duplicate
-          {isDuplicating && (
-            <Loader className="ml-1 h-4 w-4 absolute right-2 animate-spin" />
-          )}
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem
-          className="relative !text-destructive"
-          disabled={isDeleting}
-          onSelect={(e) => {
-            e.preventDefault()
-            setIsDeleteDialogOpen(true)
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-44"
+          align="end"
+          onCloseAutoFocus={(e) => {
+            if (isDeleting || isDuplicating) e.preventDefault()
           }}
         >
-          <Trash2 className="mr-1 h-4 w-4 !text-destructive" /> Delete
-          {isDeleting && (
-            <Loader className="ml-1 h-4 w-4 absolute right-2 animate-spin" />
-          )}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem onClick={() => onOpenDrawer(transactionId)}>
+            <Pencil className="mr-1 h-4 w-4" /> Edit
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            className="relative"
+            // KHÓA NÚT: Duplicate bị vô hiệu hóa nếu là giao dịch con
+            disabled={isDuplicating || isChild}
+            onSelect={handleDuplicate}
+          >
+            <Copy className="mr-1 h-4 w-4" /> Duplicate
+            {isDuplicating && (
+              <Loader className="ml-1 h-4 w-4 absolute right-2 animate-spin" />
+            )}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            className="relative !text-destructive"
+            disabled={isDeleting}
+            onSelect={(e) => {
+              e.preventDefault()
+              setIsDeleteDialogOpen(true)
+            }}
+          >
+            <Trash2 className="mr-1 h-4 w-4 !text-destructive" /> Delete
+            {isDeleting && (
+              <Loader className="ml-1 h-4 w-4 absolute right-2 animate-spin" />
+            )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   )
 }

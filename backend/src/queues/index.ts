@@ -1,3 +1,4 @@
+import { FlowProducer } from 'bullmq'
 import { logger } from '../config/logger.config'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 
@@ -23,4 +24,9 @@ export const closeQueues = async () => {
   )
 }
 
+export const transactionFlowProducer = new FlowProducer({
+  connection: bullMQConnection
+})
+
 export { transactionQueue }
+export * from './transaction.queue'

@@ -64,7 +64,7 @@ export const createTransactionColumns = (
     header: () => <div className="w-[20px]" />,
     cell: ({ row }) => {
       const tx = row.original
-      // 👇 Đã xóa vạch dọc thẳng đứng, trả về khoảng trống sạch sẽ
+      // Đã xóa vạch dọc thẳng đứng, trả về khoảng trống sạch sẽ
       if (tx._rowType) return <div className="w-[20px]" />
 
       if (!tx.isRecurring) return <div className="w-[20px]" />

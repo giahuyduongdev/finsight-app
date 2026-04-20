@@ -9,12 +9,17 @@ import {
   bulkDeleteTransactionController,
   bulkTransactionController,
   scanReceiptController,
-  getChildTransactionsController
+  getChildTransactionsController,
+  triggerRecurringTestController
 } from '../controllers/transaction.controller'
 import { upload } from '../config/cloudinary.config'
 
 const transactionRoutes = Router()
 
+transactionRoutes.post(
+  '/test/trigger-recurring',
+  triggerRecurringTestController
+)
 transactionRoutes.post('/create', createTransactionController)
 
 transactionRoutes.post(
