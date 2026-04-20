@@ -63,3 +63,13 @@ export interface ExpensePieChartBreakdownResponse {
         preset: PresetType;
     }
 }
+
+export interface ExchangeRatesResponse {
+    message: string;
+    data: {
+        base: string;
+        rates: Record<string, number>;
+        usedCurrencies?: string[];
+        updatedAt: string;
+    }
+}

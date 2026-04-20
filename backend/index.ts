@@ -14,6 +14,7 @@ import { logger } from './src/config/logger.config'
 import { initializeWorkers, stopWorkers } from './src/workers'
 import { closeQueues } from './src/queues'
 import { initializeSocket, getIO } from './src/config/socket.config' 
+import { CurrencyService } from './src/services/currency.service'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,13 @@ const closeGracefully = (
 
 const startServer = async (): Promise<void> => {
   await connectDB()
+  
+  // Lấy tỉ giá ngay khi khởi động để Redis không bị trống
+  try {
+    await CurrencyService.fetchAndBroadcastRates()
+  } catch (error) {
+    logger.error('❌ Failed to fetch initial rates:', error)
+  }
 
   if (Env.NODE_ENV === 'development') {
     checkOverload()
