@@ -61,7 +61,11 @@ export const getAllTransactionController = asyncHandler(
         | 'NON_RECURRING'
         | undefined,
       currency: req.query.currency as CurrencyType | undefined,
-      status: req.query.status as 'COMPLETED' | 'PENDING' | 'FAILED' | undefined
+      status: req.query.status as 'COMPLETED' | 'PENDING' | 'FAILED' | undefined,
+      dateRangePreset: req.query.dateRangePreset as any,
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      timezone: req.query.timezone as string | undefined
     }
 
     const pagination = {

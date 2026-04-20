@@ -91,22 +91,27 @@ export const createTransactionColumns = (
     enableHiding: false
   },
   {
-    accessorKey: 'createdAt',
+    accessorKey: 'date',
     header: ({ column }) => (
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         className="p-0 hover:bg-transparent text-[13px] font-semibold"
       >
-        Created
+        Date
         <ArrowUpDown className="ml-1 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => (
-      <div className="w-[80px] whitespace-nowrap text-muted-foreground text-[13px]">
-        {format(new Date(row.getValue('createdAt')), 'MMM dd, yyyy')}
-      </div>
-    )
+    cell: ({ row }) => {
+      const isSubRow = !!row.original._rowType
+      return (
+        <div
+          className={`w-[80px] whitespace-nowrap text-[13px] ${isSubRow ? 'italic text-muted-foreground' : ''}`}
+        >
+          {format(new Date(row.original.date), 'MMM dd, yyyy')}
+        </div>
+      )
+    }
   },
   {
     accessorKey: 'title',
@@ -236,27 +241,22 @@ export const createTransactionColumns = (
     }
   },
   {
-    accessorKey: 'date',
+    accessorKey: 'createdAt',
     header: ({ column }) => (
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         className="p-0 hover:bg-transparent text-[13px] font-semibold"
       >
-        Date
+        Imported
         <ArrowUpDown className="ml-1 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => {
-      const isSubRow = !!row.original._rowType
-      return (
-        <div
-          className={`w-[80px] whitespace-nowrap text-[13px] ${isSubRow ? 'italic text-muted-foreground' : ''}`}
-        >
-          {format(new Date(row.original.date), 'MMM dd, yyyy')}
-        </div>
-      )
-    }
+    cell: ({ row }) => (
+      <div className="w-[80px] whitespace-nowrap text-muted-foreground text-[13px]">
+        {format(new Date(row.getValue('createdAt')), 'MMM dd, yyyy')}
+      </div>
+    )
   },
   {
     accessorKey: 'paymentMethod',

@@ -1,7 +1,7 @@
 import TransactionModel, {
   TransactionTypeEnum
 } from '../models/transaction.model'
-import { calculateNextOccurrence } from '../utils/dates/index'
+import { calculateNextOccurrence, getDateRange } from '../utils/dates/index'
 import {
   CreateTransactionType,
   UpdateTransactionType
@@ -13,6 +13,7 @@ import { createPartFromBase64, createUserContent } from '@google/genai'
 import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
+import { DateRangePreset } from '../enums/date-range.enum'
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -96,17 +97,45 @@ export const getAllTransactionService = async (
     recurringStatus?: 'RECURRING' | 'NON_RECURRING'
     currency?: CurrencyType
     status?: 'COMPLETED' | 'PENDING' | 'FAILED'
+    dateRangePreset?: DateRangePreset
+    from?: string | Date
+    to?: string | Date
+    timezone?: string
   },
   pagination: {
     pageSize: number
     pageNumber: number
   }
 ) => {
-  const { keyword, type, recurringStatus, currency, status } = filters
+  const {
+    keyword,
+    type,
+    recurringStatus,
+    currency,
+    status,
+    dateRangePreset,
+    from,
+    to,
+    timezone
+  } = filters
 
   const filterConditions: Record<string, any> = {
     userId,
     recurringSourceId: null
+  }
+
+  // --- Date Range Filter ---
+  const dateRange = getDateRange(
+    dateRangePreset,
+    from ? new Date(from) : undefined,
+    to ? new Date(to) : undefined,
+    timezone || 'UTC'
+  )
+
+  if (dateRange.from || dateRange.to) {
+    filterConditions.date = {}
+    if (dateRange.from) filterConditions.date.$gte = dateRange.from
+    if (dateRange.to) filterConditions.date.$lte = dateRange.to
   }
 
   if (keyword) {
@@ -143,7 +172,7 @@ export const getAllTransactionService = async (
     TransactionModel.find(filterConditions)
       .skip(skip)
       .limit(pageSize)
-      .sort({ createdAt: -1 }),
+      .sort({ date: -1, createdAt: -1 }),
     TransactionModel.countDocuments(filterConditions)
   ])
 

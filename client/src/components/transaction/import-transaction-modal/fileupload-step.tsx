@@ -89,7 +89,7 @@ const FileUploadStep = ({ onFileUpload }: FileUploadStepProps) => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 h-full py-4">
       <DialogHeader>
         <DialogTitle>Upload CSV File</DialogTitle>
         <DialogDescription>
@@ -98,10 +98,7 @@ const FileUploadStep = ({ onFileUpload }: FileUploadStepProps) => {
       </DialogHeader>
 
       <div
-        className="w-full border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-muted/50 transition-colors"
-        style={{
-          padding: '32px'
-        }}
+        className="flex-1 flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-muted/50 transition-colors px-10 py-16 min-h-[250px]"
         onClick={() => !isLoading && fileInputRef.current?.click()}
       >
         <input

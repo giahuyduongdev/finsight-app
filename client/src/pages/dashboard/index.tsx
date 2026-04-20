@@ -30,7 +30,7 @@ const Dashboard = () => {
         </div>
         {/* Dashboard Recent Transactions */}
         <div className="w-full mt-0">
-          <DashboardRecentTransactions />
+          <DashboardRecentTransactions dateRange={dateRange} setDateRange={_setDateRange} />
         </div>
       </PageLayout>
     </div>

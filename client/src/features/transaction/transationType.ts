@@ -2,6 +2,7 @@ import {
   _TRANSACTION_FREQUENCY,
   _TransactionType,
   CurrencyType,
+  DateRangePreset,
   PAYMENT_METHODS_ENUM
 } from '@/constant'
 
@@ -32,6 +33,10 @@ export interface GetAllTransactionParams {
   status?: 'COMPLETED' | 'PENDING' | 'FAILED'
   pageNumber?: number
   pageSize?: number
+  dateRangePreset?: DateRangePreset
+  from?: string | Date
+  to?: string | Date
+  timezone?: string
 }
 
 export interface TransactionType {

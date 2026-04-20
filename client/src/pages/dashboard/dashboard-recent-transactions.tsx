@@ -12,7 +12,15 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { PROTECTED_ROUTES } from '@/routes/common/routePath'
 
-const DashboardRecentTransactions = () => {
+import { DateRangeType } from '@/components/date-range-select'
+
+const DashboardRecentTransactions = ({
+  dateRange,
+  setDateRange
+}: {
+  dateRange: DateRangeType
+  setDateRange: (range: DateRangeType) => void
+}) => {
   return (
     <Card className="!shadow-none border-1 border-gray-100 dark:border-border">
       <CardHeader className="!pb-0">
@@ -34,6 +42,8 @@ const DashboardRecentTransactions = () => {
           pageSize={8}
           isShowPagination={false}
           hiddenColumns={['currency', 'paymentMethod', 'recurringInterval']}
+          dateRange={dateRange}
+          setDateRange={setDateRange}
         />
       </CardContent>
     </Card>
