@@ -54,7 +54,9 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
     ) || 'USD'
 
   const { data, isLoading } = useChartAnalyticsQuery({
-    preset: dateRange?.value
+    preset: dateRange?.value,
+    from: dateRange?.from?.toISOString(),
+    to: dateRange?.to?.toISOString()
   })
   const chartData = data?.data?.chartData || []
   const totalExpenseCount = data?.data?.totalExpenseCount || 0

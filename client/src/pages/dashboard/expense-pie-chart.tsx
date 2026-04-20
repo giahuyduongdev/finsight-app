@@ -44,7 +44,9 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
     useSelector((state: any) => state.auth?.user?.preferredCurrency) || 'USD'
 
   const { data, isLoading } = useExpensePieChartBreakdownQuery({
-    preset: dateRange?.value
+    preset: dateRange?.value,
+    from: dateRange?.from?.toISOString(),
+    to: dateRange?.to?.toISOString()
   })
   const categories = data?.data?.breakdown || []
   const totalSpent = data?.data?.totalSpent || 0
