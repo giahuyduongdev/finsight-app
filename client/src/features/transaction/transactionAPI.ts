@@ -41,7 +41,11 @@ export const transactionApi = apiClient.injectEndpoints({
           currency,
           status,
           pageNumber = 1,
-          pageSize = 10
+          pageSize = 10,
+          dateRangePreset,
+          from,
+          to,
+          timezone
         } = params
 
         const queryParams: Record<string, unknown> = { pageNumber, pageSize }
@@ -50,6 +54,10 @@ export const transactionApi = apiClient.injectEndpoints({
         if (recurringStatus) queryParams.recurringStatus = recurringStatus
         if (currency) queryParams.currency = currency
         if (status) queryParams.status = status
+        if (dateRangePreset) queryParams.dateRangePreset = dateRangePreset
+        if (from) queryParams.from = from
+        if (to) queryParams.to = to
+        if (timezone) queryParams.timezone = timezone
 
         return {
           url: '/transaction/all',

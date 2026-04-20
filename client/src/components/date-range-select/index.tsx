@@ -5,7 +5,9 @@ import {
   subMonths,
   subYears,
   startOfMonth,
-  startOfYear
+  startOfYear,
+  startOfDay,
+  endOfDay
 } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,6 +17,8 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { ChevronDownIcon } from 'lucide-react'
+import { Calendar } from '../ui/calendar'
+import { DateRange } from 'react-day-picker'
 
 export const DateRangeEnum = {
   LAST_30_DAYS: '30days',
@@ -57,8 +61,8 @@ const presets: DateRangePreset[] = [
     label: 'Last 30 Days',
     value: DateRangeEnum.LAST_30_DAYS,
     getRange: () => ({
-      from: subDays(yesterday, 29),
-      to: yesterday,
+      from: startOfDay(subDays(today, 30)),
+      to: endOfDay(today),
       value: DateRangeEnum.LAST_30_DAYS,
       label: 'for Past 30 Days'
     })
@@ -66,39 +70,48 @@ const presets: DateRangePreset[] = [
   {
     label: 'Last Month',
     value: DateRangeEnum.LAST_MONTH,
-    getRange: () => ({
-      from: startOfMonth(subMonths(today, 1)),
-      to: startOfMonth(today),
-      value: DateRangeEnum.LAST_MONTH,
-      label: 'for Last Month'
-    })
+    getRange: () => {
+      const lastMonth = subMonths(today, 1)
+      return {
+        from: startOfMonth(lastMonth),
+        to: endOfDay(subDays(startOfMonth(today), 1)),
+        value: DateRangeEnum.LAST_MONTH,
+        label: 'for Last Month'
+      }
+    }
   },
   {
     label: 'Last 3 Months',
     value: DateRangeEnum.LAST_3_MONTHS,
-    getRange: () => ({
-      from: startOfMonth(subMonths(today, 3)),
-      to: startOfMonth(today),
-      value: DateRangeEnum.LAST_3_MONTHS,
-      label: 'for Past 3 Months'
-    })
+    getRange: () => {
+      const start = startOfMonth(subMonths(today, 3))
+      return {
+        from: start,
+        to: endOfDay(subDays(startOfMonth(today), 1)),
+        value: DateRangeEnum.LAST_3_MONTHS,
+        label: 'for Past 3 Months'
+      }
+    }
   },
   {
     label: 'Last Year',
     value: DateRangeEnum.LAST_YEAR,
-    getRange: () => ({
-      from: startOfYear(subYears(today, 1)),
-      to: startOfYear(today),
-      value: DateRangeEnum.LAST_YEAR,
-      label: 'for Past Year'
-    })
+    getRange: () => {
+      const lastYear = subYears(today, 1)
+      return {
+        from: startOfYear(lastYear),
+        to: endOfDay(subDays(startOfYear(today), 1)),
+        value: DateRangeEnum.LAST_YEAR,
+        label: 'for Past Year'
+      }
+    }
   },
   {
     label: 'This Month',
     value: DateRangeEnum.THIS_MONTH,
     getRange: () => ({
       from: startOfMonth(today),
-      to: today,
+      to: endOfDay(today),
       value: DateRangeEnum.THIS_MONTH,
       label: 'for This Month'
     })
@@ -108,7 +121,7 @@ const presets: DateRangePreset[] = [
     value: DateRangeEnum.THIS_YEAR,
     getRange: () => ({
       from: startOfYear(today),
-      to: today,
+      to: endOfDay(today),
       value: DateRangeEnum.THIS_YEAR,
       label: 'for This Year'
     })
@@ -122,6 +135,16 @@ const presets: DateRangePreset[] = [
       value: DateRangeEnum.ALL_TIME,
       label: 'across All Time'
     })
+  },
+  {
+    label: 'Custom Range',
+    value: DateRangeEnum.CUSTOM,
+    getRange: () => ({
+      from: null,
+      to: null,
+      value: DateRangeEnum.CUSTOM,
+      label: 'Custom Range'
+    })
   }
 ]
 
@@ -131,6 +154,17 @@ export const DateRangeSelect = ({
   defaultRange = DateRangeEnum.LAST_30_DAYS
 }: DateRangeSelectProps) => {
   const [open, setOpen] = useState(false)
+  const [pendingRange, setPendingRange] = useState<DateRange | undefined>(undefined)
+
+  // Sync pendingRange when popover opens and it's a custom range
+  useEffect(() => {
+    if (open && dateRange?.value === DateRangeEnum.CUSTOM) {
+      setPendingRange({
+        from: dateRange?.from || undefined,
+        to: dateRange?.to || undefined
+      })
+    }
+  }, [open, dateRange])
 
   const displayText = dateRange
     ? presets.find((p) => p.value === dateRange.value)?.label ||
@@ -157,34 +191,81 @@ export const DateRangeSelect = ({
         <Button
           variant="outline"
           className={cn(
-            `w-[200px] flex items-center justify-between text-left font-normal !bg-[var(--secondary-dark-color)]
-            border-gray-700 !text-white !cursor-pointer`,
+            "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm text-foreground whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none h-9 !cursor-pointer min-w-[160px]",
             !dateRange && 'text-muted-foreground'
           )}
         >
-          {displayText}
-          <ChevronDownIcon className="ml-2 h-4 w-4 opacity-50" />
+          <div className="flex items-center gap-2">
+             <ChevronDownIcon className="size-4 opacity-50" />
+             <span className="truncate">{displayText}</span>
+          </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <div className="grid py-1">
+      <PopoverContent className="w-auto p-0 flex flex-col md:flex-row" align="start">
+        <div className="grid py-1 border-r min-w-[160px]">
+          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Presets
+          </div>
           {presets.map((preset) => (
             <Button
               key={preset.value}
               variant="ghost"
               className={cn(
-                'justify-start text-left',
-                dateRange?.value === preset.value && 'bg-accent'
+                'justify-start text-left font-normal h-9',
+                dateRange?.value === preset.value && 'bg-accent text-accent-foreground'
               )}
               onClick={() => {
                 setDateRange(preset.getRange())
-                setOpen(false)
+                if (preset.value !== DateRangeEnum.CUSTOM) {
+                  setOpen(false)
+                }
               }}
             >
               {preset.label}
             </Button>
           ))}
         </div>
+        {dateRange?.value === DateRangeEnum.CUSTOM && (
+          <div className="flex flex-col animate-in fade-in slide-in-from-left-2 duration-300">
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={pendingRange?.from || dateRange?.from || undefined}
+              selected={pendingRange}
+              onSelect={setPendingRange}
+              numberOfMonths={1}
+              className="p-3"
+            />
+            <div className="flex items-center justify-end gap-2 p-3 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                   setPendingRange(undefined)
+                   setOpen(false)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 !bg-[var(--secondary-dark-color)] text-white"
+                onClick={() => {
+                  setDateRange({
+                    from: pendingRange?.from ? startOfDay(pendingRange.from) : null,
+                    to: pendingRange?.to ? endOfDay(pendingRange.to) : (pendingRange?.from ? endOfDay(pendingRange.from) : null),
+                    value: DateRangeEnum.CUSTOM,
+                    label: 'Custom Range'
+                  })
+                  setOpen(false)
+                }}
+              >
+                Apply Range
+              </Button>
+            </div>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

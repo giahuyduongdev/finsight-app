@@ -1,5 +1,17 @@
 export const MAX_IMPORT_LIMIT = 1000
 export const MAX_FILE_SIZE = 5 * 1024 * 1024
+export enum DateRangeEnum {
+  LAST_30_DAYS = '30days',
+  LAST_MONTH = 'lastMonth',
+  LAST_3_MONTHS = 'last3Months',
+  LAST_YEAR = 'lastYear',
+  THIS_MONTH = 'thisMonth',
+  THIS_YEAR = 'thisYear',
+  ALL_TIME = 'allTime',
+  CUSTOM = 'custom'
+}
+
+export type DateRangePreset = `${DateRangeEnum}`
 
 export const CATEGORIES = [
   { value: 'groceries', label: 'Groceries' },

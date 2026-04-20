@@ -1,4 +1,5 @@
 import { DataTable } from '@/components/data-table'
+import { DateRangeSelect, DateRangeType } from '@/components/date-range-select'
 import { createTransactionColumns, DisplayTransaction } from './column'
 import {
   _TRANSACTION_TYPE,
@@ -14,6 +15,7 @@ import {
   useLazyGetChildTransactionsQuery,
   usePrefetch
 } from '@/features/transaction/transactionAPI'
+import { useTypedSelector } from '@/app/hook'
 import { toast } from 'sonner'
 import {
   ColumnDef,
@@ -42,7 +44,16 @@ const TransactionTable = (props: {
   pageSize?: number
   isShowPagination?: boolean
   hiddenColumns?: string[]
+  dateRange?: DateRangeType
+  setDateRange?: (range: DateRangeType) => void
 }) => {
+  const [internalDateRange, setInternalDateRange] = useState<DateRangeType>(null)
+
+  // Use external state if provided, otherwise use internal state
+  const dateRange = props.dateRange !== undefined ? props.dateRange : internalDateRange
+  const setDateRange = props.setDateRange || setInternalDateRange
+  const isSyncMode = props.dateRange !== undefined
+
   const [filter, setFilter] = useState<FilterType>({
     type: undefined,
     recurringStatus: undefined,
@@ -54,6 +65,12 @@ const TransactionTable = (props: {
 
   const [expanded, setExpanded] = useState<ExpandedState>({})
   const [childrenMap, setChildrenMap] = useState<ChildrenMapType>({})
+
+  const { timezone } = useTypedSelector((state) => state.auth.user) || {
+    timezone: 'UTC'
+  }
+  // Remove local dateRange state as it's now handled by the logic above
+  // const [dateRange, setDateRange] = useState<DateRangeType>(null)
 
   const [fetchChildren] = useLazyGetChildTransactionsQuery()
   const { debouncedTerm, setSearchTerm } = useDebouncedSearch('', {
@@ -69,7 +86,11 @@ const TransactionTable = (props: {
     currency: filter.currency || undefined,
     status: filter.status || undefined,
     pageNumber: filter.pageNumber,
-    pageSize: filter.pageSize
+    pageSize: filter.pageSize,
+    dateRangePreset: dateRange?.value as any,
+    from: dateRange?.from?.toISOString() || undefined,
+    to: dateRange?.to?.toISOString() || undefined,
+    timezone
   })
 
   const transactions = useMemo(
@@ -310,7 +331,11 @@ const TransactionTable = (props: {
         currency: filter.currency,
         status: filter.status,
         pageNumber: page,
-        pageSize: filter.pageSize
+        pageSize: filter.pageSize,
+        dateRangePreset: dateRange?.value as any,
+        from: dateRange?.from?.toISOString() || undefined,
+        to: dateRange?.to?.toISOString() || undefined,
+        timezone
       })
     }
   }
@@ -367,6 +392,11 @@ const TransactionTable = (props: {
       onFilterChange={handleFilterChange}
       onBulkDelete={handleBulkDelete}
       onHoverPage={handleHoverPage}
+      renderExtraFilters={
+        !isSyncMode && (
+          <DateRangeSelect dateRange={dateRange} setDateRange={setDateRange} />
+        )
+      }
     />
   )
 }

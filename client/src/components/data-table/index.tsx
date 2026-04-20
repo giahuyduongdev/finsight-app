@@ -69,6 +69,7 @@ interface DataTableProps<TData> {
   // Thêm 2 props này để nhận state từ component cha
   expanded?: ExpandedState
   onExpandedChange?: React.Dispatch<React.SetStateAction<ExpandedState>>
+  renderExtraFilters?: React.ReactNode
 }
 
 export function DataTable<TData>({
@@ -90,7 +91,8 @@ export function DataTable<TData>({
   onPageSizeChange,
   onHoverPage,
   expanded = {},
-  onExpandedChange
+  onExpandedChange,
+  renderExtraFilters
 }: DataTableProps<TData>) {
   const [searchTerm, setSearchTerm] = React.useState('')
   const [filterValues, setFilterValues] = React.useState<
@@ -203,6 +205,8 @@ export function DataTable<TData>({
               </SelectContent>
             </Select>
           ))}
+
+          {renderExtraFilters}
 
           {(searchTerm ||
             Object.keys(rowSelection).length > 0 ||
