@@ -18,7 +18,7 @@ export const summaryAnalyticsService = async (
   preferredCurrency: string = 'USD'
 ) => {
   // Tạo cache key unique theo user + preset + currency
-  const cacheKey = `analytics:summary:${userId}:${dateRangePreset || 'allTime'}:${preferredCurrency}`
+    const cacheKey = `analytics:summary:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
 
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
@@ -200,7 +200,7 @@ export const chartAnalyticsService = async (
   preferredCurrency: string = 'USD' //
 ) => {
   // Check Redis cache trước
-  const cacheKey = `analytics:chart:${userId}:${dateRangePreset || 'allTime'}:${preferredCurrency}`
+  const cacheKey = `analytics:chart:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
 
@@ -335,7 +335,7 @@ export const expensePieChartBreakdownService = async (
   preferredCurrency: string = 'USD' //
 ) => {
   // Check Redis cache trước
-  const cacheKey = `analytics:pie:${userId}:${dateRangePreset || 'allTime'}:${preferredCurrency}`
+  const cacheKey = `analytics:pie:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
 

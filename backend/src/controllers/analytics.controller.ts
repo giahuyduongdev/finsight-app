@@ -2,7 +2,6 @@ import { Request, Response } from 'express'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { HTTPSTATUS } from '../config/http.config'
 import { DateRangePreset } from '../enums/date-range.enum'
-import { fromZonedTime } from 'date-fns-tz'
 import {
   chartAnalyticsService,
   expensePieChartBreakdownService,
@@ -19,10 +18,8 @@ export const summaryAnalyticsController = asyncHandler(
 
     const filter = {
       dateRangePreset: preset as DateRangePreset,
-      customFrom: from
-        ? fromZonedTime(new Date(from as string), timezone)
-        : undefined,
-      customTo: to ? fromZonedTime(new Date(to as string), timezone) : undefined
+      customFrom: from ? new Date(from as string) : undefined,
+      customTo: to ? new Date(to as string) : undefined
     }
 
     const stats = await summaryAnalyticsService(
@@ -51,10 +48,8 @@ export const chartAnalyticsController = asyncHandler(
 
     const filter = {
       dateRangePreset: preset as DateRangePreset,
-      customFrom: from
-        ? fromZonedTime(new Date(from as string), timezone)
-        : undefined,
-      customTo: to ? fromZonedTime(new Date(to as string), timezone) : undefined
+      customFrom: from ? new Date(from as string) : undefined,
+      customTo: to ? new Date(to as string) : undefined
     }
 
     const chartData = await chartAnalyticsService(
@@ -83,10 +78,8 @@ export const expensePieChartBreakdownController = asyncHandler(
 
     const filter = {
       dateRangePreset: preset as DateRangePreset,
-      customFrom: from
-        ? fromZonedTime(new Date(from as string), timezone)
-        : undefined,
-      customTo: to ? fromZonedTime(new Date(to as string), timezone) : undefined
+      customFrom: from ? new Date(from as string) : undefined,
+      customTo: to ? new Date(to as string) : undefined
     }
 
     const pieChartData = await expensePieChartBreakdownService(

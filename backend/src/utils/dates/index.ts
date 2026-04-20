@@ -82,6 +82,13 @@ export const getDateRange = (
         value: DateRangeEnum.THIS_YEAR,
         label: 'This Year'
       }
+    case DateRangeEnum.CUSTOM:
+      return {
+        from: customFrom || null,
+        to: customTo || null,
+        value: DateRangeEnum.CUSTOM,
+        label: 'Custom Range'
+      }
     default:
       return last30Days
   }

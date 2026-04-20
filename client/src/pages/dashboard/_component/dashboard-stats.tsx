@@ -5,7 +5,11 @@ import { useSelector } from 'react-redux'
 
 const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
   const { data, isLoading } = useSummaryAnalyticsQuery(
-    { preset: dateRange?.value },
+    {
+      preset: dateRange?.value,
+      from: dateRange?.from?.toISOString(),
+      to: dateRange?.to?.toISOString()
+    },
     { skip: !dateRange }
   )
   const summaryData = data?.data
