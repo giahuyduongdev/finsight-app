@@ -41,7 +41,7 @@ export const useBulkImportSocket = () => {
     socket.on(
       'bulk-import:completed',
       ({ totalInserted }: BulkImportCompletedPayload) => {
-        console.log('✅ Received bulk-import:completed', { totalInserted })
+        console.log('Received bulk-import:completed', { totalInserted })
         toast.success(`Successfully imported ${totalInserted} transactions`, {
           id: 'bulk-import',
           duration: 4000

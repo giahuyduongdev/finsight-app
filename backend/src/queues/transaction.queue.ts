@@ -6,13 +6,15 @@ import { BulkTransactionItem } from '../services/transaction.service'
 
 export const TRANSACTION_JOBS = {
   RECURRING: 'process-recurring-transaction',
+  RECURRING_SUMMARY: 'recurring-summary',
   BULK_IMPORT: 'bulk-import'
 } as const
 
 // ─── Job Data Types ───────────────────────────────────────────────────────────
 
 export type RecurringJobData = {
-  transactionId: string
+  userId: string
+  transactionIds?: string[] // Danh sách ID để xử lý hàng loạt trong 1 Job con
 }
 
 export type BulkImportJobData = {

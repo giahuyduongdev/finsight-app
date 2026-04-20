@@ -260,7 +260,7 @@ const TransactionForm = (props: {
                       'flex space-x-2',
                       (isScanning || isChildTransaction) && 'opacity-60'
                     )}
-                    // 👇 ĐÃ KHÓA: Nếu là giao dịch con thì không cho đổi Thu/Chi
+                    // ĐÃ KHÓA: Nếu là giao dịch con thì không cho đổi Thu/Chi
                     disabled={isScanning || isChildTransaction}
                   >
                     <label
@@ -370,7 +370,7 @@ const TransactionForm = (props: {
                     <Select
                       onValueChange={field.onChange}
                       value={field.value || undefined}
-                      // 👇 ĐÃ KHÓA: Nếu là giao dịch con thì không cho đổi Tiền tệ
+                      // ĐÃ KHÓA: Nếu là giao dịch con thì không cho đổi Tiền tệ
                       disabled={isScanning || isChildTransaction}
                     >
                       <FormControl>
