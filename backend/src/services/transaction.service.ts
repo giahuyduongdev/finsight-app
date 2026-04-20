@@ -303,7 +303,7 @@ export const deleteTransactionService = async (
   userId: string,
   transactionId: string
 ) => {
-  const deleted = await TransactionModel.findByIdAndDelete({
+  const deleted = await TransactionModel.findOneAndDelete({
     _id: transactionId,
     userId
   })
@@ -316,7 +316,8 @@ export const deleteTransactionService = async (
   })
 
   // Invalidate analytics cache
-  const keys = await redis.keys(`analytics:*:${userId}:*`)
+  const room = userId.toString()
+  const keys = await redis.keys(`analytics:*${room}*`)
   if (keys.length) await redis.del(...keys)
 
   return
@@ -341,7 +342,8 @@ export const bulkDeleteTransactionService = async (
   })
 
   // Invalidate analytics cache
-  const keys = await redis.keys(`analytics:*:${userId}:*`)
+  const room = userId.toString()
+  const keys = await redis.keys(`analytics:*${room}*`)
   if (keys.length) await redis.del(...keys)
 
   return {

@@ -4,7 +4,7 @@ import { DateRangeType } from '@/components/date-range-select'
 import { useSelector } from 'react-redux'
 
 const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
-  const { data, isFetching } = useSummaryAnalyticsQuery(
+  const { data, isLoading } = useSummaryAnalyticsQuery(
     { preset: dateRange?.value },
     { skip: !dateRange }
   )
@@ -12,7 +12,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
   const preferredCurrency =
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     useSelector((state: any) => state.auth?.user?.preferredCurrency) || 'USD'
-
+ 
   return (
     <div className="flex flex-row items-center">
       <div className="flex-1 lg:flex-[1] grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -21,7 +21,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
           value={summaryData?.availableBalance}
           dateRange={dateRange}
           percentageChange={summaryData?.percentageChange?.balance}
-          isLoading={isFetching}
+          isLoading={isLoading && !data}
           cardType="balance"
           currency={preferredCurrency}
         />
@@ -30,7 +30,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
           value={summaryData?.totalIncome}
           percentageChange={summaryData?.percentageChange?.income}
           dateRange={dateRange}
-          isLoading={isFetching}
+          isLoading={isLoading && !data}
           cardType="income"
           currency={preferredCurrency}
         />
@@ -39,7 +39,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
           value={summaryData?.totalExpenses}
           dateRange={dateRange}
           percentageChange={summaryData?.percentageChange?.expenses}
-          isLoading={isFetching}
+          isLoading={isLoading && !data}
           cardType="expenses"
           currency={preferredCurrency}
         />
@@ -49,7 +49,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
           expenseRatio={summaryData?.savingRate?.expenseRatio}
           isPercentageValue
           dateRange={dateRange}
-          isLoading={isFetching}
+          isLoading={isLoading && !data}
           cardType="savings"
         />
       </div>

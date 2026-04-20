@@ -62,7 +62,7 @@ const TransactionTable = (props: {
   const [bulkDeleteTransaction, { isLoading: isBulkDeleting }] =
     useBulkDeleteTransactionMutation()
 
-  const { data, isFetching } = useGetAllTransactionsQuery({
+  const { data, isFetching, isLoading } = useGetAllTransactionsQuery({
     keyword: debouncedTerm,
     type: filter.type,
     recurringStatus: filter.recurringStatus,
@@ -322,7 +322,7 @@ const TransactionTable = (props: {
       expanded={expanded}
       onExpandedChange={setExpanded}
       searchPlaceholder="Search transactions..."
-      isLoading={isFetching}
+      isLoading={isLoading && !data}
       isBulkDeleting={isBulkDeleting}
       isShowPagination={props.isShowPagination}
       pagination={pagination}

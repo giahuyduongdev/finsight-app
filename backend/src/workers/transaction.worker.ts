@@ -52,7 +52,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
       const chunk = transactions.slice(i, i + BATCH_SIZE)
 
-      const transactionsToInsert = chunk.map((tx: any) => ({
+      const transactionsToInsert = chunk.map((tx) => ({
         ...tx,
         userId: new mongoose.Types.ObjectId(userId)
       }))
@@ -97,7 +97,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     })
 
     return { insertedCount: totalInserted, success: true }
-  } catch (error: any) {
+  } catch (error) {
     await importBatchModel.findByIdAndUpdate(importBatchId, {
       status: 'FAILED',
       processedCount: totalInserted
@@ -267,10 +267,11 @@ transactionWorker.on('failed', async (job, err) => {
       logger.info(
         `⏸️ [Poison Pill] Batch paused: ${job.data.transactionIds.length} transactions`
       )
-    } catch (updateError: any) {
+    } catch (updateError) {
+      const error = updateError as Error
       logger.error(
         `CRITICAL: Cannot pause recurring batch`,
-        updateError?.message
+        error?.message
       )
     }
   }

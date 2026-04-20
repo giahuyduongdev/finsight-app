@@ -53,14 +53,14 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
       (state: any) => state.auth?.user?.preferredCurrency
     ) || 'USD'
 
-  const { data, isFetching } = useChartAnalyticsQuery({
+  const { data, isLoading } = useChartAnalyticsQuery({
     preset: dateRange?.value
   })
   const chartData = data?.data?.chartData || []
   const totalExpenseCount = data?.data?.totalExpenseCount || 0
   const totalIncomeCount = data?.data?.totalIncomeCount || 0
 
-  if (isFetching) {
+  if (isLoading && !data) {
     return <ChartSkeleton />
   }
 

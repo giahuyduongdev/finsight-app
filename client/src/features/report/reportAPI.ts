@@ -39,5 +39,6 @@ export const reportApi = apiClient.injectEndpoints({
 export const {
   useGetAllReportsQuery,
   useUpdateReportSettingMutation,
-  useResendReportMutation
+  useResendReportMutation,
+  usePrefetch
 } = reportApi

@@ -9,13 +9,27 @@ import { Sheet, SheetContent } from '../ui/sheet'
 import { UserNav } from './user-nav'
 import LogoutDialog from './logout-dialog'
 import { useTypedSelector } from '@/app/hook'
+import { usePrefetch as useTransactionPrefetch } from '@/features/transaction/transactionAPI'
+import { usePrefetch as useReportPrefetch } from '@/features/report/reportAPI'
 
 const Navbar = () => {
   const { pathname } = useLocation()
   const { user } = useTypedSelector((state) => state.auth)
 
+  const prefetchTransactions = useTransactionPrefetch('getAllTransactions')
+  const prefetchReports = useReportPrefetch('getAllReports')
+
   const [isOpen, setIsOpen] = useState(false)
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
+
+  const handlePrefetch = (href: string) => {
+    if (href === PROTECTED_ROUTES.TRANSACTIONS) {
+      prefetchTransactions({ pageNumber: 1, pageSize: 20 })
+    }
+    if (href === PROTECTED_ROUTES.REPORTS) {
+      prefetchReports({ pageNumber: 1, pageSize: 10 })
+    }
+  }
 
   const routes = [
     {
@@ -77,6 +91,7 @@ const Navbar = () => {
                     pathname === route.href && 'text-white'
                   )}
                   asChild
+                  onMouseEnter={() => handlePrefetch(route.href)}
                 >
                   <NavLink to={route.href}>{route.label}</NavLink>
                 </Button>
@@ -100,6 +115,7 @@ const Navbar = () => {
                         pathname === route.href && '!bg-black/10 text-black'
                       )}
                       asChild
+                      onMouseEnter={() => handlePrefetch(route.href)}
                     >
                       <NavLink to={route.href}>{route.label}</NavLink>
                     </Button>
