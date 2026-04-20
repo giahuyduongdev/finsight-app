@@ -1,27 +1,36 @@
 import axios from 'axios'
 import { redis } from '../config/redis.config'
+import { CurrencyType } from '../enums/currency.enum'
+import { logger } from '../config/logger.config'
 
 export const getExchangeRate = async (
-  from: string,
-  to: string
+  from: CurrencyType | string,
+  to: CurrencyType | string
 ): Promise<number> => {
   // Nếu cùng currency → tỉ giá = 1
   if (from === to) return 1
 
   // Check Redis cache trước
-  const cached = await redis.get(`rate:${from}:${to}`)
+  const cacheKey = `rate:${from}:${to}`
+  const cached = await redis.get(cacheKey)
   if (cached) return parseFloat(cached)
 
-  // Gọi API lấy tỉ giá mới
-  const res = await axios.get(
-    `https://api.exchangerate-api.com/v4/latest/${from}`
-  )
-  const rate = res.data.rates[to]
+  try {
+    // Gọi API lấy tỉ giá mới (Fallback)
+    const res = await axios.get(
+      `https://api.exchangerate-api.com/v4/latest/${from}`
+    )
+    const rate = res.data.rates[to]
 
-  if (!rate) throw new Error(`Exchange rate not found for ${from} to ${to}`)
+    if (!rate) throw new Error(`Exchange rate not found for ${from} to ${to}`)
 
-  // Cache 1 giờ
-  await redis.set(`rate:${from}:${to}`, rate.toString(), 'EX', 3600)
+    // Cache 1 giờ (dành cho fallback)
+    await redis.set(cacheKey, rate.toString(), 'EX', 3600)
 
-  return rate
+    return rate
+  } catch (error) {
+    logger.error(`❌ [Currency] Fallback rate fetch failed: ${from} to ${to}`, (error as Error).message)
+    // Nếu có tỉ giá cũ trong cache (dù đã hết hạn hoặc fallback cứng) thì có thể trả về 0 hoặc throw
+    throw error
+  }
 }

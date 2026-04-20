@@ -1,6 +1,7 @@
 import { apiClient } from '@/app/api-client'
 import {
   ChartAnalyticsResponse,
+  ExchangeRatesResponse,
   ExpensePieChartBreakdownResponse,
   FilterParams,
   SummaryAnalyticsResponse
@@ -34,6 +35,13 @@ export const analyticsApi = apiClient.injectEndpoints({
         params: { preset, from, to }
       }),
       providesTags: ['analytics']
+    }),
+    getExchangeRates: builder.query<ExchangeRatesResponse, void>({
+      query: () => ({
+        url: '/analytics/rates',
+        method: 'GET'
+      }),
+      providesTags: ['analytics']
     })
   })
 })
@@ -41,5 +49,6 @@ export const analyticsApi = apiClient.injectEndpoints({
 export const {
   useSummaryAnalyticsQuery,
   useChartAnalyticsQuery,
-  useExpensePieChartBreakdownQuery
+  useExpensePieChartBreakdownQuery,
+  useGetExchangeRatesQuery
 } = analyticsApi

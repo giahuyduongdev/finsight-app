@@ -7,6 +7,8 @@ import {
   expensePieChartBreakdownService,
   summaryAnalyticsService
 } from '../services/analytics.service'
+import { CurrencyService } from '../services/currency.service'
+import TransactionModel from '../models/transaction.model'
 
 export const summaryAnalyticsController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -94,6 +96,26 @@ export const expensePieChartBreakdownController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: 'Expense breakdown fetched successfully',
       data: pieChartData
+    })
+  }
+)
+
+export const getExchangeRatesController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    
+    // Lấy tỉ giá mới nhất
+    const rates = await CurrencyService.getLatestRates()
+
+    // Lấy danh sách tiền tệ người dùng đã từng sử dụng trong transactions
+    const usedCurrencies = await TransactionModel.distinct('currency', { userId })
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: 'Exchange rates fetched successfully',
+      data: {
+        ...rates,
+        usedCurrencies
+      }
     })
   }
 )

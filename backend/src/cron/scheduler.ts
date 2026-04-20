@@ -4,6 +4,7 @@ import { processReportJob } from './jobs/report.job'
 import RefreshTokenModel from '../models/refresh-token.model'
 import { logger } from '../config/logger.config'
 import { redis } from '../config/redis.config'
+import { CurrencyService } from '../services/currency.service'
 
 const scheduleJob = (name: string, time: string, job: Function) => {
   logger.info(`🗓️  [Scheduling] ${name} at ${time}`)
@@ -28,6 +29,7 @@ const scheduleJob = (name: string, time: string, job: Function) => {
 export const startJobs = () => {
   return [
     scheduleJob('Transaction', '* * * * *', processRecurringTransactions),
+    scheduleJob('Currency Update', '*/30 * * * *', () => CurrencyService.fetchAndBroadcastRates()),
 
     //Run 2:30am every first of the month
     scheduleJob('Reports', '30 2 1 * *', processReportJob),
