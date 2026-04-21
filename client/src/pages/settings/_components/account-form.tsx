@@ -176,6 +176,17 @@ export function AccountForm() {
             </FormItem>
           )}
         />
+        <div className="space-y-2">
+          <FormLabel>Email Address</FormLabel>
+          <Input 
+            value={user?.email || ''} 
+            disabled 
+            className="bg-muted/50 cursor-not-allowed"
+          />
+          <p className="text-[0.8rem] text-muted-foreground">
+            Your email is used for login and security notifications.
+          </p>
+        </div>
         <FormField
           control={form.control}
           name="preferredCurrency"

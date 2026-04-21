@@ -61,6 +61,21 @@ export const resetPasswordSchema = z.object({
   newPassword: passwordSchema
 })
 
+export const changePasswordRequestSchema = z
+  .object({
+    oldPassword: z.string().min(1, 'Old password is required'),
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1, 'Confirm password is required')
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "New password and confirm password don't match",
+    path: ['confirmPassword']
+  })
+
+export const verifyChangePasswordOTPSchema = z.object({
+  otp: z.string().length(6, 'OTP must be 6 digits')
+})
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type RegisterSchemaType = z.infer<typeof registerSchema>
@@ -71,3 +86,26 @@ export type ResendOTPSchemaType = z.infer<typeof resendOTPSchema>
 export type ForgotPasswordSchemaType = z.infer<typeof forgotPasswordSchema>
 export type VerifyForgotOTPSchemaType = z.infer<typeof verifyForgotOTPSchema>
 export type ResetPasswordSchemaType = z.infer<typeof resetPasswordSchema>
+export type ChangePasswordRequestSchemaType = z.infer<
+  typeof changePasswordRequestSchema
+>
+export type VerifyChangePasswordOTPSchemaType = z.infer<
+  typeof verifyChangePasswordOTPSchema
+>
+
+export const changeEmailRequestSchema = z.object({
+  newEmail: emailSchema
+})
+
+export type ChangeEmailRequestSchemaType = z.infer<
+  typeof changeEmailRequestSchema
+>
+
+export const verifyChangeEmailOTPSchema = z.object({
+  oldEmailOtp: z.string().length(6, 'Old email OTP must be 6 digits'),
+  newEmailOtp: z.string().length(6, 'New email OTP must be 6 digits')
+})
+
+export type VerifyChangeEmailOTPSchemaType = z.infer<
+  typeof verifyChangeEmailOTPSchema
+>

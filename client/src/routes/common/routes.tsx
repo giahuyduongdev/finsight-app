@@ -10,6 +10,7 @@ import Settings from '@/pages/settings'
 import Account from '@/pages/settings/account'
 import Appearance from '@/pages/settings/appearance'
 import Billing from '@/pages/settings/billing'
+import Security from '@/pages/settings/security'
 import ForgotPassword from '@/pages/auth/forgot-password'
 
 export const authenticationRoutePaths = [
@@ -31,7 +32,8 @@ export const protectedRoutePaths = [
       { index: true, element: <Account /> }, // Default route
       { path: PROTECTED_ROUTES.SETTINGS, element: <Account /> },
       { path: PROTECTED_ROUTES.SETTINGS_APPEARANCE, element: <Appearance /> },
-      { path: PROTECTED_ROUTES.SETTINGS_BILLING, element: <Billing /> }
+      { path: PROTECTED_ROUTES.SETTINGS_BILLING, element: <Billing /> },
+      { path: PROTECTED_ROUTES.SETTINGS_SECURITY, element: <Security /> }
     ]
   }
 ]

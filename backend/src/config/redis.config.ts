@@ -28,7 +28,20 @@ export const REDIS_KEYS = {
   forgotOtp: (email: string) => `otp:forgot:${email}`,
   forgotResend: (email: string) => `resend:forgot:${email}`,
   forgotAttempts: (email: string) => `attempts:forgot:${email}`, // ← Đếm số lần sai
-  resetToken: (email: string) => `reset:forgot:token:${email}`
+  resetToken: (email: string) => `reset:forgot:token:${email}`,
+
+  // ─── CHANGE PASSWORD FLOW ───────────────────────────────────
+  changePasswordOtp: (email: string) => `otp:change-password:${email}`,
+  changePasswordResend: (email: string) => `resend:change-password:${email}`,
+  changePasswordAttempts: (email: string) => `attempts:change-password:${email}`,
+  changePasswordPending: (email: string) => `pending:change-password:${email}`,
+
+  // ─── CHANGE EMAIL FLOW ──────────────────────────────────
+  changeEmailOtpOld: (userId: string) => `otp:change-email:old:${userId}`,
+  changeEmailOtpNew: (userId: string) => `otp:change-email:new:${userId}`,
+  changeEmailPending: (userId: string) => `pending:change-email:${userId}`,
+  changeEmailResend: (userId: string) => `resend:change-email:${userId}`,
+  changeEmailAttempts: (userId: string) => `attempts:change-email:${userId}`
 } as const
 
 export const REDIS_TTL = {
@@ -40,7 +53,15 @@ export const REDIS_TTL = {
   // Forgot password
   FORGOT_OTP: 5 * 60, // 5 phút
   FORGOT_RESEND: 60, // 1 phút
-  RESET_TOKEN: 10 * 60 // 10 phút
+  RESET_TOKEN: 10 * 60, // 10 phút
+
+  // Change password
+  CHANGE_PASSWORD_OTP: 5 * 60, // 5 phút
+  CHANGE_PASSWORD_RESEND: 60, // 1 phút
+
+  // Change email
+  CHANGE_EMAIL_OTP: 5 * 60, // 5 phút
+  CHANGE_EMAIL_RESEND: 60 // 1 phút
 } as const
 
 // ─── Redis Client ─────────────────────────────────────────────────────────────

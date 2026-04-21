@@ -2,16 +2,6 @@ import { Request, Response } from 'express'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import {
-  forgotPasswordSchema,
-  loginSchema,
-  refreshTokenSchema,
-  registerSchema,
-  resendOTPSchema,
-  resetPasswordSchema,
-  verifyForgotOTPSchema,
-  verifyOTPSchema
-} from '../validators/auth.validator'
-import {
   forgotPasswordService,
   loginService,
   logoutAllService,
@@ -24,8 +14,28 @@ import {
   resendRegisterVerifyOTPService,
   resetPasswordService,
   verifyForgotPasswordOTPService,
-  verifyRegisterOTPService
+  verifyRegisterOTPService,
+  changePasswordRequestService,
+  verifyChangePasswordOTPService,
+  resendChangePasswordOTPService,
+  changeEmailRequestService,
+  verifyChangeEmailOTPService,
+  resendChangeEmailOTPService
 } from '../services/auth.service'
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  refreshTokenSchema,
+  registerSchema,
+  resendOTPSchema,
+  resetPasswordSchema,
+  verifyForgotOTPSchema,
+  verifyOTPSchema,
+  changePasswordRequestSchema,
+  verifyChangePasswordOTPSchema,
+  changeEmailRequestSchema,
+  verifyChangeEmailOTPSchema
+} from '../validators/auth.validator'
 import { Env } from '../config/env.config'
 import ms from 'ms'
 import { UnauthorizedException } from '../utils/errors/index'
@@ -237,5 +247,57 @@ export const oauthCallbackController = asyncHandler(
     res.redirect(
       `${Env.FRONTEND_ORIGIN}/oauth-callback?${queryParams.toString()}`
     )
+  }
+)
+
+export const changePasswordRequestController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const body = changePasswordRequestSchema.parse(req.body)
+    const result = await changePasswordRequestService(userId, body)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const verifyChangePasswordOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const body = verifyChangePasswordOTPSchema.parse(req.body)
+    const result = await verifyChangePasswordOTPService(userId, body)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const resendChangePasswordOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const result = await resendChangePasswordOTPService(userId)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const changeEmailRequestController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const body = changeEmailRequestSchema.parse(req.body)
+    const result = await changeEmailRequestService(userId, body)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const verifyChangeEmailOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const body = verifyChangeEmailOTPSchema.parse(req.body)
+    const result = await verifyChangeEmailOTPService(userId, body)
+    return res.status(HTTPSTATUS.OK).json(result)
+  }
+)
+
+export const resendChangeEmailOTPController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id
+    const result = await resendChangeEmailOTPService(userId)
+    return res.status(HTTPSTATUS.OK).json(result)
   }
 )

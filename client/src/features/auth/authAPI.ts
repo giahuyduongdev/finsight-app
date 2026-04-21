@@ -114,6 +114,64 @@ export const authApi = apiClient.injectEndpoints({
         method: 'POST',
         body
       })
+    }),
+    /** Đổi mật khẩu (Yêu cầu OTP) */
+    changePasswordRequest: builder.mutation<
+      { message: string },
+      { oldPassword: string; newPassword: string; confirmPassword: string }
+    >({
+      query: (body) => ({
+        url: '/auth/password/change-request',
+        method: 'POST',
+        body
+      })
+    }),
+    /** Xác thực OTP đổi mật khẩu */
+    verifyChangePasswordOTP: builder.mutation<
+      { message: string },
+      { otp: string }
+    >({
+      query: (body) => ({
+        url: '/auth/password/change-verify',
+        method: 'POST',
+        body
+      })
+    }),
+    /** Gửi lại OTP đổi mật khẩu */
+    resendChangePasswordOTP: builder.mutation<{ message: string }, void>({
+      query: () => ({
+        url: '/auth/password/change-resend',
+        method: 'POST'
+      })
+    }),
+    /** Đổi Email (Yêu cầu OTP) */
+    changeEmailRequest: builder.mutation<
+      { message: string },
+      { newEmail: string }
+    >({
+      query: (body) => ({
+        url: '/auth/email/change-request',
+        method: 'POST',
+        body
+      })
+    }),
+    /** Xác thực OTP đổi email */
+    verifyChangeEmailOTP: builder.mutation<
+      { message: string },
+      { oldEmailOtp: string; newEmailOtp: string }
+    >({
+      query: (body) => ({
+        url: '/auth/email/change-verify',
+        method: 'POST',
+        body
+      })
+    }),
+    /** Gửi lại OTP đổi email */
+    resendChangeEmailOTP: builder.mutation<{ message: string }, void>({
+      query: () => ({
+        url: '/auth/email/change-resend',
+        method: 'POST'
+      })
     })
   })
 })
@@ -134,5 +192,15 @@ export const {
   useForgotPasswordMutation,
   useVerifyForgotOTPMutation,
   useResendForgotOTPMutation,
-  useResetPasswordMutation
+  useResetPasswordMutation,
+
+  // Đổi mật khẩu
+  useChangePasswordRequestMutation,
+  useVerifyChangePasswordOTPMutation,
+  useResendChangePasswordOTPMutation,
+
+  // Đổi Email
+  useChangeEmailRequestMutation,
+  useVerifyChangeEmailOTPMutation,
+  useResendChangeEmailOTPMutation
 } = authApi
