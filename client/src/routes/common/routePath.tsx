@@ -5,6 +5,7 @@ export const isAuthRoute = (pathname: string): boolean => {
 export const AUTH_ROUTES = {
   SIGN_IN: '/',
   SIGN_UP: '/sign-up',
+  FORGOT_PASSWORD: '/forgot-password',
   OAUTH_CALLBACK: '/oauth-callback'
 }
 

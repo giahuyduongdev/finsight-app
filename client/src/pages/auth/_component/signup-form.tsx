@@ -1,12 +1,13 @@
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { Loader } from 'lucide-react'
 import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Link, useNavigate } from 'react-router-dom'
+import { Loader, ArrowLeft, MailCheck, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Link, useNavigate } from 'react-router-dom'
-import { AUTH_ROUTES } from '@/routes/common/routePath'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { PasswordInput } from '@/components/ui/password-input'
 import {
   Form,
   FormControl,
@@ -15,16 +16,42 @@ import {
   FormLabel,
   FormMessage
 } from '@/components/ui/form'
-import { useRegisterMutation } from '@/features/auth/authAPI'
+import { AUTH_ROUTES } from '@/routes/common/routePath'
+import {
+  useRegisterOTPMutation,
+  useVerifyRegisterOTPMutation,
+  useResendRegisterOTPMutation
+} from '@/features/auth/authAPI'
 
-const schema = z.object({
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const RESEND_COOLDOWN = 60 // giây — phải khớp với REDIS_TTL.RESEND bên BE
+
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z
+    .string()
+    .min(6, 'Password must be at least 6 characters')
+    .regex(/^[A-Z]/, 'Password must start with an uppercase letter')
+    .regex(/\d/, 'Password must contain at least one number')
+    .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character'),
   timezone: z.string().optional()
 })
 
-type FormValues = z.infer<typeof schema>
+const otpSchema = z.object({
+  otp: z
+    .string()
+    .length(6, 'OTP must be 6 digits')
+    .regex(/^\d+$/, 'OTP must contain only numbers')
+})
+
+type RegisterValues = z.infer<typeof registerSchema>
+type OtpValues = z.infer<typeof otpSchema>
+
+// ─── OAuth helper ─────────────────────────────────────────────────────────────
 
 const handleOAuth = (provider: 'github' | 'google') => {
   const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -32,12 +59,130 @@ const handleOAuth = (provider: 'github' | 'google') => {
   window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${currentTz}`
 }
 
+// ─── OTP Input Component ──────────────────────────────────────────────────────
+
+interface OtpInputProps {
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}
+
+const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([])
+
+  const handleChange = (index: number, char: string) => {
+    // Chỉ lấy ký tự cuối (trường hợp paste sẽ xử lý riêng)
+    const digit = char.replace(/\D/g, '').slice(-1)
+    const arr = value.padEnd(6, ' ').split('')
+    arr[index] = digit || ' '
+    const next = arr.join('').trimEnd()
+    onChange(next)
+
+    // Focus ô tiếp theo
+    if (digit && index < 5) {
+      inputsRef.current[index + 1]?.focus()
+    }
+  }
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace') {
+      const arr = value.padEnd(6, ' ').split('')
+      if (arr[index]?.trim()) {
+        // Xóa ký tự hiện tại
+        arr[index] = ' '
+        onChange(arr.join('').trimEnd())
+      } else if (index > 0) {
+        // Focus về ô trước nếu ô hiện tại trống
+        inputsRef.current[index - 1]?.focus()
+      }
+    }
+    if (e.key === 'ArrowLeft' && index > 0)
+      inputsRef.current[index - 1]?.focus()
+    if (e.key === 'ArrowRight' && index < 5)
+      inputsRef.current[index + 1]?.focus()
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pasted = e.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6)
+    onChange(pasted)
+    // Focus ô cuối cùng được điền
+    const focusIndex = Math.min(pasted.length, 5)
+    inputsRef.current[focusIndex]?.focus()
+  }
+
+  return (
+    <div className="flex gap-2 justify-center">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            inputsRef.current[i] = el
+          }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          disabled={disabled}
+          value={value[i] || ''}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          className="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-input bg-background
+            focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
+            disabled:opacity-50 disabled:cursor-not-allowed
+            transition-all"
+        />
+      ))}
+    </div>
+  )
+}
+
+// ─── Resend Countdown Hook ────────────────────────────────────────────────────
+
+const useResendCountdown = (initialSeconds = RESEND_COOLDOWN) => {
+  const [seconds, setSeconds] = useState(initialSeconds)
+  const [isRunning, setIsRunning] = useState(true)
+
+  useEffect(() => {
+    if (!isRunning) return
+    if (seconds <= 0) {
+      setIsRunning(false)
+      return
+    }
+    const timer = setTimeout(() => setSeconds((s) => s - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [seconds, isRunning])
+
+  const reset = (remainingFromServer?: number) => {
+    setSeconds(remainingFromServer ?? RESEND_COOLDOWN)
+    setIsRunning(true)
+  }
+
+  return { seconds, canResend: !isRunning, reset }
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+type Step = 'form' | 'verify_otp'
+
 const SignUpForm = () => {
   const navigate = useNavigate()
-  const [register, { isLoading }] = useRegisterMutation()
+  const [step, setStep] = useState<Step>('form')
+  const [pendingEmail, setPendingEmail] = useState('')
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const [registerOTP, { isLoading: isRegistering }] = useRegisterOTPMutation()
+  const [verifyOTP, { isLoading: isVerifying }] = useVerifyRegisterOTPMutation()
+  const [resendOTP, { isLoading: isResending }] = useResendRegisterOTPMutation()
+
+  const { seconds, canResend, reset: resetCountdown } = useResendCountdown()
+
+  // ── Step 1: Register form ──────────────────────────────────────────────────
+
+  const registerForm = useForm<RegisterValues>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
       name: '',
       email: '',
@@ -46,23 +191,186 @@ const SignUpForm = () => {
     }
   })
 
-  const onSubmit = (values: FormValues) => {
-    register(values)
-      .unwrap()
-      .then(() => {
-        form.reset()
-        toast.success('Sign up successful')
-        navigate(AUTH_ROUTES.SIGN_IN)
-      })
-      .catch((error) => {
-        toast.error(error.data?.message || 'Failed to sign up')
-      })
+  const onRegisterSubmit = async (values: RegisterValues) => {
+    try {
+      await registerOTP(values).unwrap()
+      setPendingEmail(values.email)
+      setStep('verify_otp')
+      toast.success('OTP sent! Check your email.')
+    } catch (error: unknown) {
+      const err = error as {
+        data?: {
+          errorCode?: string
+          data?: { canResend?: boolean; remainingTime?: number }
+          message?: string
+        }
+      }
+      const errorCode = err.data?.errorCode
+      const extra = err.data?.data
+
+      // Email đang chờ verify từ lần đăng ký trước
+      if (errorCode === 'AUTH_EMAIL_PENDING_VERIFICATION') {
+        setPendingEmail(values.email)
+        setStep('verify_otp')
+        if (extra?.canResend === false && extra?.remainingTime) {
+          resetCountdown(extra.remainingTime)
+        }
+        toast.info('This email already has a pending OTP. Please verify it.')
+        return
+      }
+
+      toast.error(err.data?.message || 'Failed to send OTP')
+    }
   }
 
+  // ── Step 2: Verify OTP ─────────────────────────────────────────────────────
+
+  const otpForm = useForm<OtpValues>({
+    resolver: zodResolver(otpSchema),
+    defaultValues: { otp: '' }
+  })
+
+  const onOtpSubmit = async (values: OtpValues) => {
+    try {
+      await verifyOTP({ email: pendingEmail, otp: values.otp }).unwrap()
+      toast.success('Account created successfully! Please log in.')
+      navigate(AUTH_ROUTES.SIGN_IN)
+    } catch (error: unknown) {
+      const err = error as { data?: { errorCode?: string; message?: string } }
+      const errorCode = err.data?.errorCode
+
+      if (errorCode === 'AUTH_OTP_EXPIRED') {
+        toast.error('OTP has expired. Please request a new one.')
+        otpForm.reset()
+        return
+      }
+
+      // AUTH_OTP_INVALID — message đã có số lần còn lại từ BE
+      toast.error(err.data?.message || 'Invalid OTP')
+      otpForm.reset()
+    }
+  }
+
+  const handleResend = async () => {
+    try {
+      await resendOTP({ email: pendingEmail }).unwrap()
+      otpForm.reset()
+      resetCountdown()
+      toast.success('New OTP sent to your email.')
+    } catch (error: unknown) {
+      const err = error as {
+        data?: { data?: { remainingTime?: number }; message?: string }
+      }
+      // Nếu BE trả về remainingTime, sync lại countdown
+      if (err.data?.data?.remainingTime) {
+        resetCountdown(err.data.data.remainingTime)
+      }
+      toast.error(err.data?.message || 'Failed to resend OTP')
+    }
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  // Step 2: OTP verification
+  if (step === 'verify_otp') {
+    return (
+      <div className="flex flex-col gap-6">
+        {/* Header */}
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-1">
+            <MailCheck className="h-6 w-6 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold">Check your email</h1>
+          <p className="text-sm text-muted-foreground text-balance">
+            We sent a 6-digit code to{' '}
+            <span className="font-medium text-foreground">{pendingEmail}</span>
+          </p>
+        </div>
+
+        {/* OTP Form */}
+        <Form {...otpForm}>
+          <form
+            onSubmit={otpForm.handleSubmit(onOtpSubmit)}
+            className="flex flex-col gap-6"
+          >
+            <FormField
+              control={otpForm.control}
+              name="otp"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <OtpInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      disabled={isVerifying}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-center" />
+                </FormItem>
+              )}
+            />
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isVerifying || otpForm.watch('otp').length < 6}
+            >
+              {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+              Verify account
+            </Button>
+          </form>
+        </Form>
+
+        {/* Resend + Back */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="text-sm text-muted-foreground">
+            {canResend ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResend}
+                disabled={isResending}
+                className="gap-2 h-auto py-1"
+              >
+                {isResending ? (
+                  <Loader className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+                Resend OTP
+              </Button>
+            ) : (
+              <span>
+                Resend in{' '}
+                <span className="font-mono font-medium text-foreground tabular-nums">
+                  {String(Math.floor(seconds / 60)).padStart(2, '0')}:
+                  {String(seconds % 60).padStart(2, '0')}
+                </span>
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep('form')
+              otpForm.reset()
+            }}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Back to sign up
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Step 1: Register form
   return (
-    <Form {...form}>
+    <Form {...registerForm}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={registerForm.handleSubmit(onRegisterSubmit)}
         className="flex flex-col gap-6"
       >
         <div className="flex flex-col items-center gap-2 text-center">
@@ -71,9 +379,10 @@ const SignUpForm = () => {
             Fill information below to sign up
           </p>
         </div>
-        <div className="grid gap-6">
+
+        <div className="grid gap-4">
           <FormField
-            control={form.control}
+            control={registerForm.control}
             name="name"
             render={({ field }) => (
               <FormItem>
@@ -85,8 +394,9 @@ const SignUpForm = () => {
               </FormItem>
             )}
           />
+
           <FormField
-            control={form.control}
+            control={registerForm.control}
             name="email"
             render={({ field }) => (
               <FormItem>
@@ -98,21 +408,23 @@ const SignUpForm = () => {
               </FormItem>
             )}
           />
+
           <FormField
-            control={form.control}
+            control={registerForm.control}
             name="password"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="!font-normal">Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="******" {...field} />
+                  <PasswordInput placeholder="••••••" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button disabled={isLoading} type="submit" className="w-full">
-            {isLoading && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+
+          <Button disabled={isRegistering} type="submit" className="w-full">
+            {isRegistering && <Loader className="mr-2 h-4 w-4 animate-spin" />}
             Sign up
           </Button>
 
@@ -122,7 +434,6 @@ const SignUpForm = () => {
             </span>
           </div>
 
-          {/* 👉 Cụm 2 nút Đăng ký mạng xã hội */}
           <div className="flex flex-col gap-3">
             <Button
               type="button"
@@ -171,6 +482,7 @@ const SignUpForm = () => {
             </Button>
           </div>
         </div>
+
         <div className="text-center text-sm">
           Already have an account?{' '}
           <Link

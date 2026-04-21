@@ -60,7 +60,7 @@ export class CurrencyService {
       logger.info(`📡 [Currency] Broadcasted rates to all clients`)
       return rates
     } catch (error) {
-      logger.error('❌ [Currency] Error updating rates:', (error as Error).message)
+      logger.error(`❌ [Currency] Error updating rates: ${(error as Error).message}`)
       // Không ném lỗi ra ngoài để tránh làm hỏng cron job
       return null
     }

@@ -105,11 +105,10 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
     )
   }
 
-  // 3. Hash password + generate OTP
-  const hashedPassword = await hashValue(password)
+  // 3. Generate OTP
   const otp = generateSecureOTP()
   const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
-  const pendingUser = { name, email, password: hashedPassword }
+  const pendingUser = { name, email, password }
 
   // 4. Lưu Redis pipeline — 1 round-trip
   const results = await redis
@@ -430,21 +429,21 @@ export const resendForgotPasswordOTPService = async (
   }
 
   // 3. Generate OTP mới + Hash để lưu trữ an toàn
-  const otp = generateSecureOTP() // Dùng lại hàm tạo OTP của bạn
+  const otp = generateSecureOTP()
   const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
 
   // 4. Cập nhật Redis bằng pipeline + Xóa lịch sử nhập sai
   const results = await redis
     .pipeline()
-    .setex(REDIS_KEYS.forgotOtp(email), REDIS_TTL.OTP, hashedOtp)
-    .setex(REDIS_KEYS.forgotResend(email), REDIS_TTL.RESEND, '1')
+    // Fix: dùng FORGOT_OTP và FORGOT_RESEND thay vì OTP và RESEND
+    .setex(REDIS_KEYS.forgotOtp(email), REDIS_TTL.FORGOT_OTP, hashedOtp)
+    .setex(REDIS_KEYS.forgotResend(email), REDIS_TTL.FORGOT_RESEND, '1')
     .del(REDIS_KEYS.forgotAttempts(email)) // Reset lại số lần nhập sai cho mã mới
     .exec()
 
   if (!results) throw new InternalServerException('Failed to resend OTP')
 
   // 5. Gửi email
-  // (Giả sử bạn có hàm sendForgotPasswordEmail tương tự hàm sendVerificationEmail)
   await sendPasswordResetEmail({ email, username: user.name, otpCode: otp })
 
   return {
@@ -516,6 +515,8 @@ export const loginService = async (
 ) => {
   const { email, password, timezone } = body
   const user = await UserModel.findOne({ email })
+  if (!user) throw new NotFoundException('Email/password not found')
+
   if (!user) throw new NotFoundException('Email/password not found')
 
   const isValidPassword = await user.comparePassword(password)

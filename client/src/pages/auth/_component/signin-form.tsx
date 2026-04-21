@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Link, useNavigate } from 'react-router-dom'
 import { AUTH_ROUTES, PROTECTED_ROUTES } from '@/routes/common/routePath'
 import { z } from 'zod'
@@ -116,9 +117,17 @@ const SignInForm = ({
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="!font-normal">Password</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel className="!font-normal">Password</FormLabel>
+                    <Link
+                      to={AUTH_ROUTES.FORGOT_PASSWORD}
+                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <FormControl>
-                    <Input placeholder="*******" type="password" {...field} />
+                    <PasswordInput placeholder="*******" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

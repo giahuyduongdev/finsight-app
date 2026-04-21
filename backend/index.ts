@@ -59,7 +59,12 @@ const closeGracefully = (
 const startServer = async (): Promise<void> => {
   await connectDB()
   
+  const server = http.createServer(app)
+
+  initializeSocket(server)
+
   // Lấy tỉ giá ngay khi khởi động để Redis không bị trống
+  // Phải gọi SAU KHI initializeSocket vì hàm này broadcast qua socket
   try {
     await CurrencyService.fetchAndBroadcastRates()
   } catch (error) {
@@ -72,10 +77,6 @@ const startServer = async (): Promise<void> => {
 
   await initializeCrons()
   initializeWorkers()
-
-  const server = http.createServer(app)
-
-  initializeSocket(server)
 
   server.listen(Env.PORT, () => {
     logger.info(`🖥️  [Server] running on port ${Env.PORT} [${Env.NODE_ENV}]`)
