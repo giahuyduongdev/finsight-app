@@ -9,7 +9,13 @@ export const emailSchema = z
   .min(1)
   .max(255)
 
-export const passwordSchema = z.string().trim().min(4)
+export const passwordSchema = z
+  .string()
+  .trim()
+  .min(6, 'Password must be at least 6 characters')
+  .regex(/^[A-Z]/, 'Password must start with an uppercase letter')
+  .regex(/\d/, 'Password must contain at least one number')
+  .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character')
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 

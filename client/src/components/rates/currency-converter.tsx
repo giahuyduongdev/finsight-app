@@ -1,13 +1,28 @@
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { ArrowRightLeft, RefreshCw } from 'lucide-react'
 import CurrencyInput from 'react-currency-input-field'
 import { CurrencyEnum } from '@/constant/currency.enum'
 import { CURRENCY_SYMBOLS } from '@/constant'
-import { formatCurrency } from '@/lib/format-currency'
+import {
+  formatCurrency,
+  formatRate,
+  ZERO_DECIMAL_CURRENCIES
+} from '@/lib/format-currency'
 
 interface CurrencyConverterProps {
   rates: Record<string, number>
@@ -40,7 +55,9 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
           <RefreshCw className="h-5 w-5 text-primary" />
           Quick Converter
         </CardTitle>
-        <CardDescription>Convert between your favorite currencies instantly.</CardDescription>
+        <CardDescription>
+          Convert between your favorite currencies instantly.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -49,7 +66,9 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
             id="amount-input"
             name="amount"
             placeholder="Enter amount..."
-            decimalsLimit={['VND', 'JPY'].includes(fromCurrency) ? 0 : 2}
+            decimalsLimit={
+              ZERO_DECIMAL_CURRENCIES.includes(fromCurrency) ? 0 : 2
+            }
             value={amount}
             onValueChange={(value) => setAmount(value || '0')}
             prefix={`${CURRENCY_SYMBOLS[fromCurrency as keyof typeof CURRENCY_SYMBOLS] || ''} `}
@@ -65,14 +84,21 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
                 <SelectValue placeholder="Currency" />
               </SelectTrigger>
               <SelectContent>
-                {currencies.map(c => (
-                  <SelectItem key={`from-${c}`} value={c}>{c}</SelectItem>
+                {currencies.map((c) => (
+                  <SelectItem key={`from-${c}`} value={c}>
+                    {c}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <Button variant="ghost" size="icon" onClick={handleSwap} className="mb-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSwap}
+            className="mb-1"
+          >
             <ArrowRightLeft className="h-4 w-4" />
           </Button>
 
@@ -83,8 +109,10 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
                 <SelectValue placeholder="Currency" />
               </SelectTrigger>
               <SelectContent>
-                {currencies.map(c => (
-                  <SelectItem key={`to-${c}`} value={c}>{c}</SelectItem>
+                {currencies.map((c) => (
+                  <SelectItem key={`to-${c}`} value={c}>
+                    {c}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -97,8 +125,10 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
             <span className="text-3xl font-bold text-primary">
               {formatCurrency(convertedAmount, { currency: toCurrency })}
             </span>
+            {/* ✅ Dùng formatRate thay vì .toFixed(4) cứng */}
             <span className="text-xs text-muted-foreground mt-1">
-              1 {fromCurrency} = {(rateTo / rateFrom).toFixed(4)} {toCurrency}
+              1 {fromCurrency} = {formatRate(rateTo / rateFrom, toCurrency)}{' '}
+              {toCurrency}
             </span>
           </div>
         </div>

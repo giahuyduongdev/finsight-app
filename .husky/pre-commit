@@ -1,0 +1,2 @@
+cd client && npx lint-staged
+cd ../backend && npx lint-staged
