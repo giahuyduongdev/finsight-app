@@ -15,7 +15,11 @@ import {
   ResendOTPSchemaType,
   ResetPasswordSchemaType,
   VerifyForgotOTPSchemaType,
-  VerifyOTPSchemaType
+  VerifyOTPSchemaType,
+  ChangePasswordRequestSchemaType,
+  VerifyChangePasswordOTPSchemaType,
+  ChangeEmailRequestSchemaType,
+  VerifyChangeEmailOTPSchemaType
 } from '../validators/auth.validator'
 import ReportSettingModel, {
   ReportFrequencyEnum
@@ -37,7 +41,10 @@ import { hashValue } from '../utils/bcrypt.util'
 import { generateSecureOTP } from '../utils/generate-otp.util'
 import {
   sendPasswordResetEmail,
-  sendVerificationEmail
+  sendVerificationEmail,
+  sendChangePasswordEmail,
+  sendChangeEmailOldOTP,
+  sendChangeEmailNewOTP
 } from '../mailers/auth.mailer'
 import crypto from 'crypto'
 
@@ -762,4 +769,463 @@ export const oauthCallbackService = async (
   const refreshToken = await createRefreshToken(user.id)
 
   return { accessToken, expiresAt, refreshToken, user }
+}
+
+export const changePasswordRequestService = async (
+  userId: string,
+  body: ChangePasswordRequestSchemaType
+) => {
+  const { oldPassword, newPassword } = body
+
+  // 1. Lấy User từ DB
+  const user = await UserModel.findById(userId)
+  if (!user) throw new NotFoundException('User not found')
+
+  // 2. Xác thực mật khẩu cũ
+  const isValidPassword = await user.comparePassword(oldPassword)
+  if (!isValidPassword) {
+    throw new BadRequestException(
+      'Incorrect old password',
+      ErrorCodeEnum.AUTH_UNAUTHORIZED_ACCESS
+    )
+  }
+
+  // 3. Kiểm tra mật khẩu mới khác mật khẩu cũ
+  const isSamePassword = await user.comparePassword(newPassword)
+  if (isSamePassword) {
+    throw new BadRequestException(
+      'New password must be different from the old password',
+      ErrorCodeEnum.AUTH_PASSWORD_MUST_BE_DIFFERENT
+    )
+  }
+
+  // 4. Generate OTP
+  const otp = generateSecureOTP()
+  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+
+  // 5. Lưu vào Redis
+  // - OTP để xác thực
+  // - Mật khẩu mới (plain text) để update sau khi xác thực OTP thành công
+  // Theo pattern của registerOTPService
+  await redis
+    .pipeline()
+    .setex(
+      REDIS_KEYS.changePasswordOtp(user.email),
+      REDIS_TTL.CHANGE_PASSWORD_OTP,
+      hashedOtp
+    )
+    .setex(
+      REDIS_KEYS.changePasswordPending(user.email),
+      REDIS_TTL.CHANGE_PASSWORD_OTP,
+      newPassword
+    )
+    .setex(
+      REDIS_KEYS.changePasswordResend(user.email),
+      REDIS_TTL.CHANGE_PASSWORD_RESEND,
+      '1'
+    )
+    .setex(
+      REDIS_KEYS.changePasswordAttempts(user.email),
+      REDIS_TTL.CHANGE_PASSWORD_OTP,
+      '0'
+    )
+    .exec()
+
+  // 6. Gửi Email
+  await sendChangePasswordEmail({
+    email: user.email,
+    username: user.name,
+    otpCode: otp
+  })
+
+  return {
+    message: 'Verification code sent to your email.'
+  }
+}
+
+export const verifyChangePasswordOTPService = async (
+  userId: string,
+  body: VerifyChangePasswordOTPSchemaType
+) => {
+  const { otp } = body
+
+  // 1. Lấy User
+  const user = await UserModel.findById(userId)
+  if (!user) throw new NotFoundException('User not found')
+
+  const email = user.email
+
+  // 2. Kiểm tra OTP trong Redis
+  const storedOtp = await redis.get(REDIS_KEYS.changePasswordOtp(email))
+  if (!storedOtp) {
+    throw new BadRequestException(
+      'OTP has expired or is invalid',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
+  // 3. Kiểm tra số lần thử
+  const attemptsKey = REDIS_KEYS.changePasswordAttempts(email)
+  const currentAttempts = parseInt((await redis.get(attemptsKey)) || '0')
+
+  if (currentAttempts >= OTP_CONFIG.MAX_ATTEMPTS) {
+    await redis
+      .pipeline()
+      .del(REDIS_KEYS.changePasswordOtp(email))
+      .del(REDIS_KEYS.changePasswordPending(email))
+      .del(attemptsKey)
+      .exec()
+
+    throw new BadRequestException(
+      'Too many failed attempts. Please request a new OTP.',
+      ErrorCodeEnum.AUTH_TOO_MANY_ATTEMPTS
+    )
+  }
+
+  // 4. So sánh OTP
+  const hashedInputOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  if (storedOtp !== hashedInputOtp) {
+    await redis.incr(attemptsKey)
+    const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
+    throw new BadRequestException(
+      `Invalid OTP. You have ${remaining} attempts left.`,
+      ErrorCodeEnum.AUTH_OTP_INVALID,
+      { remainingAttempts: remaining }
+    )
+  }
+
+  // 5. Lấy mật khẩu mới từ Redis
+  const newPassword = await redis.get(REDIS_KEYS.changePasswordPending(email))
+  if (!newPassword) {
+    throw new BadRequestException(
+      'Change password session expired',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
+  // 6. Cập nhật Database
+  user.password = newPassword
+  await user.save()
+
+  // 7. Dọn dẹp Redis & Đăng xuất các phiên khác
+  await Promise.all([
+    redis.del(REDIS_KEYS.changePasswordOtp(email)),
+    redis.del(REDIS_KEYS.changePasswordPending(email)),
+    redis.del(REDIS_KEYS.changePasswordResend(email)),
+    redis.del(attemptsKey),
+    RefreshTokenModel.deleteMany({ userId: user._id }) // Đăng xuất tất cả các phiên
+  ])
+
+  return {
+    message: 'Password changed successfully. Please login again.'
+  }
+}
+
+export const resendChangePasswordOTPService = async (userId: string) => {
+  // 1. Lấy User
+  const user = await UserModel.findById(userId)
+  if (!user) throw new NotFoundException('User not found')
+
+  const email = user.email
+
+  // 2. Check cooldown
+  const isBlocked = await redis.exists(REDIS_KEYS.changePasswordResend(email))
+  if (isBlocked) {
+    const remainingTime = await redis.ttl(REDIS_KEYS.changePasswordResend(email))
+    throw new BadRequestException(
+      'Please wait before requesting a new OTP',
+      ErrorCodeEnum.AUTH_OTP_TOO_MANY_REQUESTS,
+      { remainingTime: remainingTime > 0 ? remainingTime : 0 }
+    )
+  }
+
+  // 3. Check session còn hạn không (phải còn pending password thì mới cho resend)
+  const pendingPassword = await redis.get(
+    REDIS_KEYS.changePasswordPending(email)
+  )
+  if (!pendingPassword) {
+    throw new BadRequestException(
+      'Change password session expired. Please start over.',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
+  // 4. Generate OTP mới
+  const otp = generateSecureOTP()
+  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+
+  // 5. Cập nhật Redis
+  await redis
+    .pipeline()
+    .setex(
+      REDIS_KEYS.changePasswordOtp(email),
+      REDIS_TTL.CHANGE_PASSWORD_OTP,
+      hashedOtp
+    )
+    .setex(
+      REDIS_KEYS.changePasswordResend(email),
+      REDIS_TTL.CHANGE_PASSWORD_RESEND,
+      '1'
+    )
+    .del(REDIS_KEYS.changePasswordAttempts(email))
+    .exec()
+
+  // 6. Gửi Email
+  await sendChangePasswordEmail({
+    email,
+    username: user.name,
+    otpCode: otp
+  })
+
+  return {
+    message: 'New verification code sent to your email.'
+  }
+}
+
+export const changeEmailRequestService = async (
+  userId: string,
+  body: ChangeEmailRequestSchemaType
+) => {
+  const { newEmail } = body
+
+  // 1. Lấy User từ DB
+  const user = await UserModel.findById(userId)
+  if (!user) throw new NotFoundException('User not found')
+
+  // 2. Kiểm tra email mới khác email cũ
+  if (newEmail === user.email) {
+    throw new BadRequestException(
+      'New email must be different from the current email',
+      ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS // Có thể dùng mã lỗi khác nếu cần
+    )
+  }
+
+  // 3. Kiểm tra email mới đã có người dùng chưa
+  const existingUser = await UserModel.findOne({ email: newEmail })
+  if (existingUser) {
+    throw new BadRequestException(
+      'Email is already in use by another account',
+      ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
+    )
+  }
+
+  // 4. Generate TWO OTPs
+  const otpOld = generateSecureOTP()
+  const otpNew = generateSecureOTP()
+  const hashedOtpOld = crypto.createHash('sha256').update(otpOld).digest('hex')
+  const hashedOtpNew = crypto.createHash('sha256').update(otpNew).digest('hex')
+
+  // 5. Lưu vào Redis
+  await redis
+    .pipeline()
+    .setex(
+      REDIS_KEYS.changeEmailOtpOld(userId),
+      REDIS_TTL.CHANGE_EMAIL_OTP,
+      hashedOtpOld
+    )
+    .setex(
+      REDIS_KEYS.changeEmailOtpNew(userId),
+      REDIS_TTL.CHANGE_EMAIL_OTP,
+      hashedOtpNew
+    )
+    .setex(
+      REDIS_KEYS.changeEmailPending(userId),
+      REDIS_TTL.CHANGE_EMAIL_OTP,
+      newEmail
+    )
+    .setex(
+      REDIS_KEYS.changeEmailResend(userId),
+      REDIS_TTL.CHANGE_EMAIL_RESEND,
+      '1'
+    )
+    .setex(
+      REDIS_KEYS.changeEmailAttempts(userId),
+      REDIS_TTL.CHANGE_EMAIL_OTP,
+      '0'
+    )
+    .exec()
+
+  // 6. Gửi Email (Cả 2 hòm thư)
+  await Promise.all([
+    sendChangeEmailOldOTP({
+      email: user.email,
+      username: user.name,
+      otpCode: otpOld
+    }),
+    sendChangeEmailNewOTP({
+      email: newEmail,
+      username: user.name,
+      otpCode: otpNew
+    })
+  ])
+
+  return {
+    message: 'Verification codes sent to both your old and new email addresses.'
+  }
+}
+
+export const verifyChangeEmailOTPService = async (
+  userId: string,
+  body: VerifyChangeEmailOTPSchemaType
+) => {
+  const { oldEmailOtp, newEmailOtp } = body
+
+  // 1. Lấy User
+  const user = await UserModel.findById(userId)
+  if (!user) throw new NotFoundException('User not found')
+
+  // 2. Kiểm tra OTPs trong Redis
+  const [storedOtpOld, storedOtpNew] = await Promise.all([
+    redis.get(REDIS_KEYS.changeEmailOtpOld(userId)),
+    redis.get(REDIS_KEYS.changeEmailOtpNew(userId))
+  ])
+
+  if (!storedOtpOld || !storedOtpNew) {
+    throw new BadRequestException(
+      'Verification session has expired or is invalid',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
+  // 3. Kiểm tra số lần thử
+  const attemptsKey = REDIS_KEYS.changeEmailAttempts(userId)
+  const currentAttempts = parseInt((await redis.get(attemptsKey)) || '0')
+
+  if (currentAttempts >= OTP_CONFIG.MAX_ATTEMPTS) {
+    await redis
+      .pipeline()
+      .del(REDIS_KEYS.changeEmailOtpOld(userId))
+      .del(REDIS_KEYS.changeEmailOtpNew(userId))
+      .del(REDIS_KEYS.changeEmailPending(userId))
+      .del(attemptsKey)
+      .exec()
+
+    throw new BadRequestException(
+      'Too many failed attempts. Please request new codes.',
+      ErrorCodeEnum.AUTH_TOO_MANY_ATTEMPTS
+    )
+  }
+
+  // 4. So sánh OTPs
+  const hashedOld = crypto.createHash('sha256').update(oldEmailOtp).digest('hex')
+  const hashedNew = crypto.createHash('sha256').update(newEmailOtp).digest('hex')
+
+  let isOldValid = storedOtpOld === hashedOld
+  let isNewValid = storedOtpNew === hashedNew
+
+  if (!isOldValid || !isNewValid) {
+    await redis.incr(attemptsKey)
+    const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
+    
+    let errorMsg = 'Invalid verification codes.'
+    if (!isOldValid && !isNewValid) errorMsg = 'Both codes are invalid.'
+    else if (!isOldValid) errorMsg = 'Authorization code for old email is invalid.'
+    else if (!isNewValid) errorMsg = 'Verification code for new email is invalid.'
+
+    throw new BadRequestException(
+      `${errorMsg} You have ${remaining} attempts left.`,
+      ErrorCodeEnum.AUTH_OTP_INVALID,
+      { remainingAttempts: remaining }
+    )
+  }
+
+  // 5. Lấy email mới từ Redis
+  const newEmail = await redis.get(REDIS_KEYS.changeEmailPending(userId))
+  if (!newEmail) {
+    throw new BadRequestException(
+      'Change email session expired',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
+  // 6. Cập nhật Database
+  user.email = newEmail
+  await user.save()
+
+  // 6.1. Thu hồi toàn bộ session cũ (vì email là định danh đăng nhập đã thay đổi)
+  await redis.del(`refresh_tokens:${userId}`)
+
+  // 7. Dọn dẹp Redis OTP
+  await Promise.all([
+    redis.del(REDIS_KEYS.changeEmailOtpOld(userId)),
+    redis.del(REDIS_KEYS.changeEmailOtpNew(userId)),
+    redis.del(REDIS_KEYS.changeEmailPending(userId)),
+    redis.del(REDIS_KEYS.changeEmailResend(userId)),
+    redis.del(attemptsKey)
+  ])
+
+  return {
+    message: 'Email updated successfully.'
+  }
+}
+
+export const resendChangeEmailOTPService = async (userId: string) => {
+  // 1. Lấy User
+  const user = await UserModel.findById(userId)
+  if (!user) throw new NotFoundException('User not found')
+
+  // 2. Check cooldown
+  const isBlocked = await redis.exists(REDIS_KEYS.changeEmailResend(userId))
+  if (isBlocked) {
+    const remainingTime = await redis.ttl(REDIS_KEYS.changeEmailResend(userId))
+    throw new BadRequestException(
+      'Please wait before requesting new codes',
+      ErrorCodeEnum.AUTH_OTP_TOO_MANY_REQUESTS,
+      { remainingTime: remainingTime > 0 ? remainingTime : 0 }
+    )
+  }
+
+  // 3. Check session còn hạn không
+  const pendingEmail = await redis.get(REDIS_KEYS.changeEmailPending(userId))
+  if (!pendingEmail) {
+    throw new BadRequestException(
+      'Change email session expired. Please start over.',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
+  // 4. Generate OTPs mới
+  const otpOld = generateSecureOTP()
+  const otpNew = generateSecureOTP()
+  const hashedOtpOld = crypto.createHash('sha256').update(otpOld).digest('hex')
+  const hashedOtpNew = crypto.createHash('sha256').update(otpNew).digest('hex')
+
+  // 5. Cập nhật Redis
+  await redis
+    .pipeline()
+    .setex(
+      REDIS_KEYS.changeEmailOtpOld(userId),
+      REDIS_TTL.CHANGE_EMAIL_OTP,
+      hashedOtpOld
+    )
+    .setex(
+      REDIS_KEYS.changeEmailOtpNew(userId),
+      REDIS_TTL.CHANGE_EMAIL_OTP,
+      hashedOtpNew
+    )
+    .setex(
+      REDIS_KEYS.changeEmailResend(userId),
+      REDIS_TTL.CHANGE_EMAIL_RESEND,
+      '1'
+    )
+    .del(REDIS_KEYS.changeEmailAttempts(userId))
+    .exec()
+
+  // 6. Gửi Email (Cả 2 hòm thư)
+  await Promise.all([
+    sendChangeEmailOldOTP({
+      email: user.email,
+      username: user.name,
+      otpCode: otpOld
+    }),
+    sendChangeEmailNewOTP({
+      email: pendingEmail,
+      username: user.name,
+      otpCode: otpNew
+    })
+  ])
+
+  return {
+    message: 'New verification codes sent to both your old and new email addresses.'
+  }
 }

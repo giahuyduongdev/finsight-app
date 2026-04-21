@@ -13,7 +13,13 @@ import {
   forgotPasswordController,
   verifyForgotPasswordOTPController,
   resetPasswordController,
-  resendForgotPasswordOTPController
+  resendForgotPasswordOTPController,
+  changePasswordRequestController,
+  verifyChangePasswordOTPController,
+  resendChangePasswordOTPController,
+  changeEmailRequestController,
+  verifyChangeEmailOTPController,
+  resendChangeEmailOTPController
 } from '../controllers/auth.controller'
 import { passportAuthenticateJwt } from '../config/passport.config'
 import { authRateLimiter } from '../config/redis.config'
@@ -47,6 +53,42 @@ authRoutes.post(
   resendForgotPasswordOTPController
 )
 authRoutes.post('/password/reset', authRateLimiter, resetPasswordController)
+authRoutes.post(
+  '/password/change-request',
+  passportAuthenticateJwt,
+  authRateLimiter,
+  changePasswordRequestController
+)
+authRoutes.post(
+  '/password/change-verify',
+  passportAuthenticateJwt,
+  authRateLimiter,
+  verifyChangePasswordOTPController
+)
+authRoutes.post(
+  '/password/change-resend',
+  passportAuthenticateJwt,
+  authRateLimiter,
+  resendChangePasswordOTPController
+)
+authRoutes.post(
+  '/email/change-request',
+  passportAuthenticateJwt,
+  authRateLimiter,
+  changeEmailRequestController
+)
+authRoutes.post(
+  '/email/change-verify',
+  passportAuthenticateJwt,
+  authRateLimiter,
+  verifyChangeEmailOTPController
+)
+authRoutes.post(
+  '/email/change-resend',
+  passportAuthenticateJwt,
+  authRateLimiter,
+  resendChangeEmailOTPController
+)
 
 authRoutes.post('/refresh-token', refreshTokenController)
 authRoutes.post('/logout', logoutController)
