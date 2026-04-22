@@ -5,7 +5,11 @@ reviews:
   profile: "assertive" 
   request_changes_workflow: false
   auto_review:
-    enabled: true # Kích hoạt review cho cả các branch phụ (như develop)
+    enabled: true 
+    base_branches:
+      - "develop"
+      - "main"
+      - "master"
   
   instructions: |
     Bạn là một chuyên gia Senior Full-stack Developer.
@@ -33,9 +37,11 @@ chat:
 
 # Ngữ cảnh dự án (Full-stack context)
 knowledge_base:
-  instructions: |
-    Đây là dự án Finsight - nền tảng quản lý tài chính cá nhân toàn diện.
-    - Tech Stack Frontend: React, Vite, Tailwind CSS, Radix UI (Shadcn), TanStack Query/Table.
-    - Tech Stack Backend: Node.js (TypeScript), Express.js, MongoDB (Mongoose), Redis (BullMQ).
-    - Integrations: Google Gemini AI, Cloudinary, Resend, Socket.io.
-    - Quy tắc đặt tên: camelCase cho biến/hàm, PascalCase cho Components.
+  linked_repositories:
+    - repository: "giahuyduongdev/finsight-app"
+      instructions: |
+        Đây là dự án Finsight - nền tảng quản lý tài chính cá nhân toàn diện.
+        - Tech Stack Frontend: React, Vite, Tailwind CSS, Radix UI (Shadcn), TanStack Query/Table.
+        - Tech Stack Backend: Node.js (TypeScript), Express.js, MongoDB (Mongoose), Redis (BullMQ).
+        - Integrations: Google Gemini AI, Cloudinary, Resend, Socket.io.
+        - Quy tắc đặt tên: camelCase cho biến/hàm, PascalCase cho Components.

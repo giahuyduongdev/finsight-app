@@ -33,12 +33,15 @@ import { Badge } from '@/components/ui/badge'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type CsvRow = Record<string, string | undefined>
+type CsvRowWrapper = {
+  id: string
+  data: Record<string, string | undefined>
+}
 
 type ConfirmationStepProps = {
   file: File | null
   mappings: Record<string, string>
-  csvData: CsvRow[]
+  csvData: Record<string, string | undefined>[]
   onComplete: () => void
   onBack: () => void
 }
@@ -123,7 +126,7 @@ const transactionSchema = z.object({
 })
 
 type ParsedRow = {
-  index: number
+  id: string
   data: ParsedTransaction | null
   error?: string
   isValid: boolean
@@ -131,10 +134,10 @@ type ParsedRow = {
 
 // ─── Sub-component: Edit Form ───────────────────────────────────────────────
 
-const EditForm = ({ transaction, index, onUpdate, onClose, open }: {
+const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
   transaction: ParsedTransaction
-  index: number
-  onUpdate: (index: number, data: ParsedTransaction) => void
+  index: string
+  onUpdate: (id: string, data: ParsedTransaction) => void
   onClose: () => void
   open: boolean
 }) => {
@@ -142,7 +145,7 @@ const EditForm = ({ transaction, index, onUpdate, onClose, open }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onUpdate(index, formData)
+    onUpdate(rowId, formData)
     onClose()
   }
 
@@ -150,7 +153,7 @@ const EditForm = ({ transaction, index, onUpdate, onClose, open }: {
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="sm:max-w-[425px] z-[150]">
         <DialogHeader>
-          <DialogTitle>Edit Transaction #{index}</DialogTitle>
+          <DialogTitle>Edit Transaction</DialogTitle>
           <DialogDescription>
             Make changes to your transaction details here.
           </DialogDescription>
@@ -170,10 +173,10 @@ const EditForm = ({ transaction, index, onUpdate, onClose, open }: {
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Amount</label>
               <CurrencyInputField 
-                name={`amount-edit-${index}`}
+                name={`amount-edit-${rowId}`}
                 value={String(formData.amount)}
                 prefix={CURRENCY_SYMBOLS[formData.currency as CurrencyType] || '$'}
-                decimalsLimit={formData.currency === 'VND' ? 0 : 2}
+                decimalsLimit={['VND', 'JPY', 'KRW'].includes(formData.currency || 'USD') ? 0 : 2}
                 className="h-9 text-sm"
                 onValueChange={(val) => setFormData(prev => ({ ...prev, amount: Number(val || 0) }))}
                 autoFocus
@@ -265,8 +268,10 @@ const ConfirmationStep = ({
   onBack
 }: ConfirmationStepProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [localCsvData, setLocalCsvData] = useState<CsvRow[]>(initialCsvData)
-  const [overrides, setOverrides] = useState<Record<number, Partial<ParsedTransaction>>>({})
+  const [localCsvData, setLocalCsvData] = useState<CsvRowWrapper[]>(() => 
+    initialCsvData.map((data, i) => ({ id: `row-${i}-${Date.now()}`, data: data as any }))
+  )
+  const [overrides, setOverrides] = useState<Record<string, Partial<ParsedTransaction>>>({})
   const [editingRow, setEditingRow] = useState<ParsedRow | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
 
@@ -278,12 +283,13 @@ const ConfirmationStep = ({
     const valid: ParsedTransaction[] = []
     let errorCount = 0
 
-    localCsvData.forEach((row, index) => {
+    localCsvData.forEach((rowWrapper) => {
+      const rowId = rowWrapper.id
+      const rowData = rowWrapper.data
       const transaction: Record<string, any> = {}
-      const rowIndex = index + 1
 
       Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
-        const value = row[csvColumn]
+        const value = rowData[csvColumn]
         if (transactionField === 'Skip' || value === undefined) return
 
         if (transactionField === 'amount') {
@@ -299,7 +305,7 @@ const ConfirmationStep = ({
       })
 
       // Apply overrides (Prioritize user edits)
-      const override = overrides[rowIndex]
+      const override = overrides[rowId]
       if (override) {
         Object.assign(transaction, override)
       }
@@ -309,16 +315,16 @@ const ConfirmationStep = ({
         const parsed: ParsedTransaction = {
           ...validated,
           date:
-            validated.date instanceof Date
+            validated.date instanceof Date && !isNaN(validated.date.getTime())
               ? validated.date.toISOString()
-              : validated.date,
+              : String(validated.date || new Date().toISOString()),
           isRecurring: false,
           description: (transaction.description as string) || '',
           currency: (transaction.currency as string) || CURRENCY_ENUM.USD,
           status: (transaction.status as string) || 'COMPLETED',
           category: (transaction.category as string) || 'Other'
         }
-        rows.push({ index: rowIndex, data: parsed, isValid: true })
+        rows.push({ id: rowId, data: parsed, isValid: true })
         valid.push(parsed)
       } catch (error) {
         errorCount++
@@ -344,7 +350,11 @@ const ConfirmationStep = ({
         const fallbackData = {
           title: String(transaction.title || ''),
           amount: Number(transaction.amount || 0),
-          date: transaction.date instanceof Date ? transaction.date.toISOString() : String(transaction.date || new Date().toISOString()),
+          date: (transaction.date instanceof Date && !isNaN(transaction.date.getTime())) 
+            ? transaction.date.toISOString() 
+            : (typeof transaction.date === 'string' && !isNaN(Date.parse(transaction.date)))
+              ? new Date(transaction.date).toISOString()
+              : new Date().toISOString(),
           type: (transaction.type as any) || 'EXPENSE',
           category: String(transaction.category || 'Other'),
           currency: String(transaction.currency || 'USD'),
@@ -353,7 +363,7 @@ const ConfirmationStep = ({
           description: String(transaction.description || '')
         }
 
-        rows.push({ index: rowIndex, data: fallbackData, error: message, isValid: false })
+        rows.push({ id: rowId, data: fallbackData, error: message, isValid: false })
       }
     })
 
@@ -401,20 +411,20 @@ const ConfirmationStep = ({
     }
   }
 
-  const handleDeleteRow = (index: number) => {
-    setLocalCsvData(prev => prev.filter((_, i) => (i + 1) !== index))
+  const handleDeleteRow = (rowId: string) => {
+    setLocalCsvData(prev => prev.filter((r) => r.id !== rowId))
     setOverrides(prev => {
       const next = { ...prev }
-      delete next[index]
+      delete next[rowId]
       return next
     })
     toast.success('Transaction row deleted')
   }
 
-  const handleUpdateRow = (index: number, updatedTransaction: ParsedTransaction) => {
+  const handleUpdateRow = (rowId: string, updatedTransaction: ParsedTransaction) => {
     setOverrides(prev => ({
       ...prev,
-      [index]: updatedTransaction
+      [rowId]: updatedTransaction
     }))
     toast.success('Transaction updated locally')
   }
@@ -495,7 +505,7 @@ const ConfirmationStep = ({
                     }}
                   >
                     <TableCell className="w-12 shrink-0 flex items-center justify-center">
-                      <span className="text-[10px] font-bold text-slate-400 tabular-nums">{row.index}</span>
+                      <span className="text-[10px] font-bold text-slate-400 tabular-nums">{virtualRow.index + 1}</span>
                     </TableCell>
                     <TableCell className="w-[120px] shrink-0 flex items-center pr-2">
                       <span className="text-xs text-slate-500 tabular-nums truncate" title={row.data ? format(new Date(row.data.date), 'dd MMM, yyyy') : '-'}>
@@ -532,10 +542,14 @@ const ConfirmationStep = ({
                     <TableCell className="w-[110px] shrink-0 flex items-center justify-center px-1">
                       {!row.isValid ? (
                          <div className="group relative inline-block">
-                           <Badge variant="destructive" className="h-6 text-[10px] cursor-help px-2 animate-pulse">
+                           <Badge 
+                            variant="destructive" 
+                            className="h-6 text-[10px] cursor-help px-2 animate-pulse"
+                            tabIndex={0}
+                           >
                              Error
                            </Badge>
-                           <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all z-50 pointer-events-none scale-95 group-hover:scale-100 border-red-200">
+                           <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-all z-50 pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200">
                               <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
                                 <AlertCircle className="w-4 h-4" />
                                 Validation Error
@@ -548,10 +562,10 @@ const ConfirmationStep = ({
                       ) : (
                         <span className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-white shadow-sm whitespace-nowrap",
-                          row.data?.status === 'COMPLETED' ? "bg-green-500" : "bg-orange-400"
+                          row.data?.status === 'COMPLETED' ? "bg-green-500" : row.data?.status === 'FAILED' ? "bg-red-500" : "bg-orange-400"
                         )}>
                           <span className="h-1.5 w-1.5 rounded-full bg-white opacity-90" />
-                          {row.data?.status === 'COMPLETED' ? 'Completed' : 'Pending'}
+                          {row.data?.status === 'COMPLETED' ? 'Completed' : row.data?.status === 'FAILED' ? 'Failed' : 'Pending'}
                         </span>
                       )}
                     </TableCell>
@@ -562,6 +576,7 @@ const ConfirmationStep = ({
                             size="icon" 
                             className="h-7 w-7 text-blue-500 hover:text-blue-600 hover:bg-blue-50"
                             onClick={() => setEditingRow(row)}
+                            aria-label="Edit transaction"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </Button>
@@ -570,7 +585,8 @@ const ConfirmationStep = ({
                          variant="ghost" 
                          size="icon" 
                          className="h-7 w-7 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
-                         onClick={() => handleDeleteRow(row.index)}
+                         onClick={() => handleDeleteRow(row.id)}
+                         aria-label="Delete transaction"
                        >
                          <Trash2 className="w-3.5 h-3.5" />
                        </Button>
@@ -600,7 +616,7 @@ const ConfirmationStep = ({
       {editingRow && (
         <EditForm 
           transaction={editingRow.data!} 
-          index={editingRow.index} 
+          index={editingRow.id} 
           onUpdate={handleUpdateRow} 
           onClose={() => setEditingRow(null)}
           open={true}
