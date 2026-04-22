@@ -6,6 +6,7 @@ import FileUploadStep from './fileupload-step'
 import ColumnMappingStep from './column-mapping-step'
 import { CsvColumn, TransactionField } from '@/@types/transaction.type'
 import ConfirmationStep from './confirmation-step'
+import { cn } from '@/lib/utils'
 
 const ImportTransactionModal = () => {
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -107,7 +108,10 @@ const ImportTransactionModal = () => {
           Bulk Import
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl min-h-[40vh]">
+      <DialogContent className={cn(
+        "min-h-[40vh] transition-all duration-300",
+        step === 3 ? "sm:max-w-6xl" : "sm:max-w-lg"
+      )}>
         {renderStep()}
       </DialogContent>
     </Dialog>

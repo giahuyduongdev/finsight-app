@@ -39,8 +39,10 @@ export const formatCurrency = (
   // 1. Lấy Symbol từ cuốn "từ điển" của bạn
   const symbol = CURRENCY_SYMBOLS[currency as CurrencyType] || currency
 
-  // 2. Chỉ nhờ Intl format con số nguyên thủy (decimal), KHÔNG dùng currency nữa
-  const formattedNumber = new Intl.NumberFormat('en-US', {
+  // 2. Định dạng Locale (Dùng en-US cho tất cả để đồng bộ dấu phẩy ngăn hàng nghìn như Add Transaction)
+  const locale = 'en-US'
+
+  const formattedNumber = new Intl.NumberFormat(locale, {
     style: 'decimal',
     minimumFractionDigits: decimalPlaces,
     maximumFractionDigits: decimalPlaces,
