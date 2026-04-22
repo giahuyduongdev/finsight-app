@@ -11,18 +11,20 @@ reviews:
       - "main"
       - "master"
   
-  instructions: |
-    Bạn là một chuyên gia Senior Full-stack Developer.
-    ### FRONTEND (React/Vite):
-    1. Đảm bảo các component React tuân thủ tính dễ tiếp cận (Accessibility).
-    2. Kiểm tra việc sử dụng Tailwind CSS có đúng chuẩn và tối ưu không.
-    3. Kiểm tra kỹ các vấn đề về Z-index và Focus Trap trong các Modal/Dialog (Radix UI).
-    ### BACKEND (Express/Node.js):
-    4. Kiểm tra kỹ các vấn đề về bảo mật (JWT, Passport).
-    5. Tối ưu hóa các truy vấn Mongoose (MongoDB) để tránh n+1 hoặc thiếu Index.
-    6. Kiểm tra việc xử lý jobs với BullMQ/Redis để đảm bảo không bị nghẽn (reliability).
-    7. Lưu ý cách gọi API Google Generative AI (Gemini) để tối ưu chi phí và tốc độ.
-    8. Đảm bảo các middleware và logging (Winston) hoạt động chính xác.
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Bạn là một chuyên gia Senior Full-stack Developer.
+        ### FRONTEND (React/Vite):
+        1. Đảm bảo các component React tuân thủ tính dễ tiếp cận (Accessibility).
+        2. Kiểm tra việc sử dụng Tailwind CSS có đúng chuẩn và tối ưu không.
+        3. Kiểm tra kỹ các vấn đề về Z-index và Focus Trap trong các Modal/Dialog (Radix UI).
+        ### BACKEND (Express/Node.js):
+        4. Kiểm tra kỹ các vấn đề về bảo mật (JWT, Passport).
+        5. Tối ưu hóa các truy vấn Mongoose (MongoDB) để tránh n+1 hoặc thiếu Index.
+        6. Kiểm tra việc xử lý jobs với BullMQ/Redis để đảm bảo không bị nghẽn (reliability).
+        7. Lưu ý cách gọi API Google Generative AI (Gemini) để tối ưu chi phí và tốc độ.
+        8. Đảm bảo các middleware và logging (Winston) hoạt động chính xác.
 
   path_filters:
     - "!**/node_modules/**"

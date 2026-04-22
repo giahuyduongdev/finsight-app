@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { z } from 'zod'
 import { ChevronLeft, FileCheck, AlertCircle, CheckCircle2, Trash2, Edit2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatCurrency } from '@/lib/format-currency'
+import { formatCurrency, ZERO_DECIMAL_CURRENCIES } from '@/lib/format-currency'
 import {
   Dialog,
   DialogContent,
@@ -142,10 +142,14 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
   open: boolean
 }) => {
   const [formData, setFormData] = useState<ParsedTransaction>({ ...transaction })
+  const [dateStr, setDateStr] = useState(() => {
+    const d = new Date(transaction.date)
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0]
+  })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onUpdate(rowId, formData)
+    onUpdate(rowId, { ...formData, date: new Date(dateStr).toISOString() })
     onClose()
   }
 
@@ -176,7 +180,7 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
                 name={`amount-edit-${rowId}`}
                 value={String(formData.amount)}
                 prefix={CURRENCY_SYMBOLS[formData.currency as CurrencyType] || '$'}
-                decimalsLimit={['VND', 'JPY', 'KRW'].includes(formData.currency || 'USD') ? 0 : 2}
+                decimalsLimit={ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD') ? 0 : 2}
                 className="h-9 text-sm"
                 onValueChange={(val) => setFormData(prev => ({ ...prev, amount: Number(val || 0) }))}
                 autoFocus
@@ -207,7 +211,7 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
               <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Type</label>
               <Select 
                 value={formData.type}
-                onValueChange={(val) => setFormData(prev => ({ ...prev, type: val as any }))}
+                onValueChange={(val: 'INCOME' | 'EXPENSE') => setFormData(prev => ({ ...prev, type: val }))}
               >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
@@ -236,13 +240,24 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-             <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Category</label>
-             <Input 
-               value={formData.category}
-               className="h-9 text-sm"
-               onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-             />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+               <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Category</label>
+               <Input 
+                 value={formData.category}
+                 className="h-9 text-sm"
+                 onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Date</label>
+              <Input 
+                type="date"
+                value={dateStr}
+                className="h-9 text-sm"
+                onChange={(e) => setDateStr(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="pt-4 flex justify-end gap-2 border-t mt-2">
@@ -269,7 +284,7 @@ const ConfirmationStep = ({
 }: ConfirmationStepProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [localCsvData, setLocalCsvData] = useState<CsvRowWrapper[]>(() => 
-    initialCsvData.map((data, i) => ({ id: `row-${i}-${Date.now()}`, data: data as any }))
+    initialCsvData.map((data) => ({ id: crypto.randomUUID(), data: data as any }))
   )
   const [overrides, setOverrides] = useState<Record<string, Partial<ParsedTransaction>>>({})
   const [editingRow, setEditingRow] = useState<ParsedRow | null>(null)
@@ -541,24 +556,29 @@ const ConfirmationStep = ({
                     </TableCell>
                     <TableCell className="w-[110px] shrink-0 flex items-center justify-center px-1">
                       {!row.isValid ? (
-                         <div className="group relative inline-block">
-                           <Badge 
-                            variant="destructive" 
-                            className="h-6 text-[10px] cursor-help px-2 animate-pulse"
-                            tabIndex={0}
-                           >
-                             Error
-                           </Badge>
-                           <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-all z-50 pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200">
-                              <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
-                                <AlertCircle className="w-4 h-4" />
-                                Validation Error
-                              </div>
-                              <p className="text-[11px] leading-relaxed text-gray-600 dark:text-gray-300">
-                                {row.error}
-                              </p>
-                           </div>
-                         </div>
+                          <div className="group relative inline-block">
+                            <Badge 
+                             variant="destructive" 
+                             className="h-6 text-[10px] cursor-help px-2 animate-pulse"
+                             tabIndex={0}
+                             aria-describedby={`err-${row.id}`}
+                            >
+                              Error
+                            </Badge>
+                            <div 
+                              id={`err-${row.id}`}
+                              role="tooltip"
+                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-all z-50 pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
+                            >
+                               <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
+                                 <AlertCircle className="w-4 h-4" aria-hidden="true" />
+                                 Validation Error
+                               </div>
+                               <p className="text-[11px] leading-relaxed text-gray-600 dark:text-gray-300">
+                                 {row.error}
+                               </p>
+                            </div>
+                          </div>
                       ) : (
                         <span className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-white shadow-sm whitespace-nowrap",
@@ -613,9 +633,9 @@ const ConfirmationStep = ({
         </Button>
       </div>
 
-      {editingRow && (
+      {editingRow && editingRow.data && (
         <EditForm 
-          transaction={editingRow.data!} 
+          transaction={editingRow.data} 
           index={editingRow.id} 
           onUpdate={handleUpdateRow} 
           onClose={() => setEditingRow(null)}
