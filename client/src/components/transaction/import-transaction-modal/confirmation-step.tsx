@@ -142,6 +142,7 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
   open: boolean
 }) => {
   const [formData, setFormData] = useState<ParsedTransaction>({ ...transaction })
+  const [displayAmount, setDisplayAmount] = useState<string>(String(transaction.amount))
   const [dateStr, setDateStr] = useState(() => {
     const d = new Date(transaction.date)
     return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0]
@@ -149,7 +150,17 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onUpdate(rowId, { ...formData, date: new Date(dateStr).toISOString() })
+    
+    // Validate date to prevent RangeError
+    const dateObj = new Date(dateStr)
+    if (isNaN(dateObj.getTime())) {
+      toast.error('Giao dịch chưa có ngày tháng hợp lệ', {
+        description: 'Vui lòng chọn hoặc nhập ngày tháng đúng định dạng.'
+      })
+      return
+    }
+
+    onUpdate(rowId, { ...formData, date: dateObj.toISOString() })
     onClose()
   }
 
@@ -165,8 +176,14 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
         
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Title</label>
+            <label 
+              htmlFor={`title-${rowId}`}
+              className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
+            >
+              Title
+            </label>
             <Input 
+              id={`title-${rowId}`}
               value={formData.title}
               className="h-9 text-sm"
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
@@ -175,24 +192,42 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Amount</label>
+              <label 
+                htmlFor={`amount-${rowId}`}
+                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
+              >
+                Amount
+              </label>
               <CurrencyInputField 
+                id={`amount-${rowId}`}
                 name={`amount-edit-${rowId}`}
-                value={String(formData.amount)}
+                value={displayAmount}
                 prefix={CURRENCY_SYMBOLS[formData.currency as CurrencyType] || '$'}
                 decimalsLimit={ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD') ? 0 : 2}
+                allowDecimals={!ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD')}
                 className="h-9 text-sm"
-                onValueChange={(val) => setFormData(prev => ({ ...prev, amount: Number(val || 0) }))}
+                onValueChange={(val) => {
+                  setDisplayAmount(val || '')
+                  setFormData(prev => ({ ...prev, amount: Number(val || 0) }))
+                }}
                 autoFocus
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Currency</label>
+              <label 
+                id={`currency-label-${rowId}`}
+                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
+              >
+                Currency
+              </label>
               <Select 
                 value={formData.currency || CURRENCY_ENUM.USD}
                 onValueChange={(val) => setFormData(prev => ({ ...prev, currency: val }))}
               >
-                <SelectTrigger className="h-9 text-sm">
+                <SelectTrigger 
+                  aria-labelledby={`currency-label-${rowId}`}
+                  className="h-9 text-sm"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="max-h-[250px] z-[300]">
@@ -208,12 +243,20 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Type</label>
+              <label 
+                id={`type-label-${rowId}`}
+                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
+              >
+                Type
+              </label>
               <Select 
                 value={formData.type}
                 onValueChange={(val: 'INCOME' | 'EXPENSE') => setFormData(prev => ({ ...prev, type: val }))}
               >
-                <SelectTrigger className="h-9 text-sm">
+                <SelectTrigger 
+                  aria-labelledby={`type-label-${rowId}`}
+                  className="h-9 text-sm"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-[300]">
@@ -223,12 +266,20 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Status</label>
+              <label 
+                id={`status-label-${rowId}`}
+                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
+              >
+                Status
+              </label>
               <Select 
                 value={formData.status || 'COMPLETED'}
                 onValueChange={(val) => setFormData(prev => ({ ...prev, status: val }))}
               >
-                <SelectTrigger className="h-9 text-sm">
+                <SelectTrigger 
+                  aria-labelledby={`status-label-${rowId}`}
+                  className="h-9 text-sm"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-[300]">
@@ -242,16 +293,28 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-               <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Category</label>
+               <label 
+                 htmlFor={`category-${rowId}`}
+                 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
+               >
+                 Category
+               </label>
                <Input 
+                 id={`category-${rowId}`}
                  value={formData.category}
                  className="h-9 text-sm"
                  onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Date</label>
+              <label 
+                htmlFor={`date-${rowId}`}
+                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
+              >
+                Date
+              </label>
               <Input 
+                id={`date-${rowId}`}
                 type="date"
                 value={dateStr}
                 className="h-9 text-sm"
@@ -308,12 +371,28 @@ const ConfirmationStep = ({
         if (transactionField === 'Skip' || value === undefined) return
 
         if (transactionField === 'amount') {
-          transaction[transactionField] = Number(String(value).replace(/[^0-9.-]+/g,""))
+          const cleanValue = String(value).trim()
+          const lastPoint = cleanValue.lastIndexOf('.')
+          const lastComma = cleanValue.lastIndexOf(',')
+          const separator = lastPoint > lastComma ? '.' : ','
+          
+          // Split by the detected decimal separator
+          const parts = cleanValue.split(separator)
+          if (parts.length > 2) {
+             // More than one unique separator found in a weird way, fallback to simple clean
+             transaction[transactionField] = Number(cleanValue.replace(/[^0-9.-]+/g,""))
+          } else {
+             const integerPart = parts[0].replace(/[^1234567890-]/g, '')
+             const decimalPart = parts[1] ? parts[1].replace(/[^1234567890]/g, '') : ''
+             transaction[transactionField] = Number(integerPart + '.' + (decimalPart || '0'))
+          }
         } else if (transactionField === 'date') {
           transaction[transactionField] = new Date(value)
         } else if (transactionField === 'type') {
           const val = String(value).toUpperCase().trim()
           transaction[transactionField] = val.includes('INC') ? 'INCOME' : val.includes('EXP') ? 'EXPENSE' : val
+        } else if (transactionField === 'currency' || transactionField === 'status') {
+          transaction[transactionField] = String(value).trim().toUpperCase()
         } else {
           transaction[transactionField] = value
         }
@@ -489,16 +568,16 @@ const ConfirmationStep = ({
           className="h-[450px] overflow-auto scrollbar-thin scrollbar-thumb-gray-200"
         >
           <Table className="table-fixed w-full border-collapse">
-            <TableHeader className="sticky top-0 bg-secondary/30 backdrop-blur-md z-50">
-              <TableRow className="hover:bg-transparent border-b flex w-full">
-                <TableHead className="w-12 shrink-0 flex items-center justify-center font-semibold text-foreground text-[13px]">#</TableHead>
-                <TableHead className="w-[120px] shrink-0 flex items-center font-semibold text-foreground text-[13px]">Date</TableHead>
-                <TableHead className="flex-1 shrink-0 flex items-center font-semibold text-foreground text-[13px]">Title</TableHead>
-                <TableHead className="w-[130px] shrink-0 flex items-center font-semibold text-foreground text-[13px]">Amount</TableHead>
-                <TableHead className="w-[140px] shrink-0 flex items-center font-semibold text-foreground text-[13px]">Category</TableHead>
-                <TableHead className="w-[80px] shrink-0 flex items-center font-semibold text-foreground text-[13px]">Type</TableHead>
-                <TableHead className="w-[110px] shrink-0 flex items-center justify-center font-semibold text-foreground text-[13px]">Status</TableHead>
-                <TableHead className="w-[100px] shrink-0 flex items-center justify-end font-semibold text-foreground text-[13px] pr-4">Actions</TableHead>
+            <TableHeader className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b">
+              <TableRow className="hover:bg-transparent flex w-full h-10 px-4">
+                <TableHead className="w-10 shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">#</TableHead>
+                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Date</TableHead>
+                <TableHead className="flex-1 shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider px-2">Title</TableHead>
+                <TableHead className="w-[120px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider pr-4">Amount</TableHead>
+                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Category</TableHead>
+                <TableHead className="w-[80px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Type</TableHead>
+                <TableHead className="w-[110px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Status</TableHead>
+                <TableHead className="w-[80px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
@@ -511,7 +590,7 @@ const ConfirmationStep = ({
                     key={virtualRow.key}
                     data-index={virtualRow.index}
                     className={cn(
-                      "absolute top-0 left-0 w-full transition-colors border-b last:border-0 flex h-12 items-center",
+                      "absolute top-0 left-0 w-full transition-colors border-b last:border-0 flex h-12 items-center px-4",
                       !row.isValid && "bg-red-50/30 hover:bg-red-100/30"
                     )}
                     style={{
@@ -519,39 +598,42 @@ const ConfirmationStep = ({
                       transform: `translateY(${virtualRow.start}px)`
                     }}
                   >
-                    <TableCell className="w-12 shrink-0 flex items-center justify-center">
+                    <TableCell className="w-10 shrink-0 flex items-center justify-center px-0">
                       <span className="text-[10px] font-bold text-slate-400 tabular-nums">{virtualRow.index + 1}</span>
                     </TableCell>
-                    <TableCell className="w-[120px] shrink-0 flex items-center pr-2">
-                      <span className="text-xs text-slate-500 tabular-nums truncate" title={row.data ? format(new Date(row.data.date), 'dd MMM, yyyy') : '-'}>
+                    <TableCell className="w-[130px] shrink-0 flex items-center">
+                      <span className="text-xs text-slate-500 tabular-nums truncate">
                         {row.data ? format(new Date(row.data.date), 'dd MMM, yyyy') : '-'}
                       </span>
                     </TableCell>
-                    <TableCell className="flex-1 shrink-0 flex items-center overflow-hidden pr-4">
+                    <TableCell className="flex-1 shrink-0 flex items-center overflow-hidden px-2">
                       <span className="text-sm font-medium truncate text-slate-700 dark:text-slate-200" title={row.data?.title}>
                         {row.data?.title || '-'}
                       </span>
                     </TableCell>
                     <TableCell className={cn(
-                      "w-[130px] shrink-0 flex items-center font-medium tabular-nums text-[13px]",
-                      row.data?.type === 'INCOME' ? "text-green-600" : "text-destructive"
+                      "w-[120px] shrink-0 flex items-center justify-end pr-4 font-bold tabular-nums text-[13px]",
+                      row.data?.type === 'INCOME' ? "text-emerald-600" : "text-rose-600"
                     )}>
                       <span className="truncate">
-                        {row.data && (row.data.type === 'INCOME' ? '+' : '-')}
-                        {row.data && formatCurrency(row.data.amount, { currency: (row.data.currency as any) || CURRENCY_ENUM.USD })}
+                        {row.data && (row.data.type === 'INCOME' ? '+ ' : '- ')}
+                        {row.data && formatCurrency(row.data.amount, { 
+                          currency: (row.data.currency as any) || CURRENCY_ENUM.USD,
+                          showSign: false 
+                        })}
                       </span>
                     </TableCell>
-                    <TableCell className="w-[140px] shrink-0 flex items-center pr-2">
-                       <Badge variant="outline" className="bg-muted/50 text-[10px] font-medium px-2 py-0 truncate max-w-full">
+                    <TableCell className="w-[130px] shrink-0 flex items-center pr-2">
+                       <Badge variant="secondary" className="text-[10px] font-medium px-2 py-0 truncate max-w-full">
                          {row.data?.category}
                        </Badge>
                     </TableCell>
-                    <TableCell className="w-[80px] shrink-0 flex items-center px-1">
+                    <TableCell className="w-[80px] shrink-0 flex items-center justify-center">
                       <span className={cn(
-                        "px-1.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide capitalize",
-                        row.data?.type === 'INCOME' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        "px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight uppercase",
+                        row.data?.type === 'INCOME' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
                       )}>
-                        {row.data?.type.toLowerCase()}
+                        {row.data?.type}
                       </span>
                     </TableCell>
                     <TableCell className="w-[110px] shrink-0 flex items-center justify-center px-1">
@@ -589,14 +671,13 @@ const ConfirmationStep = ({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="w-[100px] shrink-0 flex items-center justify-end gap-0.5 pr-4">
+                    <TableCell className="w-[80px] shrink-0 flex items-center justify-end gap-1 px-0">
                         {row.data && (
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-7 w-7 text-blue-500 hover:text-blue-600 hover:bg-blue-50"
+                            className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50/50"
                             onClick={() => setEditingRow(row)}
-                            aria-label="Edit transaction"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </Button>
@@ -604,9 +685,8 @@ const ConfirmationStep = ({
                        <Button 
                          variant="ghost" 
                          size="icon" 
-                         className="h-7 w-7 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                         className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50/50"
                          onClick={() => handleDeleteRow(row.id)}
-                         aria-label="Delete transaction"
                        >
                          <Trash2 className="w-3.5 h-3.5" />
                        </Button>

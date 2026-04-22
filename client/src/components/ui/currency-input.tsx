@@ -3,6 +3,7 @@ import CurrencyInput from 'react-currency-input-field'
 import { cn } from '@/lib/utils'
 
 interface CurrencyInputFieldProps {
+  id?: string
   name: string
   value?: string
   onValueChange?: (value?: string, name?: string) => void
@@ -10,6 +11,7 @@ interface CurrencyInputFieldProps {
   className?: string
   prefix?: string
   decimalsLimit?: number
+  allowDecimals?: boolean
   disabled?: boolean
   autoFocus?: boolean
 }
@@ -19,26 +21,28 @@ const CurrencyInputField = forwardRef<
   CurrencyInputFieldProps
 >(
   (
-    {
-      name,
-      value,
-      onValueChange,
-      placeholder,
-      className,
-      prefix = '$',
-      disabled,
-      decimalsLimit,
-      autoFocus
-    },
+      {
+        id,
+        name,
+        value,
+        onValueChange,
+        placeholder,
+        className,
+        prefix = '$',
+        disabled,
+        decimalsLimit,
+        allowDecimals,
+        autoFocus
+      },
     ref
   ) => {
     return (
       <CurrencyInput
-        id={name}
+        id={id || name}
         name={name}
         value={value}
         decimalsLimit={decimalsLimit}
-        decimalScale={decimalsLimit}
+        allowDecimals={allowDecimals}
         onValueChange={onValueChange}
         prefix={prefix}
         disabled={disabled}
