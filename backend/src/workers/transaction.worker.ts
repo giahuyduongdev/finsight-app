@@ -78,15 +78,22 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 
       let insertedInThisBatch = 0
       if (transactionsToInsert.length > 0) {
-        const result = await TransactionModel.insertMany(transactionsToInsert, {
-          ordered: false
-        })
-        insertedInThisBatch = result.length
+        try {
+          const result = await TransactionModel.insertMany(transactionsToInsert, {
+            ordered: false
+          })
+          insertedInThisBatch = result.length
+        } catch (error: any) {
+          // Với ordered: false, một số doc có thể vẫn được chèn thành công
+          // Chúng ta lấy số lượng đã chèn từ result của error
+          insertedInThisBatch = error.result?.nInserted ?? 0
+          logger.warn(`⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${transactionsToInsert.length - insertedInThisBatch} rejected by DB`)
+        }
       }
 
       totalInserted += insertedInThisBatch
       totalProcessed += chunk.length
-      rejectedCount += (chunk.length - transactionsToInsert.length)
+      rejectedCount += (chunk.length - insertedInThisBatch)
 
       const progress = Math.round((totalProcessed / transactions.length) * 100)
       await job.updateProgress(progress)

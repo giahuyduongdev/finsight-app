@@ -567,10 +567,10 @@ const ConfirmationStep = ({
         duration: 3000
       })
 
-      // Safety net: Invalidate tags after a short delay in case socket events are missed
+      // Safety net: Invalidate tags after a longer delay (5s) for large imports
       setTimeout(() => {
         dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
-      }, 2000)
+      }, 5000)
     } catch (error: unknown) {
       const err = error as { data?: { message?: string } }
       toast.error(err.data?.message || 'Failed to import transactions')
@@ -727,7 +727,8 @@ const ConfirmationStep = ({
                             <div 
                               id={`err-${row.id}`}
                               role="tooltip"
-                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all z-[100] pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
+                              aria-hidden="true" 
+                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-[100] pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
                             >
                                <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
                                  <AlertCircle className="w-4 h-4" aria-hidden="true" />

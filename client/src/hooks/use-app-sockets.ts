@@ -128,8 +128,8 @@ export const useAppSockets = () => {
     })
 
     // --- 2. BULK IMPORT ---
-    socket.on('bulk-import:progress', ({ progress, totalInserted, total }: BulkImportProgressPayload) => {
-      toast.loading(`Importing... ${totalInserted}/${total} (${progress}%)`, { id: 'bulk-import' })
+    socket.on('bulk-import:progress', ({ progress, totalProcessed, total }: BulkImportProgressPayload) => {
+      toast.loading(`Importing... ${totalProcessed}/${total} (${progress}%)`, { id: 'bulk-import' })
     })
 
     socket.on('bulk-import:completed', ({ message }: BulkImportCompletedPayload) => {
