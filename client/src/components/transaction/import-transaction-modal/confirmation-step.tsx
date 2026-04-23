@@ -156,8 +156,8 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
     // Validate date to prevent RangeError
     const dateObj = new Date(dateStr)
     if (isNaN(dateObj.getTime())) {
-      toast.error('Giao dịch chưa có ngày tháng hợp lệ', {
-        description: 'Vui lòng chọn hoặc nhập ngày tháng đúng định dạng.'
+      toast.error('Transaction missing valid date', {
+        description: 'Please select or enter a valid date format.'
       })
       return
     }
@@ -426,7 +426,7 @@ const ConfirmationStep = ({
                 
                 // Smart Heuristic for single separator
                 const isProbablyGrouping = decimalPart.length === 3 && 
-                  (ZERO_DECIMAL_CURRENCIES.includes(transaction.currency || 'USD') || separator === (lastPoint > lastComma ? ',' : '.'))
+                  (ZERO_DECIMAL_CURRENCIES.includes(transaction.currency || 'USD') || separator === ',')
 
                 if (isProbablyGrouping && !cleanValue.includes(separator === '.' ? ',' : '.')) {
                   transaction['amount'] = Number(integerPart + decimalPart)
@@ -646,7 +646,9 @@ const ConfirmationStep = ({
                     </TableCell>
                     <TableCell className="w-[130px] shrink-0 flex items-center">
                       <span className="text-xs text-slate-500 tabular-nums truncate">
-                        {row.data ? format(new Date(row.data.date), 'dd MMM, yyyy') : '-'}
+                        {row.data?.date && !isNaN(new Date(row.data.date).getTime()) 
+                          ? format(new Date(row.data.date), 'dd MMM, yyyy') 
+                          : '-'}
                       </span>
                     </TableCell>
                     <TableCell className="flex-1 shrink-0 flex items-center overflow-hidden px-2">

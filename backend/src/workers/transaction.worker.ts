@@ -54,8 +54,10 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 
       const transactionsToInsert = chunk
         .map((tx) => {
-          const parsedDate = tx.date ? new Date(tx.date) : new Date()
-          // Kiểm tra Invalid Date để tránh làm bẩn DB
+          // Reject rows without a date or with an invalid date
+          if (!tx.date) return null
+          
+          const parsedDate = new Date(tx.date)
           if (isNaN(parsedDate.getTime())) return null
 
           return {
