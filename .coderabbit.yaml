@@ -28,9 +28,10 @@ reviews:
         5. Verify middleware logic and logging (Winston) accuracy.
 
   path_filters:
-    - "**/node_modules/**"
-    - "**/dist/**"
-    - "**/public/**"
-    - "**/package-lock.json"
-    - "**/yarn.lock"
-    - "**/pnpm-lock.yaml"
+    - "**/*"
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/public/**"
+    - "!**/package-lock.json"
+    - "!**/yarn.lock"
+    - "!**/pnpm-lock.yaml"
