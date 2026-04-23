@@ -62,9 +62,13 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
           const parsedDate = new Date(tx.date)
           if (isNaN(parsedDate.getTime())) return null
 
+          const cleanUserId = typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId
+
           return {
             ...tx,
-            userId: new mongoose.Types.ObjectId(userId),
+            userId: cleanUserId,
             date: parsedDate,
             recurringSourceId: null
           }

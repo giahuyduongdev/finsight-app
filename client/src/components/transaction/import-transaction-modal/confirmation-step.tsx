@@ -154,7 +154,17 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
     e.preventDefault()
     
     // Validate date to prevent RangeError
-    const dateObj = new Date(dateStr)
+    let dateObj = new Date(dateStr)
+    
+    // Handle YYYY-MM-DD in local time to match initial mapping logic and prevent UTC day-shift
+    const dateMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+    if (dateMatch) {
+      const y = parseInt(dateMatch[1])
+      const m = parseInt(dateMatch[2])
+      const d = parseInt(dateMatch[3])
+      dateObj = new Date(y, m - 1, d)
+    }
+
     if (isNaN(dateObj.getTime())) {
       toast.error('Transaction missing valid date', {
         description: 'Please select or enter a valid date format.'

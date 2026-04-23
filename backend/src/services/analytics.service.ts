@@ -20,7 +20,9 @@ export const summaryAnalyticsService = async (
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
-  const cacheKey = `analytics:summary:${userId}:${rangeValue}:${from?.getTime() ?? 'all'}:${to?.getTime() ?? 'all'}:${preferredCurrency}`
+  const fromKey = from ? new Date(from).setHours(0, 0, 0, 0) : 'all'
+  const toKey = to ? new Date(to).setHours(0, 0, 0, 0) : 'all'
+  const cacheKey = `analytics:summary:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
