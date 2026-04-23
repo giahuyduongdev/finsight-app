@@ -38,7 +38,9 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 
   const { transactions } = batchDoc
   const BATCH_SIZE = 150
+  let totalProcessed = 0
   let totalInserted = 0
+  let rejectedCount = 0
 
   // Lấy io instance để emit progress
   let io: ReturnType<typeof getIO> | null = null
@@ -69,29 +71,39 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
         })
         .filter((tx): tx is any => tx !== null)
 
-      const result = await TransactionModel.insertMany(transactionsToInsert, {
-        ordered: false
-      })
-      totalInserted += result.length
+      let insertedInThisBatch = 0
+      if (transactionsToInsert.length > 0) {
+        const result = await TransactionModel.insertMany(transactionsToInsert, {
+          ordered: false
+        })
+        insertedInThisBatch = result.length
+      }
 
-      const progress = Math.round((totalInserted / transactions.length) * 100)
+      totalInserted += insertedInThisBatch
+      totalProcessed += chunk.length
+      rejectedCount += (chunk.length - transactionsToInsert.length)
+
+      const progress = Math.round((totalProcessed / transactions.length) * 100)
       await job.updateProgress(progress)
 
       // Emit progress qua Socket.IO
       io?.to(userId.toString()).emit('bulk-import:progress', {
         progress,
+        totalProcessed,
         totalInserted,
+        rejectedCount,
         total: transactions.length
       })
 
       logger.info(
-        `📦 [Worker] Batch ${Math.ceil((i + 1) / BATCH_SIZE)} done: ${totalInserted}/${transactions.length}`
+        `📦 [Worker] Batch ${Math.ceil((i + 1) / BATCH_SIZE)}: Processed ${totalProcessed}/${transactions.length} (Inserted: ${totalInserted}, Rejected: ${rejectedCount})`
       )
     }
 
     await importBatchModel.findByIdAndUpdate(importBatchId, {
       status: 'COMPLETED',
-      processedCount: totalInserted,
+      processedCount: totalProcessed,
+      rejectedCount: rejectedCount,
       $unset: { transactions: 1 }
     })
     logger.info(`🗑️ [Worker] Cleaned up import batch: ${importBatchId}`)
@@ -105,14 +117,17 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     logger.info(`📣 [Worker] Emitting bulk-import:completed to room: ${room}`)
     io?.to(room).emit('bulk-import:completed', {
       totalInserted,
-      message: `Successfully imported ${totalInserted} transactions`
+      rejectedCount,
+      totalProcessed,
+      message: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`
     })
 
-    return { insertedCount: totalInserted, success: true }
+    return { insertedCount: totalInserted, rejectedCount, success: true }
   } catch (error) {
     await importBatchModel.findByIdAndUpdate(importBatchId, {
       status: 'FAILED',
-      processedCount: totalInserted
+      processedCount: totalProcessed,
+      rejectedCount: rejectedCount
     })
 
     // Emit failed

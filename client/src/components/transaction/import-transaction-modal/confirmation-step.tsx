@@ -229,7 +229,17 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
               </label>
               <Select 
                 value={formData.currency || CURRENCY_ENUM.USD}
-                onValueChange={(val) => setFormData(prev => ({ ...prev, currency: val }))}
+                onValueChange={(val) => {
+                  const isZeroDecimal = ZERO_DECIMAL_CURRENCIES.includes(val || 'USD')
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    currency: val,
+                    amount: isZeroDecimal ? Math.round(prev.amount) : prev.amount 
+                  }))
+                  if (isZeroDecimal) {
+                    setDisplayAmount(prev => Math.round(Number(prev || 0)).toString())
+                  }
+                }}
               >
                 <SelectTrigger 
                   aria-labelledby={`currency-label-${rowId}`}
@@ -383,8 +393,10 @@ const ConfirmationStep = ({
           // Handle YYYY-MM-DD in local time to avoid UTC day-shift
           const dateMatch = rawValue.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
           if (dateMatch) {
-            const [_, y, m, d] = dateMatch
-            transaction.date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
+            const y = parseInt(dateMatch[1])
+            const m = parseInt(dateMatch[2])
+            const d = parseInt(dateMatch[3])
+            transaction.date = new Date(y, m - 1, d).toISOString()
           } else {
             transaction.date = new Date(rawValue)
           }
@@ -610,20 +622,20 @@ const ConfirmationStep = ({
           ref={parentRef}
           className="h-[450px] overflow-auto scrollbar-thin scrollbar-thumb-gray-200"
         >
-          <Table className="table-fixed w-full border-collapse">
-            <TableHeader className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b">
-              <TableRow className="hover:bg-transparent flex w-full h-10 px-4">
-                <TableHead className="w-10 shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">#</TableHead>
-                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Date</TableHead>
-                <TableHead className="flex-1 shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider px-2">Title</TableHead>
-                <TableHead className="w-[120px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider pr-4">Amount</TableHead>
-                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Category</TableHead>
-                <TableHead className="w-[80px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Type</TableHead>
-                <TableHead className="w-[110px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Status</TableHead>
-                <TableHead className="w-[80px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider">Actions</TableHead>
+          <Table className="table-fixed w-full border-collapse" role="grid">
+            <TableHeader className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b" role="rowgroup">
+              <TableRow className="hover:bg-transparent flex w-full h-10 px-4" role="row">
+                <TableHead className="w-10 shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">#</TableHead>
+                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Date</TableHead>
+                <TableHead className="flex-1 shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider px-2" role="columnheader">Title</TableHead>
+                <TableHead className="w-[120px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider pr-4" role="columnheader">Amount</TableHead>
+                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Category</TableHead>
+                <TableHead className="w-[80px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Type</TableHead>
+                <TableHead className="w-[110px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Status</TableHead>
+                <TableHead className="w-[80px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+            <TableBody style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }} role="rowgroup">
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const row = processedRows[virtualRow.index]
                 if (!row) return null
@@ -632,6 +644,7 @@ const ConfirmationStep = ({
                   <TableRow
                     key={virtualRow.key}
                     data-index={virtualRow.index}
+                    role="row"
                     className={cn(
                       "absolute top-0 left-0 w-full transition-colors border-b last:border-0 flex h-12 items-center px-4",
                       !row.isValid && "bg-red-50/30 hover:bg-red-100/30"
@@ -641,17 +654,17 @@ const ConfirmationStep = ({
                       transform: `translateY(${virtualRow.start}px)`
                     }}
                   >
-                    <TableCell className="w-10 shrink-0 flex items-center justify-center px-0">
+                    <TableCell className="w-10 shrink-0 flex items-center justify-center px-0" role="gridcell">
                       <span className="text-[10px] font-bold text-slate-400 tabular-nums">{virtualRow.index + 1}</span>
                     </TableCell>
-                    <TableCell className="w-[130px] shrink-0 flex items-center">
+                    <TableCell className="w-[130px] shrink-0 flex items-center" role="gridcell">
                       <span className="text-xs text-slate-500 tabular-nums truncate">
                         {row.data?.date && !isNaN(new Date(row.data.date).getTime()) 
                           ? format(new Date(row.data.date), 'dd MMM, yyyy') 
                           : '-'}
                       </span>
                     </TableCell>
-                    <TableCell className="flex-1 shrink-0 flex items-center overflow-hidden px-2">
+                    <TableCell className="flex-1 shrink-0 flex items-center overflow-hidden px-2" role="gridcell">
                       <span className="text-sm font-medium truncate text-slate-700 dark:text-slate-200" title={row.data?.title}>
                         {row.data?.title || '-'}
                       </span>
@@ -659,7 +672,7 @@ const ConfirmationStep = ({
                     <TableCell className={cn(
                       "w-[120px] shrink-0 flex items-center justify-end pr-4 font-bold tabular-nums text-[13px]",
                       row.data?.type === 'INCOME' ? "text-emerald-600" : "text-rose-600"
-                    )}>
+                    )} role="gridcell">
                       <span className="truncate">
                         {row.data && (row.data.type === 'INCOME' ? '+ ' : '- ')}
                         {row.data && formatCurrency(row.data.amount, { 
@@ -668,12 +681,12 @@ const ConfirmationStep = ({
                         })}
                       </span>
                     </TableCell>
-                    <TableCell className="w-[130px] shrink-0 flex items-center pr-2">
+                    <TableCell className="w-[130px] shrink-0 flex items-center pr-2" role="gridcell">
                        <Badge variant="secondary" className="text-[10px] font-medium px-2 py-0 truncate max-w-full">
                          {row.data?.category}
                        </Badge>
                     </TableCell>
-                    <TableCell className="w-[80px] shrink-0 flex items-center justify-center">
+                    <TableCell className="w-[80px] shrink-0 flex items-center justify-center" role="gridcell">
                       <span className={cn(
                         "px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight uppercase",
                         row.data?.type === 'INCOME' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
@@ -681,7 +694,7 @@ const ConfirmationStep = ({
                         {row.data?.type}
                       </span>
                     </TableCell>
-                    <TableCell className="w-[110px] shrink-0 flex items-center justify-center px-1">
+                    <TableCell className="w-[110px] shrink-0 flex items-center justify-center px-1" role="gridcell">
                       {!row.isValid ? (
                           <div className="group relative inline-block focus-within:z-50">
                             <Badge 
@@ -695,7 +708,7 @@ const ConfirmationStep = ({
                             <div 
                               id={`err-${row.id}`}
                               role="tooltip"
-                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all z-50 pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
+                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all z-[100] pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
                             >
                                <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
                                  <AlertCircle className="w-4 h-4" aria-hidden="true" />
@@ -716,7 +729,7 @@ const ConfirmationStep = ({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="w-[80px] shrink-0 flex items-center justify-end gap-1 px-0">
+                    <TableCell className="w-[80px] shrink-0 flex items-center justify-end gap-1 px-0" role="gridcell">
                         {row.data && (
                           <Button 
                             variant="ghost" 

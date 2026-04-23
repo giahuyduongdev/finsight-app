@@ -20,7 +20,7 @@ export const summaryAnalyticsService = async (
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
-  const cacheKey = `analytics:summary:${userId}:${rangeValue}:${from?.getTime() || 'all'}:${to?.getTime() || 'all'}:${preferredCurrency}`
+  const cacheKey = `analytics:summary:${userId}:${rangeValue}:${from?.getTime() ?? 'all'}:${to?.getTime() ?? 'all'}:${preferredCurrency}`
 
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
@@ -202,7 +202,7 @@ export const chartAnalyticsService = async (
   const { from, to, value: rangeValue } = range
 
   // Check Redis cache trước
-  const cacheKey = `analytics:chart:${userId}:${rangeValue}:${from?.getTime() || 'all'}:${to?.getTime() || 'all'}:${preferredCurrency}`
+  const cacheKey = `analytics:chart:${userId}:${rangeValue}:${from?.getTime() ?? 'all'}:${to?.getTime() ?? 'all'}:${preferredCurrency}`
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
 
@@ -337,7 +337,7 @@ export const expensePieChartBreakdownService = async (
   const { from, to, value: rangeValue } = range
 
   // Check Redis cache trước
-  const cacheKey = `analytics:pie:${userId}:${rangeValue}:${from?.getTime() || 'all'}:${to?.getTime() || 'all'}:${preferredCurrency}`
+  const cacheKey = `analytics:pie:${userId}:${rangeValue}:${from?.getTime() ?? 'all'}:${to?.getTime() ?? 'all'}:${preferredCurrency}`
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
 

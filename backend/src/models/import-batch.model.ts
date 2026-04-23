@@ -7,6 +7,7 @@ export interface IImportBatch extends Document {
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
   totalItems: number
   processedCount: number
+  rejectedCount: number
   createdAt: Date
   updatedAt: Date
 }
@@ -22,7 +23,8 @@ const ImportBatchSchema = new Schema<IImportBatch>(
       default: 'PENDING'
     },
     totalItems: { type: Number, required: true },
-    processedCount: { type: Number, default: 0 }
+    processedCount: { type: Number, default: 0 },
+    rejectedCount: { type: Number, default: 0 }
   },
   {
     // timestamps: true tạo createdAt & updatedAt tự động
