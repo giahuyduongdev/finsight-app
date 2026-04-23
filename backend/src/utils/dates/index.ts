@@ -19,7 +19,8 @@ export const getDateRange = (
   customTo?: Date,
   timezone: string = 'UTC' // Thêm vào
 ) => {
-  if (customFrom && customTo) {
+  // Chỉ ưu tiên custom range NẾU preset là CUSTOM hoặc không có preset
+  if ((!preset || preset === DateRangeEnum.CUSTOM) && customFrom && customTo) {
     return {
       from: customFrom,
       to: customTo,

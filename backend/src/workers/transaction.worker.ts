@@ -54,7 +54,9 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 
       const transactionsToInsert = chunk.map((tx) => ({
         ...tx,
-        userId: new mongoose.Types.ObjectId(userId)
+        userId: new mongoose.Types.ObjectId(userId),
+        date: tx.date ? new Date(tx.date) : new Date(), // Thêm check để tránh lỗi compile TS2769
+        recurringSourceId: null   // Đảm bảo match filter recurringSourceId: null của bảng
       }))
 
       const result = await TransactionModel.insertMany(transactionsToInsert, {
@@ -166,7 +168,7 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
             paymentMethod: tx.paymentMethod,
             status: tx.status || TransactionStatusEnum.COMPLETED,
             isRecurring: false,
-            parentId: tx._id
+            recurringSourceId: tx._id // Fix: dùng đúng trường recurringSourceId thay vì parentId
           }
         ],
         { session }

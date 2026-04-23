@@ -122,7 +122,9 @@ const transactionSchema = z.object({
     ])
     .transform((val) => (val === '' ? undefined : val))
     .optional(),
-  currency: z.string().optional()
+  currency: z.string().refine((val) => Object.values(CURRENCY_ENUM).includes(val as any), {
+    message: `Invalid currency. Supported: ${Object.values(CURRENCY_ENUM).join(', ')}`
+  }).optional()
 })
 
 type ParsedRow = {
@@ -160,7 +162,12 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
       return
     }
 
-    onUpdate(rowId, { ...formData, date: dateObj.toISOString() })
+    let finalAmount = formData.amount
+    if (ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD')) {
+      finalAmount = Math.round(finalAmount)
+    }
+
+    onUpdate(rowId, { ...formData, amount: finalAmount, date: dateObj.toISOString() })
     onClose()
   }
 
@@ -379,12 +386,26 @@ const ConfirmationStep = ({
           // Split by the detected decimal separator
           const parts = cleanValue.split(separator)
           if (parts.length > 2) {
-             // More than one unique separator found in a weird way, fallback to simple clean
-             transaction[transactionField] = Number(cleanValue.replace(/[^0-9.-]+/g,""))
-          } else {
+             // Multiple separators of the same type: e.g. 1.234.567 -> grouping
+             transaction[transactionField] = Number(cleanValue.replace(new RegExp(`\\${separator}`, 'g'), ''))
+          } else if (parts.length === 2) {
              const integerPart = parts[0].replace(/[^1234567890-]/g, '')
-             const decimalPart = parts[1] ? parts[1].replace(/[^1234567890]/g, '') : ''
-             transaction[transactionField] = Number(integerPart + '.' + (decimalPart || '0'))
+             const decimalPart = parts[1].replace(/[^1234567890]/g, '')
+             
+             // Smart Heuristic: If it's a single separator followed by exactly 3 digits, 
+             // it might be a thousands separator (grouping) or a 3-digit decimal.
+             // We treat it as grouping ONLY IF:
+             // 1. It's a zero-decimal currency (like VND/JPY) OR
+             // 2. The separator is highly likely to be grouping (this is a heuristic)
+             const isProbablyGrouping = decimalPart.length === 3 && 
+               (ZERO_DECIMAL_CURRENCIES.includes(transaction.currency || 'USD') || separator === (lastPoint > lastComma ? ',' : '.'))
+
+             if (isProbablyGrouping && !cleanValue.includes(separator === '.' ? ',' : '.')) {
+                // If only one type of separator exists and it looks like grouping
+                transaction[transactionField] = Number(integerPart + decimalPart)
+             } else {
+                transaction[transactionField] = Number(integerPart + '.' + (decimalPart || '0'))
+             }
           }
         } else if (transactionField === 'date') {
           transaction[transactionField] = new Date(value)
@@ -641,7 +662,7 @@ const ConfirmationStep = ({
                           <div className="group relative inline-block">
                             <Badge 
                              variant="destructive" 
-                             className="h-6 text-[10px] cursor-help px-2 animate-pulse"
+                             className="h-6 text-[10px] cursor-help px-2 animate-pulse focus:ring-2 focus:ring-red-500 outline-none"
                              tabIndex={0}
                              aria-describedby={`err-${row.id}`}
                             >
@@ -678,6 +699,7 @@ const ConfirmationStep = ({
                             size="icon" 
                             className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50/50"
                             onClick={() => setEditingRow(row)}
+                            aria-label="Edit Transaction"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </Button>
@@ -687,6 +709,7 @@ const ConfirmationStep = ({
                          size="icon" 
                          className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50/50"
                          onClick={() => handleDeleteRow(row.id)}
+                         aria-label="Delete Transaction"
                        >
                          <Trash2 className="w-3.5 h-3.5" />
                        </Button>
