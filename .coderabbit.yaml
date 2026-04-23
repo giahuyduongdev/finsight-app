@@ -12,38 +12,19 @@ reviews:
       - "master"
   
   path_instructions:
-    - path: "**/*"
+    - path: "client/**/*"
       instructions: |
-        You are a Senior Full-stack Developer.
-        ### FRONTEND (React/Vite):
+        You are a Senior Frontend Developer (React/Vite).
         1. Ensure React components comply with Accessibility (A11y) standards.
         2. Verify Tailwind CSS usage is efficient and follows best practices.
         3. Closely check Z-index and Focus Trap issues in Modals/Dialogs (Radix UI).
-        ### BACKEND (Express/Node.js):
-        4. Audit security implementations (JWT, Passport).
-        5. Optimize Mongoose (MongoDB) queries to prevent N+1 issues or missing indexes.
-        6. Monitor BullMQ/Redis job handling to ensure system reliability and throughput.
-        7. Optimize Google Generative AI (Gemini) API calls for cost and performance.
-        8. Verify middleware logic and logging (Winston) accuracy.
+    - path: "backend/**/*"
+      instructions: |
+        You are a Senior Backend Developer (Node.js/Express).
+        1. Audit security implementations (JWT, Passport).
+        2. Optimize Mongoose (MongoDB) queries to prevent N+1 issues or missing indexes.
+        3. Monitor BullMQ/Redis job handling to ensure system reliability and throughput.
+        4. Optimize Google Generative AI (Gemini) API calls for cost and performance.
+        5. Verify middleware logic and logging (Winston) accuracy.
 
   path_filters:
-    - "!**/node_modules/**"
-    - "!**/dist/**"
-    - "!public/**"
-    - "!package-lock.json"
-    - "!yarn.lock"
-    - "!pnpm-lock.yaml"
-
-chat:
-  auto_reply: true
-
-# Project Knowledge Base (Full-stack context)
-knowledge_base:
-  linked_repositories:
-    - repository: "giahuyduongdev/finsight-app"
-      instructions: |
-        This is the Finsight project - a comprehensive personal finance management platform.
-        - Frontend Stack: React, Vite, Tailwind CSS, Radix UI (Shadcn), TanStack Query/Table.
-        - Backend Stack: Node.js (TypeScript), Express.js, MongoDB (Mongoose), Redis (BullMQ).
-        - Integrations: Google Gemini AI, Cloudinary, Resend, Socket.io.
-        - Naming Conventions: camelCase for variables/functions, PascalCase for Components.

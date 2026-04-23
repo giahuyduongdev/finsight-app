@@ -17,17 +17,16 @@ export const summaryAnalyticsService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD'
 ) => {
-  // Tạo cache key unique theo user + preset + currency
-    const cacheKey = `analytics:summary:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
+  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
+  const { from, to, value: rangeValue } = range
+
+  const cacheKey = `analytics:summary:${userId}:${rangeValue}:${from?.getTime() || 'all'}:${to?.getTime() || 'all'}:${preferredCurrency}`
 
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
   if (cached) {
     return JSON.parse(cached)
   }
-
-  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
-  const { from, to, value: rangeValue } = range
 
   const currentPeriodPipeline: PipelineStage[] = [
     {
@@ -199,13 +198,13 @@ export const chartAnalyticsService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD' //
 ) => {
-  // Check Redis cache trước
-  const cacheKey = `analytics:chart:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
-  const cached = await redis.get(cacheKey)
-  if (cached) return JSON.parse(cached)
-
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
+
+  // Check Redis cache trước
+  const cacheKey = `analytics:chart:${userId}:${rangeValue}:${from?.getTime() || 'all'}:${to?.getTime() || 'all'}:${preferredCurrency}`
+  const cached = await redis.get(cacheKey)
+  if (cached) return JSON.parse(cached)
 
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
@@ -334,13 +333,13 @@ export const expensePieChartBreakdownService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD' //
 ) => {
-  // Check Redis cache trước
-  const cacheKey = `analytics:pie:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
-  const cached = await redis.get(cacheKey)
-  if (cached) return JSON.parse(cached)
-
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
+
+  // Check Redis cache trước
+  const cacheKey = `analytics:pie:${userId}:${rangeValue}:${from?.getTime() || 'all'}:${to?.getTime() || 'all'}:${preferredCurrency}`
+  const cached = await redis.get(cacheKey)
+  if (cached) return JSON.parse(cached)
 
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),

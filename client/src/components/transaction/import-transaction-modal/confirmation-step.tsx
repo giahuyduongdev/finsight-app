@@ -373,42 +373,21 @@ const ConfirmationStep = ({
       const rowData = rowWrapper.data
       const transaction: Record<string, any> = {}
 
+      // Pass 1: Map non-amount fields (to get currency context first)
       Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
         const value = rowData[csvColumn]
-        if (transactionField === 'Skip' || value === undefined) return
+        if (transactionField === 'Skip' || transactionField === 'amount' || value === undefined) return
 
-        if (transactionField === 'amount') {
-          const cleanValue = String(value).trim()
-          const lastPoint = cleanValue.lastIndexOf('.')
-          const lastComma = cleanValue.lastIndexOf(',')
-          const separator = lastPoint > lastComma ? '.' : ','
-          
-          // Split by the detected decimal separator
-          const parts = cleanValue.split(separator)
-          if (parts.length > 2) {
-             // Multiple separators of the same type: e.g. 1.234.567 -> grouping
-             transaction[transactionField] = Number(cleanValue.replace(new RegExp(`\\${separator}`, 'g'), ''))
-          } else if (parts.length === 2) {
-             const integerPart = parts[0].replace(/[^1234567890-]/g, '')
-             const decimalPart = parts[1].replace(/[^1234567890]/g, '')
-             
-             // Smart Heuristic: If it's a single separator followed by exactly 3 digits, 
-             // it might be a thousands separator (grouping) or a 3-digit decimal.
-             // We treat it as grouping ONLY IF:
-             // 1. It's a zero-decimal currency (like VND/JPY) OR
-             // 2. The separator is highly likely to be grouping (this is a heuristic)
-             const isProbablyGrouping = decimalPart.length === 3 && 
-               (ZERO_DECIMAL_CURRENCIES.includes(transaction.currency || 'USD') || separator === (lastPoint > lastComma ? ',' : '.'))
-
-             if (isProbablyGrouping && !cleanValue.includes(separator === '.' ? ',' : '.')) {
-                // If only one type of separator exists and it looks like grouping
-                transaction[transactionField] = Number(integerPart + decimalPart)
-             } else {
-                transaction[transactionField] = Number(integerPart + '.' + (decimalPart || '0'))
-             }
+        if (transactionField === 'date') {
+          const rawValue = String(value).trim()
+          // Handle YYYY-MM-DD in local time to avoid UTC day-shift
+          const dateMatch = rawValue.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+          if (dateMatch) {
+            const [_, y, m, d] = dateMatch
+            transaction.date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
+          } else {
+            transaction.date = new Date(rawValue)
           }
-        } else if (transactionField === 'date') {
-          transaction[transactionField] = new Date(value)
         } else if (transactionField === 'type') {
           const val = String(value).toUpperCase().trim()
           transaction[transactionField] = val.includes('INC') ? 'INCOME' : val.includes('EXP') ? 'EXPENSE' : val
@@ -418,6 +397,49 @@ const ConfirmationStep = ({
           transaction[transactionField] = value
         }
       })
+
+      // Pass 2: Map and parse amount with currency context
+      const amountMapping = Object.entries(mappings).find(([_, field]) => field === 'amount')
+      if (amountMapping) {
+        const [csvColumn] = amountMapping
+        const value = rowData[csvColumn]
+        const cleanValue = String(value).trim().replace(/[^\d.,-]/g, '')
+        
+        if (cleanValue) {
+          const lastPoint = cleanValue.lastIndexOf('.')
+          const lastComma = cleanValue.lastIndexOf(',')
+          
+          // Heuristic for separators
+          if (lastPoint === -1 && lastComma === -1) {
+             // Plain integer
+             transaction['amount'] = Number(cleanValue)
+          } else {
+             const separator = lastPoint > lastComma ? '.' : ','
+             const parts = cleanValue.split(separator)
+             
+             if (parts.length > 2) {
+                // Multiple separators: e.g. 1,234,567 -> grouping
+                transaction['amount'] = Number(cleanValue.replace(new RegExp(`\\${separator}`, 'g'), ''))
+             } else if (parts.length === 2) {
+                const integerPart = parts[0].replace(/[^\d-]/g, '')
+                const decimalPart = parts[1].replace(/[^\d]/g, '')
+                
+                // Smart Heuristic for single separator
+                const isProbablyGrouping = decimalPart.length === 3 && 
+                  (ZERO_DECIMAL_CURRENCIES.includes(transaction.currency || 'USD') || separator === (lastPoint > lastComma ? ',' : '.'))
+
+                if (isProbablyGrouping && !cleanValue.includes(separator === '.' ? ',' : '.')) {
+                  transaction['amount'] = Number(integerPart + decimalPart)
+                } else {
+                  transaction['amount'] = Number(integerPart + '.' + (decimalPart || '0'))
+                }
+             } else {
+                // Fallback for single separator at end or start
+                transaction['amount'] = Number(cleanValue.replace(/[,.]/g, '.'))
+             }
+          }
+        }
+      }
 
       // Apply overrides (Prioritize user edits)
       const override = overrides[rowId]
@@ -659,7 +681,7 @@ const ConfirmationStep = ({
                     </TableCell>
                     <TableCell className="w-[110px] shrink-0 flex items-center justify-center px-1">
                       {!row.isValid ? (
-                          <div className="group relative inline-block">
+                          <div className="group relative inline-block focus-within:z-50">
                             <Badge 
                              variant="destructive" 
                              className="h-6 text-[10px] cursor-help px-2 animate-pulse focus:ring-2 focus:ring-red-500 outline-none"
@@ -671,7 +693,7 @@ const ConfirmationStep = ({
                             <div 
                               id={`err-${row.id}`}
                               role="tooltip"
-                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-all z-50 pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
+                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all z-50 pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
                             >
                                <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
                                  <AlertCircle className="w-4 h-4" aria-hidden="true" />

@@ -52,12 +52,20 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
       const chunk = transactions.slice(i, i + BATCH_SIZE)
 
-      const transactionsToInsert = chunk.map((tx) => ({
-        ...tx,
-        userId: new mongoose.Types.ObjectId(userId),
-        date: tx.date ? new Date(tx.date) : new Date(), // Thêm check để tránh lỗi compile TS2769
-        recurringSourceId: null   // Đảm bảo match filter recurringSourceId: null của bảng
-      }))
+      const transactionsToInsert = chunk
+        .map((tx) => {
+          const parsedDate = tx.date ? new Date(tx.date) : new Date()
+          // Kiểm tra Invalid Date để tránh làm bẩn DB
+          if (isNaN(parsedDate.getTime())) return null
+
+          return {
+            ...tx,
+            userId: new mongoose.Types.ObjectId(userId),
+            date: parsedDate,
+            recurringSourceId: null
+          }
+        })
+        .filter((tx): tx is any => tx !== null)
 
       const result = await TransactionModel.insertMany(transactionsToInsert, {
         ordered: false
