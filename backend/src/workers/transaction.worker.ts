@@ -1,6 +1,5 @@
 import { Worker, Job } from 'bullmq'
 import mongoose from 'mongoose'
-import { format } from 'date-fns'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
 import {
@@ -74,7 +73,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
             recurringSourceId: null
           }
         })
-        .filter((tx): tx is any => tx !== null)
+        .filter((tx) => tx !== null)
 
       let insertedInThisBatch = 0
       if (transactionsToInsert.length > 0) {
@@ -83,17 +82,19 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
             ordered: false
           })
           insertedInThisBatch = result.length
-        } catch (error: any) {
-          // Với ordered: false, một số doc có thể vẫn được chèn thành công
-          // Chúng ta lấy số lượng đã chèn từ result của error
-          insertedInThisBatch = error.result?.nInserted ?? 0
-          logger.warn(`⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${transactionsToInsert.length - insertedInThisBatch} rejected by DB`)
+        } catch (error) {
+          const err = error as { insertedCount?: number }
+          // MongoDB driver v4+ uses insertedCount on BulkWriteError
+          insertedInThisBatch = err.insertedCount ?? 0
+          const dbRejections = transactionsToInsert.length - insertedInThisBatch
+          logger.warn(`⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`)
         }
       }
 
+      const validationRejections = chunk.length - transactionsToInsert.length
       totalInserted += insertedInThisBatch
       totalProcessed += chunk.length
-      rejectedCount += (chunk.length - insertedInThisBatch)
+      rejectedCount += (validationRejections + (transactionsToInsert.length - insertedInThisBatch))
 
       const progress = Math.round((totalProcessed / transactions.length) * 100)
       await job.updateProgress(progress)

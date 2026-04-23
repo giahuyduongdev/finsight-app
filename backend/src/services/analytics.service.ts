@@ -25,6 +25,10 @@ export const summaryAnalyticsService = async (
   const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:summary:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
+  // Normalize query dates for Presets to match cache key behavior
+  const queryFrom = isCustomRange ? from : from ? new Date(new Date(from).setHours(0, 0, 0, 0)) : from
+  const queryTo = isCustomRange ? to : to ? new Date(new Date(to).setHours(23, 59, 59, 999)) : to
+
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
   if (cached) {
@@ -36,7 +40,7 @@ export const summaryAnalyticsService = async (
       $match: {
         userId: new mongoose.Types.ObjectId(userId),
         status: TransactionStatusEnum.COMPLETED,
-        ...(from && to && { date: { $gte: from, $lte: to } })
+        ...(queryFrom && queryTo && { date: { $gte: queryFrom, $lte: queryTo } })
       }
     },
     {
@@ -85,7 +89,7 @@ export const summaryAnalyticsService = async (
     totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0
   const expenseRatio = totalIncome > 0 ? (totalExpenses / totalIncome) * 100 : 0
 
-  let percentageChange: any = {
+  let percentageChange: Record<string, unknown> = {
     income: 0,
     expenses: 0,
     balance: 0,
@@ -209,13 +213,17 @@ export const chartAnalyticsService = async (
   const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:chart:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
+  // Normalize query dates for Presets to match cache key behavior
+  const queryFrom = isCustomRange ? from : from ? new Date(new Date(from).setHours(0, 0, 0, 0)) : from
+  const queryTo = isCustomRange ? to : to ? new Date(new Date(to).setHours(23, 59, 59, 999)) : to
+
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
 
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
     status: TransactionStatusEnum.COMPLETED,
-    ...(from && to && { date: { $gte: from, $lte: to } })
+    ...(queryFrom && queryTo && { date: { $gte: queryFrom, $lte: queryTo } })
   }
 
   const result = await TransactionModel.aggregate([
@@ -347,6 +355,10 @@ export const expensePieChartBreakdownService = async (
   const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:pie:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
+  // Normalize query dates for Presets to match cache key behavior
+  const queryFrom = isCustomRange ? from : from ? new Date(new Date(from).setHours(0, 0, 0, 0)) : from
+  const queryTo = isCustomRange ? to : to ? new Date(new Date(to).setHours(23, 59, 59, 999)) : to
+
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
 
@@ -354,7 +366,7 @@ export const expensePieChartBreakdownService = async (
     userId: new mongoose.Types.ObjectId(userId),
     type: TransactionTypeEnum.EXPENSE,
     status: TransactionStatusEnum.COMPLETED,
-    ...(from && to && { date: { $gte: from, $lte: to } })
+    ...(queryFrom && queryTo && { date: { $gte: queryFrom, $lte: queryTo } })
   }
 
   // Group theo category + currency
