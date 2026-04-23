@@ -1,23 +1,17 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { z } from 'zod'
 import { ChevronLeft, FileCheck, AlertCircle, CheckCircle2, Trash2, Edit2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatCurrency, ZERO_DECIMAL_CURRENCIES } from '@/lib/format-currency'
+import { formatCurrency } from '@/lib/format-currency'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  DialogDescription
 } from '@/components/ui/dialog'
-import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM, CURRENCY_ENUM, CURRENCY_OPTIONS, CURRENCY_SYMBOLS, CurrencyType } from '@/constant'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import CurrencyInputField from '@/components/ui/currency-input'
+import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM, CURRENCY_ENUM, MAX_IMPORT_LIMIT } from '@/constant'
 import { toast } from 'sonner'
-import { MAX_IMPORT_LIMIT } from '@/constant'
-import { BulkTransactionType } from '@/features/transaction/transationType'
 import { useBulkImportTransactionMutation } from '@/features/transaction/transactionAPI'
+import { BulkTransactionType } from '@/features/transaction/transationType'
 import { useDispatch } from 'react-redux'
 import { apiClient } from '@/app/api-client'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -32,34 +26,11 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { parseAmount } from '@/lib/amount-parser'
+import { EditForm } from './edit-form'
+import { ParsedTransaction, ParsedRow, CsvRowWrapper, ConfirmationStepProps } from './types'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type CsvRowWrapper = {
-  id: string
-  data: Record<string, string | undefined>
-}
-
-type ConfirmationStepProps = {
-  file: File | null
-  mappings: Record<string, string>
-  csvData: Record<string, string | undefined>[]
-  onComplete: () => void
-  onBack: () => void
-}
-
-type ParsedTransaction = {
-  title: string
-  amount: number
-  date: string
-  type: 'INCOME' | 'EXPENSE'
-  category: string
-  paymentMethod?: string
-  status?: string
-  currency?: string
-  isRecurring: boolean
-  description: string
-}
+// Types are now imported from ./types.ts
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 const transactionSchema = z.object({
@@ -129,248 +100,11 @@ const transactionSchema = z.object({
   }).optional()
 })
 
-type ParsedRow = {
-  id: string
-  data: ParsedTransaction | null
-  error?: string
-  isValid: boolean
-}
+// ParsedRow is now imported from ./types.ts
 
 // ─── Sub-component: Edit Form ───────────────────────────────────────────────
 
-const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
-  transaction: ParsedTransaction
-  index: string
-  onUpdate: (id: string, data: ParsedTransaction) => void
-  onClose: () => void
-  open: boolean
-}) => {
-  const [formData, setFormData] = useState<ParsedTransaction>({ ...transaction })
-  const [displayAmount, setDisplayAmount] = useState<string>(String(transaction.amount))
-  const [dateStr, setDateStr] = useState(() => {
-    const d = new Date(transaction.date)
-    if (isNaN(d.getTime())) return ''
-    
-    // Use local calendar parts to avoid UTC day-shift
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${y}-${m}-${day}`
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Validate date to prevent RangeError
-    let dateObj = new Date(dateStr)
-    
-    // Handle YYYY-MM-DD in local time to match initial mapping logic and prevent UTC day-shift
-    const dateMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
-    if (dateMatch) {
-      const y = parseInt(dateMatch[1])
-      const m = parseInt(dateMatch[2])
-      const d = parseInt(dateMatch[3])
-      dateObj = new Date(y, m - 1, d)
-    }
-
-    if (isNaN(dateObj.getTime())) {
-      toast.error('Transaction missing valid date', {
-        description: 'Please select or enter a valid date format.'
-      })
-      return
-    }
-
-    let finalAmount = formData.amount
-    if (ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD')) {
-      finalAmount = Math.round(finalAmount)
-    }
-
-    onUpdate(rowId, { ...formData, amount: finalAmount, date: dateObj.toISOString() })
-    onClose()
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="sm:max-w-[425px] z-[150]">
-        <DialogHeader>
-          <DialogTitle>Edit Transaction</DialogTitle>
-          <DialogDescription>
-            Make changes to your transaction details here.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="space-y-1.5">
-            <label 
-              htmlFor={`title-${rowId}`}
-              className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
-            >
-              Title
-            </label>
-            <Input 
-              id={`title-${rowId}`}
-              value={formData.title}
-              className="h-9 text-sm"
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label 
-                htmlFor={`amount-${rowId}`}
-                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
-              >
-                Amount
-              </label>
-              <CurrencyInputField 
-                id={`amount-${rowId}`}
-                name={`amount-edit-${rowId}`}
-                value={displayAmount}
-                prefix={CURRENCY_SYMBOLS[formData.currency as CurrencyType] || '$'}
-                decimalsLimit={ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD') ? 0 : 2}
-                allowDecimals={!ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD')}
-                className="h-9 text-sm"
-                onValueChange={(val) => {
-                  setDisplayAmount(val || '')
-                  setFormData(prev => ({ ...prev, amount: Number(val || 0) }))
-                }}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label 
-                id={`currency-label-${rowId}`}
-                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
-              >
-                Currency
-              </label>
-              <Select 
-                value={formData.currency || CURRENCY_ENUM.USD}
-                onValueChange={(val) => {
-                  const isZeroDecimal = ZERO_DECIMAL_CURRENCIES.includes(val || 'USD')
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    currency: val,
-                    amount: isZeroDecimal ? Math.round(prev.amount) : prev.amount 
-                  }))
-                  if (isZeroDecimal) {
-                    setDisplayAmount(prev => Math.round(Number(prev || 0)).toString())
-                  }
-                }}
-              >
-                <SelectTrigger 
-                  aria-labelledby={`currency-label-${rowId}`}
-                  className="h-9 text-sm"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-[250px] z-[300]">
-                  {CURRENCY_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                      <span className="font-bold">{opt.value}</span> - {opt.label.split(' - ')[1]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label 
-                id={`type-label-${rowId}`}
-                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
-              >
-                Type
-              </label>
-              <Select 
-                value={formData.type}
-                onValueChange={(val: 'INCOME' | 'EXPENSE') => setFormData(prev => ({ ...prev, type: val }))}
-              >
-                <SelectTrigger 
-                  aria-labelledby={`type-label-${rowId}`}
-                  className="h-9 text-sm"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[300]">
-                  <SelectItem value="INCOME" className="text-emerald-600 font-bold">INCOME</SelectItem>
-                  <SelectItem value="EXPENSE" className="text-rose-600 font-bold">EXPENSE</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label 
-                id={`status-label-${rowId}`}
-                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
-              >
-                Status
-              </label>
-              <Select 
-                value={formData.status || 'COMPLETED'}
-                onValueChange={(val) => setFormData(prev => ({ ...prev, status: val }))}
-              >
-                <SelectTrigger 
-                  aria-labelledby={`status-label-${rowId}`}
-                  className="h-9 text-sm"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[300]">
-                  <SelectItem value="COMPLETED" className="text-emerald-600 font-medium">Completed</SelectItem>
-                  <SelectItem value="PENDING" className="text-orange-500 font-medium">Pending</SelectItem>
-                  <SelectItem value="FAILED" className="text-rose-600 font-medium">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-               <label 
-                 htmlFor={`category-${rowId}`}
-                 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
-               >
-                 Category
-               </label>
-               <Input 
-                 id={`category-${rowId}`}
-                 value={formData.category}
-                 className="h-9 text-sm"
-                 onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-               />
-            </div>
-            <div className="space-y-1.5">
-              <label 
-                htmlFor={`date-${rowId}`}
-                className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider cursor-pointer"
-              >
-                Date
-              </label>
-              <Input 
-                id={`date-${rowId}`}
-                type="date"
-                value={dateStr}
-                className="h-9 text-sm"
-                onChange={(e) => setDateStr(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="pt-4 flex justify-end gap-2 border-t mt-2">
-             <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-               Cancel
-             </Button>
-             <Button type="submit" size="sm" className="px-6 font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
-               Save Changes
-             </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
+// EditForm has been extracted to edit-form.tsx
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -387,9 +121,17 @@ const ConfirmationStep = ({
   const [overrides, setOverrides] = useState<Record<string, Partial<ParsedTransaction>>>({})
   const [editingRow, setEditingRow] = useState<ParsedRow | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const [bulkImportTransaction] = useBulkImportTransactionMutation()
   const dispatch = useDispatch()
+
+  // Lifecycle for safety-net cleanup
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   // Pre-compute mapped and validated transactions
   const { processedRows, validTransactions, totalErrors } = useMemo(() => {
@@ -434,41 +176,8 @@ const ConfirmationStep = ({
       if (amountMapping) {
         const [csvColumn] = amountMapping
         const value = rowData[csvColumn]
-        const cleanValue = String(value).trim().replace(/[^\d.,-]/g, '')
-        
-        if (cleanValue) {
-          const lastPoint = cleanValue.lastIndexOf('.')
-          const lastComma = cleanValue.lastIndexOf(',')
-          
-          // Heuristic for separators
-          if (lastPoint === -1 && lastComma === -1) {
-             // Plain integer
-             transaction['amount'] = Number(cleanValue)
-          } else {
-             const separator = lastPoint > lastComma ? '.' : ','
-             const parts = cleanValue.split(separator)
-             
-             if (parts.length > 2) {
-                // Multiple separators: e.g. 1,234,567 -> grouping
-                transaction['amount'] = Number(cleanValue.replace(new RegExp(`\\${separator}`, 'g'), ''))
-             } else if (parts.length === 2) {
-                const integerPart = parts[0].replace(/[^\d-]/g, '')
-                const decimalPart = parts[1].replace(/[^\d]/g, '')
-                
-                // Smart Heuristic for single separator
-                const isProbablyGrouping = decimalPart.length === 3 && 
-                  (ZERO_DECIMAL_CURRENCIES.includes(transaction.currency || 'USD') || separator === ',')
-
-                if (isProbablyGrouping && !cleanValue.includes(separator === '.' ? ',' : '.')) {
-                  transaction['amount'] = Number(integerPart + decimalPart)
-                } else {
-                  transaction['amount'] = Number(integerPart + '.' + (decimalPart || '0'))
-                }
-             } else {
-                // Fallback for single separator at end or start
-                transaction['amount'] = Number(cleanValue.replace(/[,.]/g, '.'))
-             }
-          }
+        if (value) {
+          transaction['amount'] = parseAmount(value, transaction.currency)
         }
       }
 
@@ -481,16 +190,19 @@ const ConfirmationStep = ({
       try {
         const validated = transactionSchema.parse(transaction)
         const parsed: ParsedTransaction = {
-          ...validated,
+          title: validated.title,
+          amount: validated.amount,
           date:
             validated.date instanceof Date && !isNaN(validated.date.getTime())
               ? validated.date.toISOString()
               : String(validated.date || new Date().toISOString()),
+          type: validated.type as 'INCOME' | 'EXPENSE',
+          category: validated.category,
+          paymentMethod: (validated.paymentMethod as string) || undefined,
+          status: (validated.status as string) || 'COMPLETED',
           isRecurring: false,
           description: (transaction.description as string) || '',
-          currency: (transaction.currency as string) || CURRENCY_ENUM.USD,
-          status: (transaction.status as string) || 'COMPLETED',
-          category: (transaction.category as string) || 'Other'
+          currency: (validated.currency as string) || CURRENCY_ENUM.USD
         }
         rows.push({ id: rowId, data: parsed, isValid: true })
         valid.push(parsed)
@@ -574,7 +286,7 @@ const ConfirmationStep = ({
       })
 
       // Safety net: Invalidate tags after a longer delay (5s) for large imports
-      setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
       }, 5000)
     } catch (error: unknown) {
