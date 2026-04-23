@@ -70,6 +70,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
             ...tx,
             userId: cleanUserId,
             date: parsedDate,
+            status: TransactionStatusEnum.COMPLETED, // Ép trạng thái thành công để tránh bị Pending
             recurringSourceId: null
           }
         })

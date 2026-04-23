@@ -18,6 +18,8 @@ import { toast } from 'sonner'
 import { MAX_IMPORT_LIMIT } from '@/constant'
 import { BulkTransactionType } from '@/features/transaction/transationType'
 import { useBulkImportTransactionMutation } from '@/features/transaction/transactionAPI'
+import { useDispatch } from 'react-redux'
+import { apiClient } from '@/app/api-client'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { format } from 'date-fns'
 import {
@@ -381,6 +383,7 @@ const ConfirmationStep = ({
   const parentRef = useRef<HTMLDivElement>(null)
 
   const [bulkImportTransaction] = useBulkImportTransactionMutation()
+  const dispatch = useDispatch()
 
   // Pre-compute mapped and validated transactions
   const { processedRows, validTransactions, totalErrors } = useMemo(() => {
@@ -556,12 +559,18 @@ const ConfirmationStep = ({
 
       await bulkImportTransaction(payload).unwrap()
 
+      // Close modal immediately and let background handle it
       onComplete()
 
-      toast.info('Import is being processed in the background...', {
+      toast.info('Import processing in background...', {
         id: 'bulk-import',
-        duration: Infinity
+        duration: 3000
       })
+
+      // Safety net: Invalidate tags after a short delay in case socket events are missed
+      setTimeout(() => {
+        dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
+      }, 2000)
     } catch (error: unknown) {
       const err = error as { data?: { message?: string } }
       toast.error(err.data?.message || 'Failed to import transactions')
