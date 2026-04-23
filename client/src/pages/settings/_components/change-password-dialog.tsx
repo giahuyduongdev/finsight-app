@@ -173,8 +173,9 @@ export function ChangePasswordDialog() {
       setSeconds(60)
       setCanResend(false)
       toast.success('Verification code sent to your email')
-    } catch (error: any) {
-      toast.error(error.data?.message || 'Failed to send verification code')
+    } catch (error) {
+      const err = error as { data?: { message?: string } }
+      toast.error(err.data?.message || 'Failed to send verification code')
     }
   }
 
@@ -186,8 +187,9 @@ export function ChangePasswordDialog() {
       // Tự động logout hoặc để user tự logout theo logic BE trả về
       // Ở đây BE trả về "Please login again" và xóa hết refresh token nên user sẽ bị kick
       window.location.reload() 
-    } catch (error: any) {
-      toast.error(error.data?.message || 'Invalid verification code')
+    } catch (error) {
+      const err = error as { data?: { message?: string } }
+      toast.error(err.data?.message || 'Invalid verification code')
       otpForm.reset()
     }
   }
@@ -199,8 +201,9 @@ export function ChangePasswordDialog() {
       setCanResend(false)
       otpForm.reset()
       toast.success('New verification code sent.')
-    } catch (error: any) {
-      toast.error(error.data?.message || 'Failed to resend code')
+    } catch (error) {
+      const err = error as { data?: { message?: string } }
+      toast.error(err.data?.message || 'Failed to resend code')
     }
   }
 

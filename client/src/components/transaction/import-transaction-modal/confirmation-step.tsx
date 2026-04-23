@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogDescription
 } from '@/components/ui/dialog'
-import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM, CURRENCY_ENUM, MAX_IMPORT_LIMIT } from '@/constant'
+import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM, CURRENCY_ENUM, MAX_IMPORT_LIMIT, CurrencyType, _TransactionType } from '@/constant'
 import { toast } from 'sonner'
 import { useBulkImportTransactionMutation } from '@/features/transaction/transactionAPI'
 import { BulkTransactionType } from '@/features/transaction/transationType'
@@ -95,7 +95,7 @@ const transactionSchema = z.object({
     ])
     .transform((val) => (val === '' ? undefined : val))
     .optional(),
-  currency: z.string().refine((val) => Object.values(CURRENCY_ENUM).includes(val as any), {
+  currency: z.string().refine((val) => Object.values(CURRENCY_ENUM).includes(val as CurrencyType), {
     message: `Invalid currency. Supported: ${Object.values(CURRENCY_ENUM).join(', ')}`
   }).optional()
 })
@@ -116,7 +116,7 @@ const ConfirmationStep = ({
 }: ConfirmationStepProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [localCsvData, setLocalCsvData] = useState<CsvRowWrapper[]>(() => 
-    initialCsvData.map((data) => ({ id: crypto.randomUUID(), data: data as any }))
+    initialCsvData.map((data) => ({ id: crypto.randomUUID(), data: data as Record<string, string> }))
   )
   const [overrides, setOverrides] = useState<Record<string, Partial<ParsedTransaction>>>({})
   const [editingRow, setEditingRow] = useState<ParsedRow | null>(null)
@@ -142,7 +142,9 @@ const ConfirmationStep = ({
     localCsvData.forEach((rowWrapper) => {
       const rowId = rowWrapper.id
       const rowData = rowWrapper.data
-      const transaction: Record<string, any> = {}
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const draft: any = {}
 
       // Pass 1: Map non-amount fields (to get currency context first)
       Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
@@ -157,38 +159,41 @@ const ConfirmationStep = ({
             const y = parseInt(dateMatch[1])
             const m = parseInt(dateMatch[2])
             const d = parseInt(dateMatch[3])
-            transaction.date = new Date(y, m - 1, d).toISOString()
-          } else {
-            transaction.date = new Date(rawValue)
+            draft.date = new Date(y, m - 1, d).toISOString()
+          } else if (!isNaN(Date.parse(rawValue))) {
+            draft.date = new Date(rawValue).toISOString()
           }
         } else if (transactionField === 'type') {
           const val = String(value).toUpperCase().trim()
-          transaction[transactionField] = val.includes('INC') ? 'INCOME' : val.includes('EXP') ? 'EXPENSE' : val
+          draft[transactionField] = val.includes('INC') ? 'INCOME' : val.includes('EXP') ? 'EXPENSE' : val
         } else if (transactionField === 'currency' || transactionField === 'status') {
-          transaction[transactionField] = String(value).trim().toUpperCase()
+          draft[transactionField] = String(value).trim().toUpperCase()
         } else {
-          transaction[transactionField] = value
+          draft[transactionField] = value
         }
       })
 
       // Pass 2: Map and parse amount with currency context
-      const amountMapping = Object.entries(mappings).find(([_, field]) => field === 'amount')
+      const amountMapping = Object.entries(mappings).find(([, field]) => field === 'amount')
       if (amountMapping) {
         const [csvColumn] = amountMapping
         const value = rowData[csvColumn]
         if (value) {
-          transaction['amount'] = parseAmount(value, transaction.currency)
+          draft['amount'] = parseAmount(value, draft.currency)
         }
       }
 
       // Apply overrides (Prioritize user edits)
       const override = overrides[rowId]
       if (override) {
-        Object.assign(transaction, override)
+        Object.assign(draft, override)
       }
 
       try {
-        const validated = transactionSchema.parse(transaction)
+        const validated = transactionSchema.parse({
+          ...draft,
+          date: draft.date ? new Date(draft.date) : undefined
+        })
         const parsed: ParsedTransaction = {
           title: validated.title,
           amount: validated.amount,
@@ -201,7 +206,7 @@ const ConfirmationStep = ({
           paymentMethod: (validated.paymentMethod as string) || undefined,
           status: (validated.status as string) || 'COMPLETED',
           isRecurring: false,
-          description: (transaction.description as string) || '',
+          description: (draft.description as string) || '',
           currency: (validated.currency as string) || CURRENCY_ENUM.USD
         }
         rows.push({ id: rowId, data: parsed, isValid: true })
@@ -209,38 +214,36 @@ const ConfirmationStep = ({
       } catch (error) {
         errorCount++
         const message =
-          error instanceof z.ZodError
-            ? error.errors
-                .map((e) => {
-                  if (e.path[0] === 'type')
-                    return 'Type: INCOME or EXPENSE'
-                  if (e.path[0] === 'paymentMethod')
-                    return (
-                      'Payment: ' +
-                      Object.values(PAYMENT_METHODS_ENUM).join(', ')
-                    )
-                  if (e.path[0] === 'status')
-                    return 'Status: COMPLETED, PENDING, or FAILED'
-                  return `${e.path[0]}: ${e.message}`
-                })
-                .join(' | ')
-            : 'Invalid data'
+            error instanceof z.ZodError
+                ? error.errors
+                    .map((e) => {
+                      if (e.path[0] === 'type')
+                        return 'Type: INCOME or EXPENSE'
+                      if (e.path[0] === 'paymentMethod')
+                        return (
+                            'Payment: ' +
+                            Object.values(PAYMENT_METHODS_ENUM).join(', ')
+                        )
+                      if (e.path[0] === 'status')
+                        return 'Status: COMPLETED, PENDING, or FAILED'
+                      return `${e.path[0]}: ${e.message}`
+                    })
+                    .join(' | ')
+                : 'Invalid data'
 
         // Create a fallback data for editing even if invalid
         const fallbackData = {
-          title: String(transaction.title || ''),
-          amount: Number(transaction.amount || 0),
-          date: (transaction.date instanceof Date && !isNaN(transaction.date.getTime())) 
-            ? transaction.date.toISOString() 
-            : (typeof transaction.date === 'string' && !isNaN(Date.parse(transaction.date)))
-              ? new Date(transaction.date).toISOString()
+          title: String(draft.title || ''),
+          amount: Number(draft.amount || 0),
+          date: (typeof draft.date === 'string' && !isNaN(Date.parse(draft.date)))
+              ? new Date(draft.date).toISOString()
               : '', // Don't default to today, keep it empty to force a fix
-          type: (transaction.type as any) || 'EXPENSE',
-          category: String(transaction.category || 'Other'),
-          currency: String(transaction.currency || 'USD'),
-          status: (transaction.status as string) || undefined,
+          type: (draft.type as _TransactionType) || 'EXPENSE',
+          category: String(draft.category || 'Other'),
+          currency: String(draft.currency || 'USD'),
+          status: (draft.status as string) || undefined,
           isRecurring: false,
-          description: String(transaction.description || '')
+          description: String(draft.description || '')
         }
 
         rows.push({ id: rowId, data: fallbackData, error: message, isValid: false })
@@ -413,7 +416,7 @@ const ConfirmationStep = ({
                       <span className="truncate">
                         {row.data && (row.data.type === 'INCOME' ? '+ ' : '- ')}
                         {row.data && formatCurrency(row.data.amount, { 
-                          currency: (row.data.currency as any) || CURRENCY_ENUM.USD,
+                          currency: (row.data.currency as CurrencyType) || CURRENCY_ENUM.USD,
                           showSign: false 
                         })}
                       </span>

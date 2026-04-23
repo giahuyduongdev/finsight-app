@@ -162,7 +162,7 @@ export function DataTable<TData>({
 
   const handleDeleteConfirm = () => {
     const selectedIds = selectedRows.map(
-      (row) => (row.original as any).id || (row.original as any)._id
+      (row) => (row.original as Record<string, string>).id || (row.original as Record<string, string>)._id
     )
     onBulkDelete?.(selectedIds)
     setRowSelection({})

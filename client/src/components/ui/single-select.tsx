@@ -175,7 +175,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
       // Clear selected value
       setSelected(undefined);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onChange?.(undefined as any);
+      onChange?.(undefined as unknown as Option);
 
       // Clear input to ensure no filtering is applied
       setInputValue("");
