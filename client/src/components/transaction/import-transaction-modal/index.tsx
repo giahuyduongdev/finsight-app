@@ -109,7 +109,7 @@ const ImportTransactionModal = () => {
         </Button>
       </DialogTrigger>
       <DialogContent className={cn(
-        "min-h-[40vh] transition-all duration-300",
+        "min-h-[40vh] transition-[max-width] duration-300",
         step === 3 ? "sm:max-w-6xl" : "sm:max-w-lg"
       )}>
         {renderStep()}

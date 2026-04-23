@@ -20,8 +20,9 @@ export const summaryAnalyticsService = async (
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
-  const fromKey = from ? new Date(from).setHours(0, 0, 0, 0) : 'all'
-  const toKey = to ? new Date(to).setHours(0, 0, 0, 0) : 'all'
+  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
+  const fromKey = from ? (isCustomRange ? from.getTime() : new Date(from).setHours(0, 0, 0, 0)) : 'all'
+  const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:summary:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
   // Check Redis cache trước
@@ -203,8 +204,9 @@ export const chartAnalyticsService = async (
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
-  const fromKey = from ? new Date(from).setHours(0, 0, 0, 0) : 'all'
-  const toKey = to ? new Date(to).setHours(0, 0, 0, 0) : 'all'
+  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
+  const fromKey = from ? (isCustomRange ? from.getTime() : new Date(from).setHours(0, 0, 0, 0)) : 'all'
+  const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:chart:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
   const cached = await redis.get(cacheKey)
@@ -340,8 +342,9 @@ export const expensePieChartBreakdownService = async (
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
-  const fromKey = from ? new Date(from).setHours(0, 0, 0, 0) : 'all'
-  const toKey = to ? new Date(to).setHours(0, 0, 0, 0) : 'all'
+  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
+  const fromKey = from ? (isCustomRange ? from.getTime() : new Date(from).setHours(0, 0, 0, 0)) : 'all'
+  const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:pie:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
   const cached = await redis.get(cacheKey)

@@ -149,7 +149,13 @@ const EditForm = ({ transaction, index: rowId, onUpdate, onClose, open }: {
   const [displayAmount, setDisplayAmount] = useState<string>(String(transaction.amount))
   const [dateStr, setDateStr] = useState(() => {
     const d = new Date(transaction.date)
-    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0]
+    if (isNaN(d.getTime())) return ''
+    
+    // Use local calendar parts to avoid UTC day-shift
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -516,11 +522,11 @@ const ConfirmationStep = ({
             ? transaction.date.toISOString() 
             : (typeof transaction.date === 'string' && !isNaN(Date.parse(transaction.date)))
               ? new Date(transaction.date).toISOString()
-              : new Date().toISOString(),
+              : '', // Don't default to today, keep it empty to force a fix
           type: (transaction.type as any) || 'EXPENSE',
           category: String(transaction.category || 'Other'),
           currency: String(transaction.currency || 'USD'),
-          status: (transaction.status as string) || 'COMPLETED',
+          status: (transaction.status as string) || undefined,
           isRecurring: false,
           description: String(transaction.description || '')
         }
@@ -727,7 +733,6 @@ const ConfirmationStep = ({
                             <div 
                               id={`err-${row.id}`}
                               role="tooltip"
-                              aria-hidden="true" 
                               className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-[100] pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
                             >
                                <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
