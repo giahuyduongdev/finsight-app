@@ -2,7 +2,7 @@ import { Router } from 'express'
 import {
   createTransactionController,
   duplicateTransactionController,
-  getAllTransactionByIdController,
+  getTransactionByIdController,
   getAllTransactionController,
   updateTransactionController,
   deleteTransactionController,
@@ -20,7 +20,7 @@ transactionRoutes.post(
   '/test/trigger-recurring',
   triggerRecurringTestController
 )
-transactionRoutes.post('/create', createTransactionController)
+transactionRoutes.post('/', createTransactionController)
 
 transactionRoutes.post(
   '/scan-receipt',
@@ -28,15 +28,15 @@ transactionRoutes.post(
   scanReceiptController
 )
 
-transactionRoutes.post('/bulk-transaction', bulkTransactionController)
+transactionRoutes.post('/bulk', bulkTransactionController)
 
-transactionRoutes.put('/duplicate/:id', duplicateTransactionController)
-transactionRoutes.put('/update/:id', updateTransactionController)
+transactionRoutes.post('/:id/duplicate', duplicateTransactionController)
+transactionRoutes.put('/:id', updateTransactionController)
 
 transactionRoutes.get('/all', getAllTransactionController)
 transactionRoutes.get('/:id/children', getChildTransactionsController)
-transactionRoutes.get('/:id', getAllTransactionByIdController)
-transactionRoutes.delete('/delete/:id', deleteTransactionController)
-transactionRoutes.delete('/bulk-delete', bulkDeleteTransactionController)
+transactionRoutes.get('/:id', getTransactionByIdController)
+transactionRoutes.delete('/bulk', bulkDeleteTransactionController)
+transactionRoutes.delete('/:id', deleteTransactionController)
 
 export default transactionRoutes

@@ -4,6 +4,14 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## 0. Project Context
+
+- Monorepo: `backend/` và `client/` — do NOT cross-import between folders
+- Repo: `giahuyduongdev/finsight-app`, base branch: `develop`
+- Before touching backend code: read `skills/backend.md`
+- Before touching frontend code: read `skills/frontend.md`
+- Before fixing CodeRabbit comments: read `skills/coderabbit.md`
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
@@ -51,15 +59,81 @@ Transform tasks into verifiable goals:
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
-For multi-step tasks, state a brief plan:
+For multi-step tasks, state a brief plan before starting:
 
-```markdown
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
+```
+type: feature | fix | refactor | chore
+branch: <type>/<short-description>
+steps:
+  1. [Step] → verify: [check]
+  2. [Step] → verify: [check]
+  3. [Step] → verify: [check]
 ```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Branch name must be decided in the plan and used consistently throughout. Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## 5. Git & PR Workflow
+
+**Always follow this after completing any task.**
+
+### Branch naming
+Decided during planning (Section 4), not after. Format:
+- `feature/<short-description>` — new functionality
+- `fix/<short-description>` — bug fix
+- `refactor/<short-description>` — code improvement
+- `chore/<short-description>` — tooling, deps, config
+
+### Required git steps (in order)
+```bash
+# 1. Create and switch to branch (always — never commit directly to develop)
+git checkout -b <branch-name>
+
+# 2. Stage and commit
+git add .
+git commit -m "<type>(<scope>): <description>
+
+- <what changed>
+- <why or impact>
+- <3rd line only if genuinely needed>"
+
+# Body rules: 2-3 lines max. Each line = 1 specific thing. No vague lines like "minor fixes".
+
+# 3. Push
+git push origin <branch-name>
+```
+
+### Create PR via GitHub MCP
+Use GitHub MCP to create a PR:
+- repo: `giahuyduongdev/finsight-app`
+- base branch: `develop`
+- title: same as commit message
+- body: summary of changes made
+
+### After PR is created — monitor via GitHub MCP
+
+**CI check (timeout: 10 minutes):**
+- Use GitHub MCP to get check runs status for the PR
+- All checks pass → proceed to CodeRabbit check
+- Any check fails → read the error, apply a minimal fix (only lines needed — see Section 3), commit, push, re-check
+- Still failing after 10 minutes → stop and notify user: "⚠️ CI still failing after 10 minutes: <PR link>. Manual intervention needed."
+
+**CodeRabbit check:**
+- Use GitHub MCP to get PR review comments
+- Read `skills/coderabbit.md` to know which comments to act on
+- 🔴 Critical → fix immediately
+- 🟠 Major → fix before notifying user
+- 🟡 Minor → fix only if it's a 1-line change, otherwise skip
+- ⚪ Info → ignore
+- After fixing: commit, push, re-check CI and CodeRabbit
+- No Critical/Major comments remaining → proceed
+
+**When everything is green**, notify user and stop:
+```
+✅ PR ready for your review: <PR link>
+- CI: all checks passed
+- CodeRabbit: no critical or major comments
+```
+Do NOT merge — user reviews the PR manually before merging.
 
 ---
 

@@ -403,7 +403,7 @@ export type BulkTransactionItem = Omit<
   status: 'COMPLETED' | 'PENDING' | 'FAILED'
   backfill?: boolean // Thêm dấu ? để biến nó thành optional (không bắt buộc)
 }
-export const bulkTransactionService = async (
+export const bulkImportTransactionService = async (
   userId: string,
   transactions: BulkTransactionItem[]
 ) => {
