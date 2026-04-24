@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format-currency'
 import { useChartAnalyticsQuery } from '@/features/analytics/analyticsAPI'
 import { useSelector } from 'react-redux'
+import { RootState } from '@/app/store'
 
 interface PropsType {
   dateRange?: DateRangeType
@@ -49,8 +50,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
 
   const preferredCurrency =
     useSelector(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (state: any) => state.auth?.user?.preferredCurrency
+      (state: RootState) => state.auth?.user?.preferredCurrency
     ) || 'USD'
 
   const { data, isLoading } = useChartAnalyticsQuery({

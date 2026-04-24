@@ -173,8 +173,9 @@ export function ChangeEmailDialog() {
       setSeconds(60)
       setCanResend(false)
       toast.success('Verification codes sent to both emails')
-    } catch (error: any) {
-      toast.error(error.data?.message || 'Failed to send verification code')
+    } catch (error) {
+      const err = error as { data?: { message?: string } }
+      toast.error(err.data?.message || 'Failed to send verification code')
     }
   }
 
@@ -190,8 +191,9 @@ export function ChangeEmailDialog() {
       dispatch(logout())
       // 3. Chuyển hướng về trang chủ / (trang đăng nhập)
       window.location.href = '/'
-    } catch (error: any) {
-      toast.error(error.data?.message || 'Invalid verification codes')
+    } catch (error) {
+      const err = error as { data?: { message?: string } }
+      toast.error(err.data?.message || 'Invalid verification codes')
       otpForm.reset({ oldEmailOtp: '', newEmailOtp: '' })
     }
   }
@@ -203,8 +205,9 @@ export function ChangeEmailDialog() {
       setCanResend(false)
       otpForm.reset({ oldEmailOtp: '', newEmailOtp: '' })
       toast.success('New verification codes sent')
-    } catch (error: any) {
-      toast.error(error.data?.message || 'Failed to resend code')
+    } catch (error) {
+      const err = error as { data?: { message?: string } }
+      toast.error(err.data?.message || 'Failed to resend code')
     }
   }
 

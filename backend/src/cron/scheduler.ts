@@ -6,7 +6,7 @@ import { logger } from '../config/logger.config'
 import { redis } from '../config/redis.config'
 import { CurrencyService } from '../services/currency.service'
 
-const scheduleJob = (name: string, time: string, job: Function) => {
+const scheduleJob = (name: string, time: string, job: () => Promise<unknown> | unknown) => {
   logger.info(`🗓️  [Scheduling] ${name} at ${time}`)
 
   return cron.schedule(

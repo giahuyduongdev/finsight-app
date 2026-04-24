@@ -5,7 +5,8 @@ import {
   _TRANSACTION_TYPE,
   _TransactionType,
   CURRENCY_OPTIONS,
-  CurrencyType
+  CurrencyType,
+  DateRangePreset
 } from '@/constant'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import useDebouncedSearch from '@/hooks/use-debounce-search'
@@ -87,7 +88,7 @@ const TransactionTable = (props: {
     status: filter.status || undefined,
     pageNumber: filter.pageNumber,
     pageSize: filter.pageSize,
-    dateRangePreset: dateRange?.value as any,
+    dateRangePreset: dateRange?.value as DateRangePreset,
     from: dateRange?.from?.toISOString() || undefined,
     to: dateRange?.to?.toISOString() || undefined,
     timezone
@@ -332,7 +333,7 @@ const TransactionTable = (props: {
         status: filter.status,
         pageNumber: page,
         pageSize: filter.pageSize,
-        dateRangePreset: dateRange?.value as any,
+        dateRangePreset: dateRange?.value as DateRangePreset, // Cast to proper union type
         from: dateRange?.from?.toISOString() || undefined,
         to: dateRange?.to?.toISOString() || undefined,
         timezone

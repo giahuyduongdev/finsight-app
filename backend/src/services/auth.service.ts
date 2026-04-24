@@ -1110,8 +1110,8 @@ export const verifyChangeEmailOTPService = async (
   const hashedOld = crypto.createHash('sha256').update(oldEmailOtp).digest('hex')
   const hashedNew = crypto.createHash('sha256').update(newEmailOtp).digest('hex')
 
-  let isOldValid = storedOtpOld === hashedOld
-  let isNewValid = storedOtpNew === hashedNew
+  const isOldValid = storedOtpOld === hashedOld
+  const isNewValid = storedOtpNew === hashedNew
 
   if (!isOldValid || !isNewValid) {
     await redis.incr(attemptsKey)

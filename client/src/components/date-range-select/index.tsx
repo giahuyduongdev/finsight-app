@@ -54,7 +54,6 @@ interface DateRangeSelectProps {
 }
 
 const today = new Date()
-const yesterday = subDays(today, 1)
 
 const presets: DateRangePreset[] = [
   {

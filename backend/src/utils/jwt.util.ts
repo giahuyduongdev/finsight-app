@@ -40,12 +40,20 @@ export const signJwtToken = (
     ...opts
   })
 
-  const expiresAt = isAccessToken
-    ? (jwt.decode(token) as JwtPayload)?.exp! * 1000
-    : undefined
+  const decoded = jwt.decode(token)
+  
+  if (isAccessToken) {
+    if (!decoded || typeof decoded === 'string' || !decoded.exp) {
+      throw new Error('Failed to sign token: missing expiration claim')
+    }
+    return {
+      token,
+      expiresAt: decoded.exp * 1000
+    }
+  }
 
   return {
     token,
-    expiresAt
+    expiresAt: undefined
   }
 }

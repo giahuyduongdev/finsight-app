@@ -13,18 +13,23 @@ import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { addDays, addMonths, addWeeks, addYears } from 'date-fns'
 import { RecurringIntervalEnum } from '../../models/transaction.model'
 
+// backend/src/utils/dates/index.ts
 export const getDateRange = (
   preset?: DateRangePreset,
   customFrom?: Date,
   customTo?: Date,
-  timezone: string = 'UTC' // Thêm vào
+  timezone: string = 'UTC'
 ) => {
-  if (customFrom && customTo) {
-    return {
-      from: customFrom,
-      to: customTo,
-      value: DateRangeEnum.CUSTOM
-    }
+  const isValidDate = (d?: Date) =>
+    d instanceof Date && !Number.isNaN(d.getTime())
+
+  const hasCustomFrom = isValidDate(customFrom)
+  const hasCustomTo = isValidDate(customTo)
+
+  // Use Preset unless it's explicitly CUSTOM or missing while customs are present
+  let effectivePreset = preset
+  if (!effectivePreset && (hasCustomFrom || hasCustomTo)) {
+    effectivePreset = DateRangeEnum.CUSTOM
   }
 
   const now = toZonedTime(new Date(), timezone) // đổi sang giờ user
@@ -37,7 +42,7 @@ export const getDateRange = (
     label: 'Last 30 Days'
   }
 
-  switch (preset) {
+  switch (effectivePreset) {
     case DateRangeEnum.ALL_TIME:
       return {
         from: null,
@@ -84,8 +89,8 @@ export const getDateRange = (
       }
     case DateRangeEnum.CUSTOM:
       return {
-        from: customFrom || null,
-        to: customTo || null,
+        from: hasCustomFrom ? customFrom! : null,
+        to: hasCustomTo ? customTo! : null,
         value: DateRangeEnum.CUSTOM,
         label: 'Custom Range'
       }

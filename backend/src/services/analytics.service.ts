@@ -9,6 +9,51 @@ import { differenceInDays, subDays, subYears } from 'date-fns'
 import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { redis } from '../config/redis.config'
 
+function calculatePercentageChange(previous: number, current: number) {
+  // Nếu kỳ trước bằng 0:
+  // - Nếu kỳ này cũng bằng 0 -> Không thay đổi (0%)
+  // - Nếu kỳ này có tiền -> Tính là tăng 100% (quy ước UI phổ biến để tránh lỗi chia cho 0)
+  if (previous === 0) return current === 0 ? 0 : 100
+
+  // Tính phần trăm thực tế
+  const changes = ((current - previous) / Math.abs(previous)) * 100
+
+  // Trả về số thực tế, làm tròn 2 chữ số thập phân (Không dùng Math.min/max nữa)
+  return parseFloat(changes.toFixed(2))
+}
+
+/**
+ * Helper to resolve date range and cache keys uniformly across analytics services.
+ */
+const resolveAnalyticsRange = (
+  dateRangePreset?: DateRangePreset,
+  customFrom?: Date,
+  customTo?: Date,
+  timezone: string = 'UTC'
+) => {
+  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
+  const { from, to, value: rangeValue } = range
+
+  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
+  const fromKey = from ? from.getTime() : 'all'
+  const toKey = to ? to.getTime() : 'all'
+
+  // 'getDateRange' already resolves boundaries using 'timezone'
+  const queryFrom = from
+  const queryTo = to
+
+  return {
+    range,
+    from,
+    to,
+    rangeValue,
+    fromKey,
+    toKey,
+    queryFrom,
+    queryTo
+  }
+}
+
 export const summaryAnalyticsService = async (
   userId: string,
   dateRangePreset?: DateRangePreset,
@@ -17,8 +62,10 @@ export const summaryAnalyticsService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD'
 ) => {
-  // Tạo cache key unique theo user + preset + currency
-    const cacheKey = `analytics:summary:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
+  const { range, rangeValue, queryFrom, queryTo, fromKey, toKey, from, to } =
+    resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
+
+  const cacheKey = `analytics:summary:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
@@ -26,15 +73,17 @@ export const summaryAnalyticsService = async (
     return JSON.parse(cached)
   }
 
-  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
-  const { from, to, value: rangeValue } = range
-
   const currentPeriodPipeline: PipelineStage[] = [
     {
       $match: {
         userId: new mongoose.Types.ObjectId(userId),
         status: TransactionStatusEnum.COMPLETED,
-        ...(from && to && { date: { $gte: from, $lte: to } })
+        ...((queryFrom || queryTo) && {
+          date: {
+            ...(queryFrom && { $gte: queryFrom }),
+            ...(queryTo && { $lte: queryTo })
+          }
+        })
       }
     },
     {
@@ -83,7 +132,7 @@ export const summaryAnalyticsService = async (
     totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0
   const expenseRatio = totalIncome > 0 ? (totalExpenses / totalIncome) * 100 : 0
 
-  let percentageChange: any = {
+  let percentageChange: Record<string, unknown> = {
     income: 0,
     expenses: 0,
     balance: 0,
@@ -110,7 +159,12 @@ export const summaryAnalyticsService = async (
         $match: {
           userId: new mongoose.Types.ObjectId(userId),
           status: TransactionStatusEnum.COMPLETED,
-          date: { $gte: prevPeriodFrom, $lte: prevPeriodTo }
+          ...((prevPeriodFrom || prevPeriodTo) && {
+            date: {
+              ...(prevPeriodFrom && { $gte: prevPeriodFrom }),
+              ...(prevPeriodTo && { $lte: prevPeriodTo })
+            }
+          })
         }
       },
       {
@@ -199,18 +253,23 @@ export const chartAnalyticsService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD' //
 ) => {
-  // Check Redis cache trước
-  const cacheKey = `analytics:chart:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
+  const { range, rangeValue, queryFrom, queryTo, fromKey, toKey } =
+    resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
+
+  const cacheKey = `analytics:chart:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
+
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
-
-  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
-  const { from, to, value: rangeValue } = range
 
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
     status: TransactionStatusEnum.COMPLETED,
-    ...(from && to && { date: { $gte: from, $lte: to } })
+    ...((queryFrom || queryTo) && {
+      date: {
+        ...(queryFrom && { $gte: queryFrom }),
+        ...(queryTo && { $lte: queryTo })
+      }
+    })
   }
 
   const result = await TransactionModel.aggregate([
@@ -322,7 +381,6 @@ export const chartAnalyticsService = async (
 
   // Lưu Redis TTL = 5 phút
   await redis.set(cacheKey, JSON.stringify(result2), 'EX', 300)
-
   return result2
 }
 
@@ -332,24 +390,25 @@ export const expensePieChartBreakdownService = async (
   customFrom?: Date,
   customTo?: Date,
   timezone: string = 'UTC',
-  preferredCurrency: string = 'USD' //
+  preferredCurrency: string = 'USD'
 ) => {
-  // Check Redis cache trước
-  const cacheKey = `analytics:pie:${userId}:${dateRangePreset || 'allTime'}:${customFrom?.getTime() || ''}:${customTo?.getTime() || ''}:${preferredCurrency}`
-  const cached = await redis.get(cacheKey)
-  if (cached) return JSON.parse(cached)
+  const { range, rangeValue, queryFrom, queryTo, fromKey, toKey } =
+    resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 
-  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
-  const { from, to, value: rangeValue } = range
+  const cacheKey = `analytics:pie:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
     type: TransactionTypeEnum.EXPENSE,
     status: TransactionStatusEnum.COMPLETED,
-    ...(from && to && { date: { $gte: from, $lte: to } })
+    ...((queryFrom || queryTo) && {
+      date: {
+        ...(queryFrom && { $gte: queryFrom }),
+        ...(queryTo && { $lte: queryTo })
+      }
+    })
   }
 
-  // Group theo category + currency
   const result = await TransactionModel.aggregate([
     { $match: filter },
     {
@@ -412,21 +471,8 @@ export const expensePieChartBreakdownService = async (
     }
   }
 
-  // Lưu Redis TTL = 5 phút
   await redis.set(cacheKey, JSON.stringify(resultData), 'EX', 300)
 
   return resultData
 }
 
-function calculatePercentageChange(previous: number, current: number) {
-  // Nếu kỳ trước bằng 0:
-  // - Nếu kỳ này cũng bằng 0 -> Không thay đổi (0%)
-  // - Nếu kỳ này có tiền -> Tính là tăng 100% (quy ước UI phổ biến để tránh lỗi chia cho 0)
-  if (previous === 0) return current === 0 ? 0 : 100
-
-  // Tính phần trăm thực tế
-  const changes = ((current - previous) / Math.abs(previous)) * 100
-
-  // Trả về số thực tế, làm tròn 2 chữ số thập phân (Không dùng Math.min/max nữa)
-  return parseFloat(changes.toFixed(2))
-}

@@ -1,0 +1,20 @@
+# GEMINI.md.example
+
+Behavioral guidelines to reduce common LLM coding mistakes. 
+Copy this file to `GEMINI.md` and customize as needed.
+
+## 1. Think Before Coding
+- State assumptions explicitly.
+- Present multiple interpretations - don't pick silently.
+
+## 2. Simplicity First
+- Minimum code that solves the problem.
+- No speculative abstractions.
+
+## 3. Surgical Changes
+- Touch only what you must.
+- Match existing style.
+
+## 4. Goal-Driven Execution
+- Define success criteria. 
+- Loop until verified.

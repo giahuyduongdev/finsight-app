@@ -15,11 +15,16 @@ import { AppDispatch, RootState } from '@/app/store'
 interface BulkImportProgressPayload {
   progress: number
   totalInserted: number
+  rejectedCount: number
+  totalProcessed: number
   total: number
 }
 
 interface BulkImportCompletedPayload {
   totalInserted: number
+  rejectedCount: number
+  totalProcessed: number
+  message: string
 }
 
 interface BulkImportFailedPayload {
@@ -123,12 +128,13 @@ export const useAppSockets = () => {
     })
 
     // --- 2. BULK IMPORT ---
-    socket.on('bulk-import:progress', ({ progress, totalInserted, total }: BulkImportProgressPayload) => {
-      toast.loading(`Importing... ${totalInserted}/${total} (${progress}%)`, { id: 'bulk-import' })
+    socket.on('bulk-import:progress', ({ progress, totalProcessed, total, rejectedCount }: BulkImportProgressPayload) => {
+      const rejectedMsg = rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''
+      toast.loading(`Importing... ${totalProcessed}/${total}${rejectedMsg} (${progress}%)`, { id: 'bulk-import' })
     })
 
-    socket.on('bulk-import:completed', ({ totalInserted }: BulkImportCompletedPayload) => {
-      toast.success(`Successfully imported ${totalInserted} transactions`, { id: 'bulk-import', duration: 4000 })
+    socket.on('bulk-import:completed', ({ message }: BulkImportCompletedPayload) => {
+      toast.success(message || 'Import completed', { id: 'bulk-import', duration: 4000 })
       dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
     })
 

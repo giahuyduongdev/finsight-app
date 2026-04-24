@@ -21,6 +21,7 @@ import { formatPercentage } from '@/lib/format-percentage'
 import { EmptyState } from '@/components/empty-state'
 import { useExpensePieChartBreakdownQuery } from '@/features/analytics/analyticsAPI'
 import { useSelector } from 'react-redux'
+import { RootState } from '@/app/store'
 
 const COLORS = [
   'var(--color-chart-1)',
@@ -40,8 +41,7 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   const { dateRange } = props
 
   const preferredCurrency =
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    useSelector((state: any) => state.auth?.user?.preferredCurrency) || 'USD'
+    useSelector((state: RootState) => state.auth?.user?.preferredCurrency) || 'USD'
 
   const { data, isLoading } = useExpensePieChartBreakdownQuery({
     preset: dateRange?.value,

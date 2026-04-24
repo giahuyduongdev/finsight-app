@@ -25,7 +25,7 @@ type ExtendedTransaction = TransactionType & {
 }
 
 const ActionsCell = ({ row }: { row: Row<TransactionType> }) => {
-  const transactionId = row.original.id ?? row.original._id
+  const transactionId = row.original._id
   const { onOpenDrawer } = useEditTransactionDrawer()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 

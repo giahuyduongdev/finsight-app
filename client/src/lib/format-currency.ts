@@ -10,6 +10,8 @@ export const ZERO_DECIMAL_CURRENCIES = [
   'ISK'
 ]
 
+export const DEFAULT_LOCALE = 'en-US'
+
 export const formatCurrency = (
   value: number,
   options: {
@@ -39,8 +41,10 @@ export const formatCurrency = (
   // 1. Lấy Symbol từ cuốn "từ điển" của bạn
   const symbol = CURRENCY_SYMBOLS[currency as CurrencyType] || currency
 
-  // 2. Chỉ nhờ Intl format con số nguyên thủy (decimal), KHÔNG dùng currency nữa
-  const formattedNumber = new Intl.NumberFormat('en-US', {
+  // 2. Định dạng Locale (Dùng en-US cho tất cả để đồng bộ dấu phẩy ngăn hàng nghìn như Add Transaction)
+  const locale = DEFAULT_LOCALE
+
+  const formattedNumber = new Intl.NumberFormat(locale, {
     style: 'decimal',
     minimumFractionDigits: decimalPlaces,
     maximumFractionDigits: decimalPlaces,
@@ -64,12 +68,12 @@ export const formatCurrency = (
  */
 export const formatRate = (rate: number, toCurrency: string): string => {
   if (ZERO_DECIMAL_CURRENCIES.includes(toCurrency)) {
-    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(
+    return new Intl.NumberFormat(DEFAULT_LOCALE, { maximumFractionDigits: 0 }).format(
       Math.round(rate)
     )
   }
   if (rate >= 100)
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat(DEFAULT_LOCALE, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(rate)

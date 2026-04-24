@@ -2,6 +2,7 @@ import { useSummaryAnalyticsQuery } from '@/features/analytics/analyticsAPI'
 import SummaryCard from './summary-card'
 import { DateRangeType } from '@/components/date-range-select'
 import { useSelector } from 'react-redux'
+import { RootState } from '@/app/store'
 
 const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
   const { data, isLoading } = useSummaryAnalyticsQuery(
@@ -14,8 +15,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
   )
   const summaryData = data?.data
   const preferredCurrency =
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    useSelector((state: any) => state.auth?.user?.preferredCurrency) || 'USD'
+    useSelector((state: RootState) => state.auth?.user?.preferredCurrency) || 'USD'
  
   return (
     <div className="flex flex-row items-center">

@@ -1,6 +1,5 @@
 import { Worker, Job } from 'bullmq'
 import mongoose from 'mongoose'
-import { format } from 'date-fns'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
 import {
@@ -16,6 +15,10 @@ import TransactionModel, {
   TransactionStatusEnum
 } from '../models/transaction.model'
 import { calculateNextOccurrence } from '../utils/dates/index'
+
+function isBulkWriteError(error: any): error is { insertedCount: number; result?: { nInserted: number } } {
+  return error && typeof error === 'object' && ('insertedCount' in error || (error.result && 'nInserted' in error.result))
+}
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -38,7 +41,9 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 
   const { transactions } = batchDoc
   const BATCH_SIZE = 150
+  let totalProcessed = 0
   let totalInserted = 0
+  let rejectedCount = 0
 
   // Lấy io instance để emit progress
   let io: ReturnType<typeof getIO> | null = null
@@ -52,55 +57,104 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
       const chunk = transactions.slice(i, i + BATCH_SIZE)
 
-      const transactionsToInsert = chunk.map((tx) => ({
-        ...tx,
-        userId: new mongoose.Types.ObjectId(userId)
-      }))
+      const transactionsToInsert = chunk
+        .map((tx) => {
+          // Reject rows without a date or with an invalid date
+          if (!tx.date) return null
+          
+          const parsedDate = new Date(tx.date)
+          if (isNaN(parsedDate.getTime())) return null
 
-      const result = await TransactionModel.insertMany(transactionsToInsert, {
-        ordered: false
-      })
-      totalInserted += result.length
+          const cleanUserId = typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId
 
-      const progress = Math.round((totalInserted / transactions.length) * 100)
+          return {
+            ...tx,
+            userId: cleanUserId,
+            date: parsedDate,
+            status: tx.status || TransactionStatusEnum.COMPLETED, // Tôn trọng status người dùng đã sửa, mặc định là COMPLETED
+            recurringSourceId: null
+          }
+        })
+        .filter((tx) => tx !== null)
+
+      let insertedInThisBatch = 0
+      if (transactionsToInsert.length > 0) {
+        try {
+          const result = await TransactionModel.insertMany(transactionsToInsert, {
+            ordered: false
+          })
+          insertedInThisBatch = result.length
+        } catch (error: any) {
+          if (isBulkWriteError(error)) {
+            insertedInThisBatch = error.result?.nInserted ?? error.insertedCount ?? 0
+            const dbRejections = transactionsToInsert.length - insertedInThisBatch
+            logger.warn(
+              `⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`
+            )
+          } else {
+            // Re-throw serious errors (connection, etc.) so BullMQ can retry.
+            // insertedInThisBatch remains 0 as initialized at line 82.
+            throw error
+          }
+        }
+      }
+
+      const validationRejections = chunk.length - transactionsToInsert.length
+      totalInserted += insertedInThisBatch
+      totalProcessed += chunk.length
+      rejectedCount += (validationRejections + (transactionsToInsert.length - insertedInThisBatch))
+
+      const progress = Math.round((totalProcessed / transactions.length) * 100)
       await job.updateProgress(progress)
 
       // Emit progress qua Socket.IO
       io?.to(userId.toString()).emit('bulk-import:progress', {
         progress,
+        totalProcessed,
         totalInserted,
+        rejectedCount,
         total: transactions.length
       })
 
       logger.info(
-        `📦 [Worker] Batch ${Math.ceil((i + 1) / BATCH_SIZE)} done: ${totalInserted}/${transactions.length}`
+        `📦 [Worker] Batch ${Math.ceil((i + 1) / BATCH_SIZE)}: Processed ${totalProcessed}/${transactions.length} (Inserted: ${totalInserted}, Rejected: ${rejectedCount})`
       )
     }
 
     await importBatchModel.findByIdAndUpdate(importBatchId, {
       status: 'COMPLETED',
-      processedCount: totalInserted,
+      processedCount: totalProcessed,
+      rejectedCount: rejectedCount,
       $unset: { transactions: 1 }
     })
     logger.info(`🗑️ [Worker] Cleaned up import batch: ${importBatchId}`)
 
     // Xóa cache analytics của user
-    const keys = await redis.keys(`analytics:*:${userId}:*`)
-    if (keys.length) await redis.del(...keys)
+    try {
+      const keys = await redis.keys(`analytics:*:${userId}:*`)
+      if (keys.length) await redis.del(...keys)
+    } catch (err) {
+      logger.warn('⚠️ [Worker] Failed to invalidate analytics cache', err)
+    }
 
     //  Emit completed
     const room = userId.toString()
     logger.info(`📣 [Worker] Emitting bulk-import:completed to room: ${room}`)
     io?.to(room).emit('bulk-import:completed', {
       totalInserted,
-      message: `Successfully imported ${totalInserted} transactions`
+      rejectedCount,
+      totalProcessed,
+      message: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`
     })
 
-    return { insertedCount: totalInserted, success: true }
+    return { insertedCount: totalInserted, rejectedCount, success: true }
   } catch (error) {
     await importBatchModel.findByIdAndUpdate(importBatchId, {
       status: 'FAILED',
-      processedCount: totalInserted
+      processedCount: totalProcessed,
+      rejectedCount: rejectedCount
     })
 
     // Emit failed
@@ -166,7 +220,7 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
             paymentMethod: tx.paymentMethod,
             status: tx.status || TransactionStatusEnum.COMPLETED,
             isRecurring: false,
-            parentId: tx._id
+            recurringSourceId: tx._id // Fix: dùng đúng trường recurringSourceId thay vì parentId
           }
         ],
         { session }
