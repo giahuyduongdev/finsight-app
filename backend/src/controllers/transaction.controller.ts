@@ -10,7 +10,6 @@ import {
 } from '../validators/transaction.validator'
 import {
   bulkDeleteTransactionService,
-  bulkImportTransactionService,
   createTransactionService,
   deleteTransactionService,
   duplicateTransactionService,
