@@ -20,9 +20,15 @@ export const getDateRange = (
   customTo?: Date,
   timezone: string = 'UTC'
 ) => {
+  const isValidDate = (d?: Date) =>
+    d instanceof Date && !Number.isNaN(d.getTime())
+
+  const hasCustomFrom = isValidDate(customFrom)
+  const hasCustomTo = isValidDate(customTo)
+
   // Use Preset unless it's explicitly CUSTOM or missing while customs are present
   let effectivePreset = preset
-  if (!effectivePreset && (customFrom || customTo)) {
+  if (!effectivePreset && (hasCustomFrom || hasCustomTo)) {
     effectivePreset = DateRangeEnum.CUSTOM
   }
 
@@ -83,8 +89,8 @@ export const getDateRange = (
       }
     case DateRangeEnum.CUSTOM:
       return {
-        from: customFrom || null,
-        to: customTo || null,
+        from: hasCustomFrom ? customFrom! : null,
+        to: hasCustomTo ? customTo! : null,
         value: DateRangeEnum.CUSTOM,
         label: 'Custom Range'
       }

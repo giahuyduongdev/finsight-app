@@ -9,7 +9,7 @@ const ReportTable = () => {
     pageSize: 10
   })
 
-  const { data, isLoading } = useGetAllReportsQuery(filter)
+  const { data, isLoading, isFetching } = useGetAllReportsQuery(filter)
 
   const pagination = {
     totalItems: data?.pagination?.totalCount || 0,
@@ -30,7 +30,7 @@ const ReportTable = () => {
     <DataTable
       data={data?.reports || []} //data?.reports || []
       columns={reportColumns}
-      isLoading={isLoading && !data}
+      isLoading={isLoading || isFetching}
       showSearch={false}
       className="[&_td]:!w-[5%]"
       pagination={pagination}

@@ -9,6 +9,19 @@ import { differenceInDays, subDays, subYears } from 'date-fns'
 import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { redis } from '../config/redis.config'
 
+function calculatePercentageChange(previous: number, current: number) {
+  // Nếu kỳ trước bằng 0:
+  // - Nếu kỳ này cũng bằng 0 -> Không thay đổi (0%)
+  // - Nếu kỳ này có tiền -> Tính là tăng 100% (quy ước UI phổ biến để tránh lỗi chia cho 0)
+  if (previous === 0) return current === 0 ? 0 : 100
+
+  // Tính phần trăm thực tế
+  const changes = ((current - previous) / Math.abs(previous)) * 100
+
+  // Trả về số thực tế, làm tròn 2 chữ số thập phân (Không dùng Math.min/max nữa)
+  return parseFloat(changes.toFixed(2))
+}
+
 /**
  * Helper to resolve date range and cache keys uniformly across analytics services.
  */
@@ -368,7 +381,6 @@ export const chartAnalyticsService = async (
 
   // Lưu Redis TTL = 5 phút
   await redis.set(cacheKey, JSON.stringify(result2), 'EX', 300)
-
   return result2
 }
 
@@ -378,24 +390,25 @@ export const expensePieChartBreakdownService = async (
   customFrom?: Date,
   customTo?: Date,
   timezone: string = 'UTC',
-  preferredCurrency: string = 'USD' //
+  preferredCurrency: string = 'USD'
 ) => {
   const { range, rangeValue, queryFrom, queryTo, fromKey, toKey } =
     resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 
   const cacheKey = `analytics:pie:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
-  const cached = await redis.get(cacheKey)
-  if (cached) return JSON.parse(cached)
-
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
     type: TransactionTypeEnum.EXPENSE,
     status: TransactionStatusEnum.COMPLETED,
-    ...(queryFrom && queryTo && { date: { $gte: queryFrom, $lte: queryTo } })
+    ...((queryFrom || queryTo) && {
+      date: {
+        ...(queryFrom && { $gte: queryFrom }),
+        ...(queryTo && { $lte: queryTo })
+      }
+    })
   }
 
-  // Group theo category + currency
   const result = await TransactionModel.aggregate([
     { $match: filter },
     {
@@ -458,21 +471,8 @@ export const expensePieChartBreakdownService = async (
     }
   }
 
-  // Lưu Redis TTL = 5 phút
   await redis.set(cacheKey, JSON.stringify(resultData), 'EX', 300)
 
   return resultData
 }
 
-function calculatePercentageChange(previous: number, current: number) {
-  // Nếu kỳ trước bằng 0:
-  // - Nếu kỳ này cũng bằng 0 -> Không thay đổi (0%)
-  // - Nếu kỳ này có tiền -> Tính là tăng 100% (quy ước UI phổ biến để tránh lỗi chia cho 0)
-  if (previous === 0) return current === 0 ? 0 : 100
-
-  // Tính phần trăm thực tế
-  const changes = ((current - previous) / Math.abs(previous)) * 100
-
-  // Trả về số thực tế, làm tròn 2 chữ số thập phân (Không dùng Math.min/max nữa)
-  return parseFloat(changes.toFixed(2))
-}

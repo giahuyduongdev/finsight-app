@@ -36,6 +36,7 @@ jobs:
           cache-dependency-path: client/package-lock.json
 
       - name: Install Dependencies
+        # Use --legacy-peer-deps to handle React 19 peer dependency conflicts during CI
         run: npm ci --legacy-peer-deps
 
       - name: Run Lint

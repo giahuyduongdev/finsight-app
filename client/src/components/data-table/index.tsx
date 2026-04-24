@@ -164,7 +164,7 @@ export function DataTable<TData>({
     const selectedIds = selectedRows
       .map((row) => {
         const original = row.original as { id?: string; _id?: string }
-        return original.id || original._id
+        return original._id || original.id
       })
       .filter((id): id is string => typeof id === 'string' && id.length > 0)
 

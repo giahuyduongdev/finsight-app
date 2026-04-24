@@ -355,8 +355,7 @@ export const deleteTransactionService = async (
 
   // Invalidate analytics cache
   try {
-    const room = userId.toString()
-    const keys = await redis.keys(`analytics:*${room}*`)
+    const keys = await redis.keys(`analytics:*:${userId}:*`)
     if (keys.length) await redis.del(...keys)
   } catch (err) {
     logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
@@ -384,9 +383,12 @@ export const bulkDeleteTransactionService = async (
   })
 
   // Invalidate analytics cache
-  const room = userId.toString()
-  const keys = await redis.keys(`analytics:*${room}*`)
-  if (keys.length) await redis.del(...keys)
+  try {
+    const keys = await redis.keys(`analytics:*:${userId}:*`)
+    if (keys.length) await redis.del(...keys)
+  } catch (err) {
+    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
+  }
 
   return {
     sucess: true,
@@ -425,8 +427,12 @@ export const bulkTransactionService = async (
   })
 
   // Invalidate analytics cache
-  const keys = await redis.keys(`analytics:*:${userId}:*`)
-  if (keys.length) await redis.del(...keys)
+  try {
+    const keys = await redis.keys(`analytics:*:${userId}:*`)
+    if (keys.length) await redis.del(...keys)
+  } catch (err) {
+    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
+  }
 
   return {
     insertedCount: result.insertedCount,

@@ -46,7 +46,6 @@ const ImportTransactionModal = () => {
 
   const handleClose = () => {
     setOpen(false)
-    setTimeout(() => resetImport(), 300)
   }
 
   const handleMappingComplete = (mappings: Record<string, string>) => {
@@ -90,15 +89,15 @@ const ImportTransactionModal = () => {
     <Dialog
       open={open}
       onOpenChange={(val) => {
-        if (!val) handleClose()
-        else setOpen(true)
+        setOpen(val)
+        if (!val) resetImport()
       }}
     >
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className="!shadow-none !cursor-pointer !border-gray-500
-         !text-white !bg-transparent"
+          className="!shadow-none !cursor-pointer !border-gray-500 !text-white !bg-transparent"
+          aria-label="Open bulk import modal"
         >
           <ImportIcon className="!w-5 !h-5" />
           Bulk Import

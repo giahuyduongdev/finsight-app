@@ -34,8 +34,8 @@ const CurrencyInputField = forwardRef<
         className,
         prefix = '$',
         disabled,
-        decimalsLimit,
-        allowDecimals,
+        decimalsLimit = 2,
+        allowDecimals = true,
         autoFocus
       },
     ref
@@ -48,8 +48,8 @@ const CurrencyInputField = forwardRef<
         id={inputId}
         name={name}
         value={value}
-        decimalsLimit={decimalsLimit}
-        decimalScale={decimalsLimit}
+        decimalsLimit={allowDecimals ? decimalsLimit : 0}
+        decimalScale={allowDecimals ? decimalsLimit : 0}
         allowDecimals={allowDecimals}
         onValueChange={onValueChange}
         prefix={prefix}

@@ -94,7 +94,8 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
               `⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`
             )
           } else {
-            // Re-throw serious errors (connection, etc.) so BullMQ can retry
+            // Re-throw serious errors (connection, etc.) so BullMQ can retry.
+            // insertedInThisBatch remains 0 as initialized at line 82.
             throw error
           }
         }
