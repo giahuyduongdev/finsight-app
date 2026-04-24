@@ -227,7 +227,7 @@ export const oauthCallbackController = asyncHandler(
       )
       timezone = decoded.timezone || 'UTC'
     } catch (e) {
-      logger.error('Timezone decoding from state failed:', e)
+      logger.warn('Timezone decoding from state failed:', e)
     }
 
     const result = await oauthCallbackService(code as string, timezone) // ← truyền timezone

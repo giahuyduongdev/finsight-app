@@ -49,6 +49,7 @@ const CurrencyInputField = forwardRef<
         name={name}
         value={value}
         decimalsLimit={decimalsLimit}
+        decimalScale={decimalsLimit}
         allowDecimals={allowDecimals}
         onValueChange={onValueChange}
         prefix={prefix}

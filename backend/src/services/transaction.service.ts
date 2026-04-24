@@ -14,6 +14,7 @@ import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
 import { DateRangePreset } from '../enums/date-range.enum'
+import { logger } from '../config/logger.config'
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -83,8 +84,12 @@ export const createTransactionService = async (
   // --- END BACKFILL ---
 
   // Invalidate analytics cache
-  const keys = await redis.keys(`analytics:*:${userId}:*`)
-  if (keys.length) await redis.del(...keys)
+  try {
+    const keys = await redis.keys(`analytics:*:${userId}:*`)
+    if (keys.length) await redis.del(...keys)
+  } catch (err) {
+    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
+  }
 
   return transaction
 }
@@ -322,8 +327,12 @@ export const updateTransactionService = async (
   }
 
   // Invalidate analytics cache
-  const keys = await redis.keys(`analytics:*:${userId}:*`)
-  if (keys.length) await redis.del(...keys)
+  try {
+    const keys = await redis.keys(`analytics:*:${userId}:*`)
+    if (keys.length) await redis.del(...keys)
+  } catch (err) {
+    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
+  }
 
   return existingTransaction
 }
@@ -345,9 +354,13 @@ export const deleteTransactionService = async (
   })
 
   // Invalidate analytics cache
-  const room = userId.toString()
-  const keys = await redis.keys(`analytics:*${room}*`)
-  if (keys.length) await redis.del(...keys)
+  try {
+    const room = userId.toString()
+    const keys = await redis.keys(`analytics:*${room}*`)
+    if (keys.length) await redis.del(...keys)
+  } catch (err) {
+    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
+  }
 
   return
 }

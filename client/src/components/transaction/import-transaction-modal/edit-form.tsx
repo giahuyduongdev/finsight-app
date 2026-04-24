@@ -47,10 +47,10 @@ export const EditForm = ({
     const d = new Date(transaction.date)
     if (isNaN(d.getTime())) return ''
 
-    // Use local calendar parts to avoid UTC day-shift
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
+    // Use UTC parts to avoid local timezone day-shift when reading ISO strings
+    const y = d.getUTCFullYear()
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(d.getUTCDate()).padStart(2, '0')
     return `${y}-${m}-${day}`
   })
 
@@ -81,8 +81,8 @@ export const EditForm = ({
         return
       }
 
-      // If valid, use UTC mid-night to keep the same date string in ISO
-      dateObj = new Date(Date.UTC(y, m - 1, d))
+      // If valid, use UTC midday to prevent date jumping to previous day in Western timezones
+      dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
     }
 
     if (isNaN(dateObj.getTime())) {

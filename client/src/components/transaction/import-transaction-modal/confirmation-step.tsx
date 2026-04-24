@@ -160,7 +160,7 @@ const ConfirmationStep = ({
           const m = parseInt(dateMatch[2])
           const d = parseInt(dateMatch[3])
           // Use Date.UTC to avoid day-shift when converting to ISOString
-          draft.date = new Date(Date.UTC(y, m - 1, d)).toISOString()
+          draft.date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toISOString()
         } else if (!isNaN(Date.parse(rawValue))) {
             draft.date = new Date(rawValue).toISOString()
           }

@@ -210,9 +210,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
     }, [open]);
 
     useEffect(() => {
-      if (value !== undefined) {
-        setSelected(value);
-      }
+      setSelected(value);
     }, [value]);
 
     useEffect(() => {

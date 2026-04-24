@@ -65,7 +65,12 @@ export const summaryAnalyticsService = async (
       $match: {
         userId: new mongoose.Types.ObjectId(userId),
         status: TransactionStatusEnum.COMPLETED,
-        ...(queryFrom && queryTo && { date: { $gte: queryFrom, $lte: queryTo } })
+        ...((queryFrom || queryTo) && {
+          date: {
+            ...(queryFrom && { $gte: queryFrom }),
+            ...(queryTo && { $lte: queryTo })
+          }
+        })
       }
     },
     {
@@ -141,7 +146,12 @@ export const summaryAnalyticsService = async (
         $match: {
           userId: new mongoose.Types.ObjectId(userId),
           status: TransactionStatusEnum.COMPLETED,
-          date: { $gte: prevPeriodFrom, $lte: prevPeriodTo }
+          ...((prevPeriodFrom || prevPeriodTo) && {
+            date: {
+              ...(prevPeriodFrom && { $gte: prevPeriodFrom }),
+              ...(prevPeriodTo && { $lte: prevPeriodTo })
+            }
+          })
         }
       },
       {
@@ -241,7 +251,12 @@ export const chartAnalyticsService = async (
   const filter: any = {
     userId: new mongoose.Types.ObjectId(userId),
     status: TransactionStatusEnum.COMPLETED,
-    ...(queryFrom && queryTo && { date: { $gte: queryFrom, $lte: queryTo } })
+    ...((queryFrom || queryTo) && {
+      date: {
+        ...(queryFrom && { $gte: queryFrom }),
+        ...(queryTo && { $lte: queryTo })
+      }
+    })
   }
 
   const result = await TransactionModel.aggregate([

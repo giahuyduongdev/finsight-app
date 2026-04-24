@@ -21,14 +21,9 @@ export const getDateRange = (
   timezone: string = 'UTC'
 ) => {
   // Use Preset unless it's explicitly CUSTOM or missing while customs are present
-  const isCustomRange = preset === DateRangeEnum.CUSTOM || (!preset && customFrom && customTo)
-
-  if (isCustomRange && customFrom && customTo) {
-    return {
-      from: customFrom,
-      to: customTo,
-      value: DateRangeEnum.CUSTOM
-    }
+  let effectivePreset = preset
+  if (!effectivePreset && (customFrom || customTo)) {
+    effectivePreset = DateRangeEnum.CUSTOM
   }
 
   const now = toZonedTime(new Date(), timezone) // đổi sang giờ user
@@ -41,7 +36,7 @@ export const getDateRange = (
     label: 'Last 30 Days'
   }
 
-  switch (preset) {
+  switch (effectivePreset) {
     case DateRangeEnum.ALL_TIME:
       return {
         from: null,

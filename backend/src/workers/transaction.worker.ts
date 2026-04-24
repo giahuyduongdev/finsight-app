@@ -87,10 +87,16 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
           })
           insertedInThisBatch = result.length
         } catch (error: any) {
-          // Partial failure or connection error during write
-          insertedInThisBatch = isBulkWriteError(error) ? (error.result?.nInserted ?? error.insertedCount ?? 0) : 0
-          const dbRejections = transactionsToInsert.length - insertedInThisBatch
-          logger.warn(`⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`)
+          if (isBulkWriteError(error)) {
+            insertedInThisBatch = error.result?.nInserted ?? error.insertedCount ?? 0
+            const dbRejections = transactionsToInsert.length - insertedInThisBatch
+            logger.warn(
+              `⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`
+            )
+          } else {
+            // Re-throw serious errors (connection, etc.) so BullMQ can retry
+            throw error
+          }
         }
       }
 
@@ -125,8 +131,12 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     logger.info(`🗑️ [Worker] Cleaned up import batch: ${importBatchId}`)
 
     // Xóa cache analytics của user
-    const keys = await redis.keys(`analytics:*:${userId}:*`)
-    if (keys.length) await redis.del(...keys)
+    try {
+      const keys = await redis.keys(`analytics:*:${userId}:*`)
+      if (keys.length) await redis.del(...keys)
+    } catch (err) {
+      logger.warn('⚠️ [Worker] Failed to invalidate analytics cache', err)
+    }
 
     //  Emit completed
     const room = userId.toString()
