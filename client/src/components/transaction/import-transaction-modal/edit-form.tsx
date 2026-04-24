@@ -63,10 +63,26 @@ export const EditForm = ({
     // Handle YYYY-MM-DD in local time to match initial mapping logic and prevent UTC day-shift
     const dateMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
     if (dateMatch) {
-      const y = parseInt(dateMatch[1])
-      const m = parseInt(dateMatch[2])
-      const d = parseInt(dateMatch[3])
+      const y = Number(dateMatch[1])
+      const m = Number(dateMatch[2])
+      const d = Number(dateMatch[3])
       dateObj = new Date(y, m - 1, d)
+
+      // Strict validation: Check if normalization happened (e.g. Feb 31 -> Mar 3)
+      const isSameCalendarDate = 
+        dateObj.getFullYear() === y && 
+        dateObj.getMonth() === m - 1 && 
+        dateObj.getDate() === d
+
+      if (!isSameCalendarDate) {
+        toast.error('Invalid calendar date', {
+          description: 'Please enter a valid date (e.g., February only has 28 or 29 days).'
+        })
+        return
+      }
+
+      // If valid, use UTC mid-night to keep the same date string in ISO
+      dateObj = new Date(Date.UTC(y, m - 1, d))
     }
 
     if (isNaN(dateObj.getTime())) {

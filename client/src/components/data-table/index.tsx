@@ -161,9 +161,18 @@ export function DataTable<TData>({
   }
 
   const handleDeleteConfirm = () => {
-    const selectedIds = selectedRows.map(
-      (row) => (row.original as Record<string, string>).id || (row.original as Record<string, string>)._id
-    )
+    const selectedIds = selectedRows
+      .map((row) => {
+        const original = row.original as { id?: string; _id?: string }
+        return original.id || original._id
+      })
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+    if (selectedIds.length === 0) {
+      setIsDeleteDialogOpen(false)
+      return
+    }
+
     onBulkDelete?.(selectedIds)
     setRowSelection({})
     setIsDeleteDialogOpen(false)

@@ -16,8 +16,8 @@ import TransactionModel, {
 } from '../models/transaction.model'
 import { calculateNextOccurrence } from '../utils/dates/index'
 
-function isBulkWriteError(error: any): error is { insertedCount: number } {
-  return error && typeof error === 'object' && 'insertedCount' in error
+function isBulkWriteError(error: any): error is { insertedCount: number; result?: { nInserted: number } } {
+  return error && typeof error === 'object' && ('insertedCount' in error || (error.result && 'nInserted' in error.result))
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
@@ -86,9 +86,9 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
             ordered: false
           })
           insertedInThisBatch = result.length
-        } catch (error) {
-          // Use type guard to safely access insertedCount
-          insertedInThisBatch = isBulkWriteError(error) ? error.insertedCount : 0
+        } catch (error: any) {
+          // Partial failure or connection error during write
+          insertedInThisBatch = isBulkWriteError(error) ? (error.result?.nInserted ?? error.insertedCount ?? 0) : 0
           const dbRejections = transactionsToInsert.length - insertedInThisBatch
           logger.warn(`⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`)
         }

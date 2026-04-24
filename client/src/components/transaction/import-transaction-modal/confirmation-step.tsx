@@ -156,11 +156,12 @@ const ConfirmationStep = ({
           // Handle YYYY-MM-DD in local time to avoid UTC day-shift
           const dateMatch = rawValue.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
           if (dateMatch) {
-            const y = parseInt(dateMatch[1])
-            const m = parseInt(dateMatch[2])
-            const d = parseInt(dateMatch[3])
-            draft.date = new Date(y, m - 1, d).toISOString()
-          } else if (!isNaN(Date.parse(rawValue))) {
+          const y = parseInt(dateMatch[1])
+          const m = parseInt(dateMatch[2])
+          const d = parseInt(dateMatch[3])
+          // Use Date.UTC to avoid day-shift when converting to ISOString
+          draft.date = new Date(Date.UTC(y, m - 1, d)).toISOString()
+        } else if (!isNaN(Date.parse(rawValue))) {
             draft.date = new Date(rawValue).toISOString()
           }
         } else if (transactionField === 'type') {
@@ -476,7 +477,7 @@ const ConfirmationStep = ({
                             size="icon" 
                             className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50/50"
                             onClick={() => setEditingRow(row)}
-                            aria-label="Edit Transaction"
+                            aria-label={`Edit transaction ${virtualRow.index + 1}: ${row.data?.title || 'Untitled'}`}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </Button>
@@ -486,7 +487,7 @@ const ConfirmationStep = ({
                          size="icon" 
                          className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50/50"
                          onClick={() => handleDeleteRow(row.id)}
-                         aria-label="Delete Transaction"
+                         aria-label={`Delete transaction ${virtualRow.index + 1}: ${row.data?.title || 'Untitled'}`}
                        >
                          <Trash2 className="w-3.5 h-3.5" />
                        </Button>

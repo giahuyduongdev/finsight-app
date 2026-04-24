@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useId } from 'react'
 import CurrencyInput from 'react-currency-input-field'
 import { cn } from '@/lib/utils'
 
@@ -40,9 +40,12 @@ const CurrencyInputField = forwardRef<
       },
     ref
   ) => {
+    const generatedId = useId()
+    const inputId = id ?? generatedId
+
     return (
       <CurrencyInput
-        id={id || name}
+        id={inputId}
         name={name}
         value={value}
         decimalsLimit={decimalsLimit}

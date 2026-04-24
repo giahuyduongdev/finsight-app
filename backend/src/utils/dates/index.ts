@@ -13,14 +13,17 @@ import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { addDays, addMonths, addWeeks, addYears } from 'date-fns'
 import { RecurringIntervalEnum } from '../../models/transaction.model'
 
+// backend/src/utils/dates/index.ts
 export const getDateRange = (
   preset?: DateRangePreset,
   customFrom?: Date,
   customTo?: Date,
-  timezone: string = 'UTC' // Thêm vào
+  timezone: string = 'UTC'
 ) => {
-  // Chỉ ưu tiên custom range NẾU preset là CUSTOM hoặc không có preset
-  if ((!preset || preset === DateRangeEnum.CUSTOM) && customFrom && customTo) {
+  // Use Preset unless it's explicitly CUSTOM or missing while customs are present
+  const isCustomRange = preset === DateRangeEnum.CUSTOM || (!preset && customFrom && customTo)
+
+  if (isCustomRange && customFrom && customTo) {
     return {
       from: customFrom,
       to: customTo,

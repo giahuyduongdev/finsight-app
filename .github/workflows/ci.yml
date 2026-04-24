@@ -2,9 +2,12 @@ name: Continuous Integration
 
 on:
   push:
-    branches: ['**']
+    branches: [main, develop, 'feature/**']
   pull_request:
-    branches: ['**']
+    branches: [main, develop]
+
+permissions:
+  contents: read
 
 env:
   HUSKY: 0 # Disable husky in CI to avoid errors during install

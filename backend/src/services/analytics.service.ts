@@ -22,28 +22,12 @@ const resolveAnalyticsRange = (
   const { from, to, value: rangeValue } = range
 
   const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
-  const fromKey = from
-    ? isCustomRange
-      ? from.getTime()
-      : new Date(from).setHours(0, 0, 0, 0)
-    : 'all'
-  const toKey = to
-    ? isCustomRange
-      ? to.getTime()
-      : new Date(to).setHours(0, 0, 0, 0)
-    : 'all'
+  const fromKey = from ? from.getTime() : 'all'
+  const toKey = to ? to.getTime() : 'all'
 
-  // Normalize query dates for Presets to match cache key behavior
-  const queryFrom = isCustomRange
-    ? from
-    : from
-      ? new Date(new Date(from).setHours(0, 0, 0, 0))
-      : from
-  const queryTo = isCustomRange
-    ? to
-    : to
-      ? new Date(new Date(to).setHours(23, 59, 59, 999))
-      : to
+  // 'getDateRange' already resolves boundaries using 'timezone'
+  const queryFrom = from
+  const queryTo = to
 
   return {
     range,

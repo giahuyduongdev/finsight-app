@@ -405,7 +405,7 @@ const TransactionForm = (props: {
                         ? { value: field.value, label: field.value }
                         : undefined
                     }
-                    onChange={(option) => field.onChange(option.value)}
+                    onChange={(option) => field.onChange(option?.value)}
                     options={CATEGORIES}
                     placeholder="Select or type a category"
                     creatable
