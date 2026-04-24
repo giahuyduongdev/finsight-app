@@ -10,7 +10,6 @@ import {
 } from '../validators/transaction.validator'
 import {
   bulkDeleteTransactionService,
-  bulkTransactionService,
   createTransactionService,
   deleteTransactionService,
   duplicateTransactionService,
@@ -81,7 +80,7 @@ export const getAllTransactionController = asyncHandler(
   }
 )
 
-export const getAllTransactionByIdController = asyncHandler(
+export const getTransactionByIdController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?._id
     const transactionId = transactionIdSchema.parse(req.params.id)

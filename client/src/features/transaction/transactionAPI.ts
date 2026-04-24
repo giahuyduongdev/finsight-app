@@ -14,7 +14,7 @@ export const transactionApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
     createTransaction: builder.mutation<void, CreateTransactionBody>({
       query: (body) => ({
-        url: '/transaction/create',
+        url: '/transaction',
         method: 'POST',
         body: body
       }),
@@ -84,15 +84,15 @@ export const transactionApi = apiClient.injectEndpoints({
 
     duplicateTransaction: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/transaction/duplicate/${id}`,
-        method: 'PUT'
+        url: `/transaction/${id}/duplicate`,
+        method: 'POST'
       }),
       invalidatesTags: ['transactions']
     }),
 
     updateTransaction: builder.mutation<void, UpdateTransactionPayload>({
       query: ({ id, transaction }) => ({
-        url: `/transaction/update/${id}`,
+        url: `/transaction/${id}`,
         method: 'PUT',
         body: transaction
       }),
@@ -102,7 +102,7 @@ export const transactionApi = apiClient.injectEndpoints({
     bulkImportTransaction: builder.mutation<void, BulkImportTransactionPayload>(
       {
         query: (body) => ({
-          url: '/transaction/bulk-transaction',
+          url: '/transaction/bulk',
           method: 'POST',
           body
         })
@@ -114,7 +114,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     deleteTransaction: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/transaction/delete/${id}`,
+        url: `/transaction/${id}`,
         method: 'DELETE'
       }),
       invalidatesTags: ['transactions', 'analytics']
@@ -130,7 +130,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     bulkDeleteTransaction: builder.mutation<void, string[]>({
       query: (transactionIds) => ({
-        url: '/transaction/bulk-delete',
+        url: '/transaction/bulk',
         method: 'DELETE',
         body: {
           transactionIds
