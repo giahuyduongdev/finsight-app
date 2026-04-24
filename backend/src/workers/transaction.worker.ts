@@ -16,6 +16,10 @@ import TransactionModel, {
 } from '../models/transaction.model'
 import { calculateNextOccurrence } from '../utils/dates/index'
 
+function isBulkWriteError(error: any): error is { insertedCount: number } {
+  return error && typeof error === 'object' && 'insertedCount' in error
+}
+
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 /**
@@ -83,9 +87,8 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
           })
           insertedInThisBatch = result.length
         } catch (error) {
-          const err = error as { insertedCount?: number }
-          // MongoDB driver v4+ uses insertedCount on BulkWriteError
-          insertedInThisBatch = err.insertedCount ?? 0
+          // Use type guard to safely access insertedCount
+          insertedInThisBatch = isBulkWriteError(error) ? error.insertedCount : 0
           const dbRejections = transactionsToInsert.length - insertedInThisBatch
           logger.warn(`⚠️ [Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`)
         }

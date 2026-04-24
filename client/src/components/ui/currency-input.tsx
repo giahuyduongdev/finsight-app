@@ -13,6 +13,10 @@ interface CurrencyInputFieldProps {
   decimalsLimit?: number
   allowDecimals?: boolean
   disabled?: boolean
+  /**
+   * autoFocus can negatively impact accessibility by moving focus unexpectedly.
+   * Use sparingly and only when it clearly improves UX (e.g., primary input in a modal).
+   */
   autoFocus?: boolean
 }
 

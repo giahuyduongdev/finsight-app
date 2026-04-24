@@ -32,6 +32,9 @@ export const parseAmount = (value: unknown, currency?: string): number => {
       decimalPart.length === 3 &&
       (ZERO_DECIMAL_CURRENCIES.includes(currency || 'USD') || separator === ',')
 
+    // If it's probably grouping (e.g., "1,234" in EUR), treat it as an integer Part
+    // Documentation: European formats often use ',' as a decimal separator.
+    // Our heuristic treats single ',' with 3 digits as grouping if no other separators exist.
     if (isProbablyGrouping && !cleanValue.includes(separator === '.' ? ',' : '.')) {
       return Number(integerPart + decimalPart)
     } else {

@@ -33,7 +33,7 @@ interface SingleSelectorProps {
   triggerSearchOnFocus?: boolean;
   onSearch?: (value: string) => Promise<Option[]>;
   onSearchSync?: (value: string) => Option[];
-  onChange?: (option: Option) => void;
+  onChange?: (option: Option | undefined) => void;
   disabled?: boolean;
   groupBy?: string;
   className?: string;
@@ -174,8 +174,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
     const handleUnselect = React.useCallback(() => {
       // Clear selected value
       setSelected(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onChange?.(undefined as unknown as Option);
+      onChange?.(undefined);
 
       // Clear input to ensure no filtering is applied
       setInputValue("");

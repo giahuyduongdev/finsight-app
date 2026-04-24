@@ -24,7 +24,6 @@ export type CsvRowWrapper = {
 }
 
 export type ConfirmationStepProps = {
-  file: File | null
   mappings: Record<string, string>
   csvData: Record<string, string | undefined>[]
   onComplete: () => void

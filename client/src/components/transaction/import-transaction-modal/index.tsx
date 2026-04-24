@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 
 const ImportTransactionModal = () => {
   const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [file, setFile] = useState<File | null>(null)
   const [csvColumns, setCsvColumns] = useState<CsvColumn[]>([])
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [csvData, setCsvData] = useState<any[]>([])
@@ -32,8 +31,7 @@ const ImportTransactionModal = () => {
   // console.log(transactionFields, file, csvColumns, csvData, mappings);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleFileUpload = (file: File, columns: CsvColumn[], data: any[]) => {
-    setFile(file)
+  const handleFileUpload = (_file: File, columns: CsvColumn[], data: any[]) => {
     setCsvColumns(columns)
     setCsvData(data)
     setMappings({})
@@ -41,7 +39,6 @@ const ImportTransactionModal = () => {
   }
 
   const resetImport = () => {
-    setFile(null)
     setCsvColumns([])
     setMappings({})
     setStep(1)
@@ -78,7 +75,6 @@ const ImportTransactionModal = () => {
       case 3:
         return (
           <ConfirmationStep
-            file={file}
             mappings={mappings}
             csvData={csvData}
             onBack={() => handleBack(2)}

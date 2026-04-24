@@ -9,6 +9,54 @@ import { differenceInDays, subDays, subYears } from 'date-fns'
 import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { redis } from '../config/redis.config'
 
+/**
+ * Helper to resolve date range and cache keys uniformly across analytics services.
+ */
+const resolveAnalyticsRange = (
+  dateRangePreset?: DateRangePreset,
+  customFrom?: Date,
+  customTo?: Date,
+  timezone: string = 'UTC'
+) => {
+  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
+  const { from, to, value: rangeValue } = range
+
+  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
+  const fromKey = from
+    ? isCustomRange
+      ? from.getTime()
+      : new Date(from).setHours(0, 0, 0, 0)
+    : 'all'
+  const toKey = to
+    ? isCustomRange
+      ? to.getTime()
+      : new Date(to).setHours(0, 0, 0, 0)
+    : 'all'
+
+  // Normalize query dates for Presets to match cache key behavior
+  const queryFrom = isCustomRange
+    ? from
+    : from
+      ? new Date(new Date(from).setHours(0, 0, 0, 0))
+      : from
+  const queryTo = isCustomRange
+    ? to
+    : to
+      ? new Date(new Date(to).setHours(23, 59, 59, 999))
+      : to
+
+  return {
+    range,
+    from,
+    to,
+    rangeValue,
+    fromKey,
+    toKey,
+    queryFrom,
+    queryTo
+  }
+}
+
 export const summaryAnalyticsService = async (
   userId: string,
   dateRangePreset?: DateRangePreset,
@@ -17,17 +65,10 @@ export const summaryAnalyticsService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD'
 ) => {
-  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
-  const { from, to, value: rangeValue } = range
+  const { range, rangeValue, queryFrom, queryTo, fromKey, toKey, from, to } =
+    resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 
-  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
-  const fromKey = from ? (isCustomRange ? from.getTime() : new Date(from).setHours(0, 0, 0, 0)) : 'all'
-  const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:summary:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
-
-  // Normalize query dates for Presets to match cache key behavior
-  const queryFrom = isCustomRange ? from : from ? new Date(new Date(from).setHours(0, 0, 0, 0)) : from
-  const queryTo = isCustomRange ? to : to ? new Date(new Date(to).setHours(23, 59, 59, 999)) : to
 
   // Check Redis cache trước
   const cached = await redis.get(cacheKey)
@@ -205,17 +246,10 @@ export const chartAnalyticsService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD' //
 ) => {
-  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
-  const { from, to, value: rangeValue } = range
+  const { range, rangeValue, queryFrom, queryTo, fromKey, toKey } =
+    resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 
-  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
-  const fromKey = from ? (isCustomRange ? from.getTime() : new Date(from).setHours(0, 0, 0, 0)) : 'all'
-  const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:chart:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
-
-  // Normalize query dates for Presets to match cache key behavior
-  const queryFrom = isCustomRange ? from : from ? new Date(new Date(from).setHours(0, 0, 0, 0)) : from
-  const queryTo = isCustomRange ? to : to ? new Date(new Date(to).setHours(23, 59, 59, 999)) : to
 
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
@@ -347,17 +381,10 @@ export const expensePieChartBreakdownService = async (
   timezone: string = 'UTC',
   preferredCurrency: string = 'USD' //
 ) => {
-  const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
-  const { from, to, value: rangeValue } = range
+  const { range, rangeValue, queryFrom, queryTo, fromKey, toKey } =
+    resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 
-  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
-  const fromKey = from ? (isCustomRange ? from.getTime() : new Date(from).setHours(0, 0, 0, 0)) : 'all'
-  const toKey = to ? (isCustomRange ? to.getTime() : new Date(to).setHours(0, 0, 0, 0)) : 'all'
   const cacheKey = `analytics:pie:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
-
-  // Normalize query dates for Presets to match cache key behavior
-  const queryFrom = isCustomRange ? from : from ? new Date(new Date(from).setHours(0, 0, 0, 0)) : from
-  const queryTo = isCustomRange ? to : to ? new Date(new Date(to).setHours(23, 59, 59, 999)) : to
 
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
