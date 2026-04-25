@@ -96,6 +96,7 @@ cd backend && npm run type-check && npm run lint
 # Frontend
 cd client && npm run build && npm run lint
 ```
+
 If any errors → fix them first. Do not commit broken code.
 
 Then stop and notify user:
@@ -107,6 +108,7 @@ Summary of changes:
 
 Proceed with commit? (y/n)
 ```
+
 Wait for user to confirm. If the reply indicates approval → proceed. If it indicates changes are needed → fix and re-verify.
 
 ### Required git steps (in order)
@@ -163,6 +165,7 @@ Use GitHub MCP to create a PR:
 - CI: all checks passed
 - CodeRabbit: no critical or major comments
 ```
+
 Do NOT merge — user reviews the PR manually before merging.
 
 ---
