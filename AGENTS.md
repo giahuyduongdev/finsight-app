@@ -84,6 +84,11 @@ Decided during planning (Section 4), not after. Format:
 - `chore/<short-description>` — tooling, deps, config
 
 ### Before committing — verify task is complete
+
+> [!NOTE]
+> - **macOS / Linux (zsh/bash):** The `&&` operator works natively.
+> - **Windows PowerShell:** The `&&` operator might not work. In that case, use `cmd /c "cd backend && npm run type-check && npm run lint"` or run them as separate sequential commands.
+
 ```bash
 # Backend
 cd backend && npm run type-check && npm run lint
@@ -94,7 +99,8 @@ cd client && npm run build && npm run lint
 If any errors → fix them first. Do not commit broken code.
 
 Then stop and notify user:
-```
+
+```text
 ✅ Task complete. Ready to commit.
 Summary of changes:
 - <what was done>
@@ -104,6 +110,7 @@ Proceed with commit? (y/n)
 Wait for user to confirm. If the reply indicates approval → proceed. If it indicates changes are needed → fix and re-verify.
 
 ### Required git steps (in order)
+
 ```bash
 # 1. Create and switch to branch (always — never commit directly to develop)
 git checkout -b <branch-name>
@@ -150,7 +157,8 @@ Use GitHub MCP to create a PR:
 - No Critical/Major comments remaining → proceed
 
 **When everything is green**, notify user and stop:
-```
+
+```text
 ✅ PR ready for your review: <PR link>
 - CI: all checks passed
 - CodeRabbit: no critical or major comments
