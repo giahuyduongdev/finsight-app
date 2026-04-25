@@ -7,7 +7,8 @@ import {
   UpdateTransactionType
 } from '../validators/transaction.validator'
 import { BadRequestException, NotFoundException } from '../utils/errors/index'
-import axios from 'axios'
+import sharp from 'sharp'
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary'
 import { genAI, genAIModel } from '../config/google-ai.config'
 import { createPartFromBase64, createUserContent } from '@google/genai'
 import { receiptPrompt } from '../lib/prompts/receipt.prompt'
@@ -444,23 +445,37 @@ export const scanReceiptService = async (
   file: Express.Multer.File | undefined
 ) => {
   if (!file) throw new BadRequestException('No file uploaded')
+  if (!file.buffer) throw new BadRequestException('File buffer missing')
 
   try {
-    if (!file.path) throw new BadRequestException('failed to upload file')
+    // 1. Compress image with Sharp (max 1024px width, 80% quality JPEG)
+    const compressedBuffer = await sharp(file.buffer)
+      .resize({ width: 1024, withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer()
 
-    const responseData = await axios.get(file.path, {
-      responseType: 'arraybuffer'
+    const base64String = compressedBuffer.toString('base64')
+
+    // 2. Parallelize network requests
+    // Task A: Upload buffer to Cloudinary via stream
+    const cloudinaryUploadPromise = new Promise<UploadApiResponse>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: 'receipts', resource_type: 'image' },
+        (error, result) => {
+          if (error || !result) reject(error || new Error('Upload failed'))
+          else resolve(result)
+        }
+      )
+      uploadStream.end(compressedBuffer)
     })
-    const base64String = Buffer.from(responseData.data).toString('base64')
 
-    if (!base64String) throw new BadRequestException('Could not process file')
-
-    const result = await genAI.models.generateContent({
+    // Task B: Send Base64 to Google Gemini
+    const geminiPromise = genAI.models.generateContent({
       model: genAIModel,
       contents: [
         createUserContent([
           receiptPrompt,
-          createPartFromBase64(base64String, file.mimetype)
+          createPartFromBase64(base64String, 'image/jpeg')
         ])
       ],
       config: {
@@ -470,7 +485,14 @@ export const scanReceiptService = async (
       }
     })
 
-    const response = result.text
+    // Execute both in parallel
+    const [uploadResult, geminiResult] = await Promise.all([
+      cloudinaryUploadPromise,
+      geminiPromise
+    ])
+
+    // 3. Process Gemini response
+    const response = geminiResult.text
     const cleanedText = response?.replace(/```(?:json)?\n?/g, '').trim()
 
     if (!cleanedText)
@@ -484,6 +506,7 @@ export const scanReceiptService = async (
       return { error: 'Receipt missing required information' }
     }
 
+    // Return Gemini data + secure URL from Cloudinary upload
     return {
       title: data.title || 'Receipt',
       amount: data.amount,
@@ -494,9 +517,10 @@ export const scanReceiptService = async (
       paymentMethod: data.paymentMethod || 'CASH',
       type: data.type || 'EXPENSE',
       status: data.status || 'COMPLETED',
-      receiptUrl: file.path
+      receiptUrl: uploadResult.secure_url
     }
   } catch (error) {
+    logger.error('❌ [scanReceiptService] error:', error)
     return { error: 'Receipt scanning service unavailable' }
   }
 }
