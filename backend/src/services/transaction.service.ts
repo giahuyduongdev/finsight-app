@@ -520,7 +520,11 @@ export const scanReceiptService = async (
       receiptUrl: uploadResult.secure_url
     }
   } catch (error) {
-    logger.error('❌ [scanReceiptService] error:', error)
+    logger.error('❌ [scanReceiptService] error:', {
+      error,
+      fileName: file?.originalname,
+      fileSize: file?.size
+    })
     return { error: 'Receipt scanning service unavailable' }
   }
 }
