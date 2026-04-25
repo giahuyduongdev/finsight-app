@@ -460,7 +460,7 @@ export const scanReceiptService = async (
     // Task A: Upload buffer to Cloudinary via stream
     const cloudinaryUploadPromise = new Promise<UploadApiResponse>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'receipts', resource_type: 'image' },
+        { folder: 'receipts', resource_type: 'image', timeout: 10000 },
         (error, result) => {
           if (error || !result) reject(error || new Error('Upload failed'))
           else resolve(result)

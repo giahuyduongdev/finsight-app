@@ -83,6 +83,26 @@ Decided during planning (Section 4), not after. Format:
 - `refactor/<short-description>` — code improvement
 - `chore/<short-description>` — tooling, deps, config
 
+### Before committing — verify task is complete
+```bash
+# Backend
+cd backend && npm run type-check && npm run lint
+
+# Frontend
+cd client && npm run build && npm run lint
+```
+If any errors → fix them first. Do not commit broken code.
+
+Then stop and notify user:
+```
+✅ Task complete. Ready to commit.
+Summary of changes:
+- <what was done>
+
+Proceed with commit? (y/n)
+```
+Wait for user to confirm. If the reply indicates approval → proceed. If it indicates changes are needed → fix and re-verify.
+
 ### Required git steps (in order)
 ```bash
 # 1. Create and switch to branch (always — never commit directly to develop)
@@ -118,7 +138,9 @@ Use GitHub MCP to create a PR:
 - Still failing after 10 minutes → stop and notify user: "⚠️ CI still failing after 10 minutes: <PR link>. Manual intervention needed."
 
 **CodeRabbit check:**
-- Use GitHub MCP to get PR review comments
+- Use GitHub MCP to get PR check runs status
+- If CodeRabbit status is still "Review in progress" → wait 60 seconds and re-check until it's complete
+- Only after CodeRabbit review is complete: use GitHub MCP to get PR review comments
 - Read `skills/coderabbit.md` to know which comments to act on
 - 🔴 Critical → fix immediately
 - 🟠 Major → fix before notifying user
