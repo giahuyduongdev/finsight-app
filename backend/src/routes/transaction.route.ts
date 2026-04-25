@@ -12,7 +12,7 @@ import {
   getChildTransactionsController,
   triggerRecurringTestController
 } from '../controllers/transaction.controller'
-import { upload } from '../config/cloudinary.config'
+import { upload, uploadMemory } from '../config/cloudinary.config'
 
 const transactionRoutes = Router()
 
@@ -24,7 +24,7 @@ transactionRoutes.post('/', createTransactionController)
 
 transactionRoutes.post(
   '/scan-receipt',
-  upload.single('receipt'),
+  uploadMemory.single('receipt'),
   scanReceiptController
 )
 

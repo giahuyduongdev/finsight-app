@@ -1,6 +1,5 @@
 import { Queue } from 'bullmq'
 import { bullMQConnection } from '../config/bull/bullmq.config'
-import { BulkTransactionItem } from '../services/transaction.service'
 
 // ─── Job Names ────────────────────────────────────────────────────────────────
 
