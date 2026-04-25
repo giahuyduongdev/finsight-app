@@ -117,6 +117,11 @@ export interface BulkImportTransactionPayload {
 
 export interface GetChildTransactionsResponse {
   message: string
-  parent: TransactionType
   children: TransactionType[]
+  pagination: {
+    totalCount: number
+    pageSize: number
+    pageNumber: number
+    totalPages: number
+  }
 }

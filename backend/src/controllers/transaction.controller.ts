@@ -98,12 +98,16 @@ export const getChildTransactionsController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?._id
     const parentId = transactionIdSchema.parse(req.params.id)
+    
+    const pageNumber = Number(req.query.pageNumber) || 1
+    const pageSize = Number(req.query.pageSize) || 10
 
-    const children = await getChildTransactionsService(userId, parentId)
+    const result = await getChildTransactionsService(userId, parentId, pageNumber, pageSize)
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Child transactions fetched successfully',
-      children
+      children: result.children,
+      pagination: result.pagination
     })
   }
 )

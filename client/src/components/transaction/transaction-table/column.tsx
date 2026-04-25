@@ -21,7 +21,8 @@ import { formatCurrency } from '@/lib/format-currency'
 import ActionsCell from './actions-cell'
 
 export type DisplayTransaction = TransactionType & {
-  _rowType?: 'child' | 'upcoming'
+  _rowType?: 'child' | 'upcoming' | 'load-more'
+  parentId?: string
 }
 
 type FrequencyInfo = { label: string; icon: LucideIcon }
@@ -29,7 +30,8 @@ type FrequencyMapType = { [key: string]: FrequencyInfo; DEFAULT: FrequencyInfo }
 
 export const createTransactionColumns = (
   expandedRows: Set<string>,
-  onExpandRow: (id: string) => void
+  onExpandRow: (id: string) => void,
+  onLoadMoreChilds?: (parentId: string) => void
 ): ColumnDef<DisplayTransaction>[] => [
   {
     id: 'select',
@@ -126,18 +128,30 @@ export const createTransactionColumns = (
           {isSubRow && (
             <div className="w-3 h-4 border-l-2 border-b-2 border-border rounded-bl-sm mr-2 -translate-y-2 shrink-0" />
           )}
-          <div
-            className={`min-w-[120px] max-w-[220px] truncate text-[13px] ${
-              !isSubRow
-                ? 'font-medium text-foreground' // Dòng cha: Chữ đậm, nét căng
-                : isUpcoming
-                  ? 'italic text-muted-foreground' // Dòng Upcoming: In nghiêng, xám vừa
-                  : 'text-slate-700 dark:text-slate-300' // Dòng con đã chạy: Xám đậm, cực kỳ dễ đọc
-            }`}
-            title={tx.title}
-          >
-            {tx.title}
-          </div>
+          {tx._rowType === 'load-more' ? (
+            <div
+              className={`min-w-[120px] max-w-[220px] truncate text-[13px] italic text-blue-600 hover:text-blue-800 cursor-pointer`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onLoadMoreChilds?.(tx.parentId || tx._id)
+              }}
+            >
+              {tx.title}
+            </div>
+          ) : (
+            <div
+              className={`min-w-[120px] max-w-[220px] truncate text-[13px] ${
+                !isSubRow
+                  ? 'font-medium text-foreground' // Dòng cha: Chữ đậm, nét căng
+                  : isUpcoming
+                    ? 'italic text-muted-foreground' // Dòng Upcoming: In nghiêng, xám vừa
+                    : 'text-slate-700 dark:text-slate-300' // Dòng con đã chạy: Xám đậm, cực kỳ dễ đọc
+              }`}
+              title={tx.title}
+            >
+              {tx.title}
+            </div>
+          )}
         </div>
       )
     }
@@ -154,11 +168,14 @@ export const createTransactionColumns = (
         <ArrowUpDown className="ml-1 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => (
-      <div className="w-[85px] capitalize truncate text-[13px]">
-        {row.original.category}
-      </div>
-    )
+    cell: ({ row }) => {
+      if (row.original._rowType === 'load-more') return <div className="w-[85px]" />
+      return (
+        <div className="w-[85px] capitalize truncate text-[13px]">
+          {row.original.category}
+        </div>
+      )
+    }
   },
   {
     accessorKey: 'type',
@@ -172,19 +189,22 @@ export const createTransactionColumns = (
         <ArrowUpDown className="ml-1 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => (
-      <div className="w-[70px] capitalize">
-        <span
-          className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${
-            row.getValue('type') === _TRANSACTION_TYPE.INCOME
-              ? 'bg-green-100 text-green-800'
-              : 'bg-red-100 text-red-800'
-          }`}
-        >
-          {row.getValue('type')}
-        </span>
-      </div>
-    ),
+    cell: ({ row }) => {
+      if (row.original._rowType === 'load-more') return <div className="w-[70px]" />
+      return (
+        <div className="w-[70px] capitalize">
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${
+              row.getValue('type') === _TRANSACTION_TYPE.INCOME
+                ? 'bg-green-100 text-green-800'
+                : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {row.getValue('type')}
+          </span>
+        </div>
+      )
+    },
     filterFn: (row, id, value) => value.includes(row.getValue(id))
   },
   {
@@ -195,6 +215,7 @@ export const createTransactionColumns = (
       </div>
     ),
     cell: ({ row }) => {
+      if (row.original._rowType === 'load-more') return <div className="min-w-[70px]" />
       const amount = parseFloat(row.getValue('amount'))
       const type = row.getValue('type')
       const currency = (row.original.currency ??
@@ -228,6 +249,7 @@ export const createTransactionColumns = (
       </div>
     ),
     cell: ({ row }) => {
+      if (row.original._rowType === 'load-more') return <div className="w-[65px]" />
       const currency = (row.original.currency ??
         CURRENCY_ENUM.USD) as CurrencyType
       const symbol =
@@ -252,11 +274,14 @@ export const createTransactionColumns = (
         <ArrowUpDown className="ml-1 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => (
-      <div className="w-[80px] whitespace-nowrap text-muted-foreground text-[13px]">
-        {format(new Date(row.getValue('createdAt')), 'MMM dd, yyyy')}
-      </div>
-    )
+    cell: ({ row }) => {
+      if (row.original._rowType === 'load-more') return <div className="w-[80px]" />
+      return (
+        <div className="w-[80px] whitespace-nowrap text-muted-foreground text-[13px]">
+          {format(new Date(row.getValue('createdAt')), 'MMM dd, yyyy')}
+        </div>
+      )
+    }
   },
   {
     accessorKey: 'paymentMethod',
@@ -264,6 +289,7 @@ export const createTransactionColumns = (
       <div className="text-[13px] font-semibold whitespace-nowrap">Payment</div>
     ),
     cell: ({ row }) => {
+      if (row.original._rowType === 'load-more') return <div className="w-[85px]" />
       const paymentMethod = row.original.paymentMethod
       if (!paymentMethod) return <div className="w-[85px] text-[13px]">N/A</div>
       return (
@@ -346,6 +372,7 @@ export const createTransactionColumns = (
     ),
     cell: ({ row }) => {
       const tx = row.original
+      if (tx._rowType === 'load-more') return <div className="w-[95px]" />
 
       // UI cho trạng thái Upcoming (Có dấu chấm trắng bên trong)
       if (tx._rowType === 'upcoming') {
@@ -390,7 +417,7 @@ export const createTransactionColumns = (
     enableHiding: false,
     cell: ({ row }) => {
       // Ẩn nút 3 chấm cho dòng upcoming
-      if (row.original._rowType === 'upcoming')
+      if (row.original._rowType === 'upcoming' || row.original._rowType === 'load-more')
         return <div className="w-[30px]" />
 
       return (
@@ -402,4 +429,4 @@ export const createTransactionColumns = (
   }
 ]
 
-export const transactionColumns = createTransactionColumns(new Set(), () => {})
+export const transactionColumns = createTransactionColumns(new Set(), () => {}, () => {})

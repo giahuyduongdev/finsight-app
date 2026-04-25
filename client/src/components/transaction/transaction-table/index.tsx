@@ -36,10 +36,9 @@ type FilterType = {
   pageSize?: number
 }
 
-type ChildrenMapType = Record<
-  string,
-  { parent: TransactionType; children: TransactionType[] }
->
+import { GetChildTransactionsResponse } from '@/features/transaction/transationType'
+
+type ChildrenMapType = Record<string, GetChildTransactionsResponse>
 
 const TransactionTable = (props: {
   pageSize?: number
@@ -126,7 +125,7 @@ const TransactionTable = (props: {
 
       if (!childrenMap[transactionId]) {
         try {
-          const result = await fetchChildren(transactionId).unwrap()
+          const result = await fetchChildren({ id: transactionId, pageNumber: 1 }).unwrap()
           setChildrenMap((prev: ChildrenMapType) => ({
             ...prev,
             [transactionId]: result
@@ -144,6 +143,32 @@ const TransactionTable = (props: {
       })
     },
     [expanded, childrenMap, fetchChildren]
+  )
+
+  const handleLoadMoreChilds = useCallback(
+    async (parentId: string) => {
+      const cached = childrenMap[parentId]
+      if (!cached) return
+      
+      const nextPage = cached.pagination.pageNumber + 1
+      try {
+        const result = await fetchChildren({ id: parentId, pageNumber: nextPage }).unwrap()
+        
+        setChildrenMap((prev) => {
+          const oldCache = prev[parentId]
+          return {
+            ...prev,
+            [parentId]: {
+              ...result,
+              children: [...oldCache.children, ...result.children]
+            }
+          }
+        })
+      } catch {
+        toast.error('Failed to load more child transactions')
+      }
+    },
+    [childrenMap, fetchChildren]
   )
 
   const displayTransactions = useMemo(() => {
@@ -181,6 +206,16 @@ const TransactionTable = (props: {
             _rowType: 'child'
           } as DisplayTransaction)
         }
+
+        if (cached.pagination && cached.children.length < cached.pagination.totalCount) {
+          parentTx.subRows.push({
+            ...tx,
+            _id: `load-more-${tx._id}`,
+            parentId: tx._id, // Add parentId used in handleLoadMore
+            _rowType: 'load-more',
+            title: `Load more (${cached.pagination.totalCount - cached.children.length} remaining)`
+          } as DisplayTransaction)
+        }
       }
 
       result.push(parentTx)
@@ -194,7 +229,7 @@ const TransactionTable = (props: {
     const expandedSet = new Set(
       typeof expanded === 'object' ? Object.keys(expanded) : []
     )
-    const baseCols = createTransactionColumns(expandedSet, handleExpandRow)
+    const baseCols = createTransactionColumns(expandedSet, handleExpandRow, handleLoadMoreChilds)
 
     // 2. KHAI BÁO TYPE CHUẨN ĐỂ FIX ESLINT "any"
     const enhancedCols = baseCols.map((col) => {
@@ -238,7 +273,7 @@ const TransactionTable = (props: {
         'accessorKey' in col ? String(col.accessorKey) : (col.id ?? '')
       return !props.hiddenColumns!.includes(key)
     })
-  }, [expanded, handleExpandRow, props.hiddenColumns])
+  }, [expanded, handleExpandRow, handleLoadMoreChilds, props.hiddenColumns])
 
   const handleSearch = (value: string) => setSearchTerm(value)
 
@@ -288,7 +323,10 @@ const TransactionTable = (props: {
         expandedIds.forEach((id) => {
           // Chỉ fetch lại nếu dòng cha đó vẫn nằm trong danh sách đang hiển thị
           if (transactions.some((tx) => tx._id === id)) {
-            fetchChildren(id)
+            // Lấy số lượng đã load hiện tại để refresh đúng bấy nhiêu, không bị reset về 10
+            const currentCount = childrenMap[id]?.children?.length || 10
+            
+            fetchChildren({ id, pageNumber: 1, pageSize: currentCount })
               .unwrap()
               .then((result) => {
                 setChildrenMap((prev: ChildrenMapType) => ({
@@ -302,7 +340,7 @@ const TransactionTable = (props: {
       }
     }
     previousFetching.current = isFetching
-  }, [isFetching, expanded, fetchChildren, transactions])
+  }, [isFetching, expanded, fetchChildren, transactions, childrenMap])
 
   useEffect(() => {
     if (!isFetching && data) {

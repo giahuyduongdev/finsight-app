@@ -120,9 +120,9 @@ export const transactionApi = apiClient.injectEndpoints({
       invalidatesTags: ['transactions', 'analytics']
     }),
 
-    getChildTransactions: builder.query<GetChildTransactionsResponse, string>({
-      query: (id) => ({
-        url: `/transaction/${id}/children`,
+    getChildTransactions: builder.query<GetChildTransactionsResponse, { id: string; pageNumber: number; pageSize?: number }>({
+      query: ({ id, pageNumber, pageSize = 10 }) => ({
+        url: `/transaction/${id}/children?pageNumber=${pageNumber}&pageSize=${pageSize}`,
         method: 'GET'
       }),
       providesTags: ['transactions']
