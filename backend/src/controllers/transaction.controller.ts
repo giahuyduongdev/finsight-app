@@ -99,8 +99,8 @@ export const getChildTransactionsController = asyncHandler(
     const userId = req.user?._id
     const parentId = transactionIdSchema.parse(req.params.id)
     
-    const pageNumber = Number(req.query.pageNumber) || 1
-    const pageSize = Number(req.query.pageSize) || 10
+    const pageNumber = Math.max(1, parseInt(req.query.pageNumber as string) || 1)
+    const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize as string) || 10))
 
     const result = await getChildTransactionsService(userId, parentId, pageNumber, pageSize)
 

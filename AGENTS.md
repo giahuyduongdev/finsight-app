@@ -91,10 +91,10 @@ Decided during planning (Section 4), not after. Format:
 
 ```bash
 # Backend
-cd backend && npm run type-check && npm run lint
+(cd backend && npm run type-check && npm run lint)
 
 # Frontend
-cd client && npm run build && npm run lint
+(cd client && npm run build && npm run lint)
 ```
 
 If any errors → fix them first. Do not commit broken code.

@@ -148,9 +148,12 @@ const TransactionTable = (props: {
   const handleLoadMoreChilds = useCallback(
     async (parentId: string) => {
       const cached = childrenMap[parentId]
-      if (!cached) return
+      if (!cached || !cached.pagination) return
       
-      const nextPage = cached.pagination.pageNumber + 1
+      const { pageNumber, totalPages } = cached.pagination
+      if (pageNumber >= totalPages) return
+
+      const nextPage = pageNumber + 1
       try {
         const result = await fetchChildren({ id: parentId, pageNumber: nextPage }).unwrap()
         

@@ -20,10 +20,11 @@ import {
 import { formatCurrency } from '@/lib/format-currency'
 import ActionsCell from './actions-cell'
 
-export type DisplayTransaction = TransactionType & {
-  _rowType?: 'child' | 'upcoming' | 'load-more'
-  parentId?: string
-}
+export type DisplayTransaction = TransactionType &
+  (
+    | { _rowType?: 'child' | 'upcoming'; parentId?: string }
+    | { _rowType: 'load-more'; parentId: string }
+  )
 
 type FrequencyInfo = { label: string; icon: LucideIcon }
 type FrequencyMapType = { [key: string]: FrequencyInfo; DEFAULT: FrequencyInfo }
@@ -129,15 +130,17 @@ export const createTransactionColumns = (
             <div className="w-3 h-4 border-l-2 border-b-2 border-border rounded-bl-sm mr-2 -translate-y-2 shrink-0" />
           )}
           {tx._rowType === 'load-more' ? (
-            <div
-              className={`min-w-[120px] max-w-[220px] truncate text-[13px] italic text-blue-600 hover:text-blue-800 cursor-pointer`}
+            <button
+              type="button"
+              className={`min-w-[120px] max-w-[220px] truncate text-[13px] italic text-blue-600 hover:text-blue-800 cursor-pointer bg-transparent border-none p-0 text-left`}
+              aria-label={`Load more transactions for ${tx.title}`}
               onClick={(e) => {
                 e.stopPropagation()
-                onLoadMoreChilds?.(tx.parentId || tx._id)
+                onLoadMoreChilds?.(tx.parentId)
               }}
             >
               {tx.title}
-            </div>
+            </button>
           ) : (
             <div
               className={`min-w-[120px] max-w-[220px] truncate text-[13px] ${
