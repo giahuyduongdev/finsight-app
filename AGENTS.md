@@ -87,14 +87,14 @@ Decided during planning (Section 4), not after. Format:
 
 > [!NOTE]
 > - **macOS / Linux (zsh/bash):** The `&&` operator works natively.
-> - **Windows PowerShell:** The `&&` operator might not work. In that case, use `cmd /c "cd backend && npm run type-check && npm run lint"` or run them as separate sequential commands.
+> - **Windows PowerShell:** **PowerShell 5.1 (default) does NOT support `&&`.** In that case, use `;` (sequential even if fails) or run them as separate sequential commands. Alternatively, use `cmd /c "command1 && command2"` or upgrade to **PowerShell 7+** which supports `&&`.
 
 ```bash
 # Backend
-cd backend && npm run type-check && npm run lint
+(cd backend && npm run type-check && npm run lint)
 
 # Frontend
-cd client && npm run build && npm run lint
+(cd client && npm run build && npm run lint)
 ```
 
 If any errors → fix them first. Do not commit broken code.
@@ -148,8 +148,9 @@ Use GitHub MCP to create a PR:
 
 **CodeRabbit check:**
 - Use GitHub MCP to get PR check runs status
-- If CodeRabbit status is still "Review in progress" → wait 60 seconds and re-check until it's complete
-- Only after CodeRabbit review is complete: use GitHub MCP to get PR review comments
+- If CodeRabbit status is `in_progress` → wait 60 seconds and re-check (max 10 minutes)
+- Still in progress after 10 minutes → stop and notify user: "⚠️ CodeRabbit review not complete after 10 minutes: <PR link>. Manual intervention needed."
+- Only after CodeRabbit review status is `completed`: use GitHub MCP to get PR review comments
 - Read `skills/coderabbit.md` to know which comments to act on
 - 🔴 Critical → fix immediately
 - 🟠 Major → fix before notifying user

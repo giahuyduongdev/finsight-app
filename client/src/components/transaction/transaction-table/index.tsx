@@ -36,10 +36,9 @@ type FilterType = {
   pageSize?: number
 }
 
-type ChildrenMapType = Record<
-  string,
-  { parent: TransactionType; children: TransactionType[] }
->
+import { GetChildTransactionsResponse } from '@/features/transaction/transationType'
+
+type ChildrenMapType = Record<string, GetChildTransactionsResponse>
 
 const TransactionTable = (props: {
   pageSize?: number
@@ -126,7 +125,7 @@ const TransactionTable = (props: {
 
       if (!childrenMap[transactionId]) {
         try {
-          const result = await fetchChildren(transactionId).unwrap()
+          const result = await fetchChildren({ id: transactionId, pageNumber: 1 }).unwrap()
           setChildrenMap((prev: ChildrenMapType) => ({
             ...prev,
             [transactionId]: result
@@ -144,6 +143,45 @@ const TransactionTable = (props: {
       })
     },
     [expanded, childrenMap, fetchChildren]
+  )
+
+  const loadingParentsRef = useRef<Set<string>>(new Set())
+
+  const handleLoadMoreChilds = useCallback(
+    async (parentId: string) => {
+      // Ngăn chặn gọi API trùng lặp nếu đang fetch dở cho parent này
+      if (loadingParentsRef.current.has(parentId)) return
+
+      const cached = childrenMap[parentId]
+      if (!cached || !cached.pagination) return
+      
+      const { pageNumber, totalPages } = cached.pagination
+      if (pageNumber >= totalPages) return
+
+      loadingParentsRef.current.add(parentId)
+
+      const nextPage = pageNumber + 1
+      try {
+        const result = await fetchChildren({ id: parentId, pageNumber: nextPage }).unwrap()
+        
+        setChildrenMap((prev) => {
+          const oldCache = prev[parentId]
+          return {
+            ...prev,
+            [parentId]: {
+              ...result,
+              children: [...oldCache.children, ...result.children]
+            }
+          }
+        })
+      } catch (error) {
+        console.error('Failed to load more child transactions:', error)
+        toast.error('Failed to load more child transactions')
+      } finally {
+        loadingParentsRef.current.delete(parentId)
+      }
+    },
+    [childrenMap, fetchChildren]
   )
 
   const displayTransactions = useMemo(() => {
@@ -181,6 +219,16 @@ const TransactionTable = (props: {
             _rowType: 'child'
           } as DisplayTransaction)
         }
+
+        if (cached.pagination && cached.children.length < cached.pagination.totalCount) {
+          parentTx.subRows.push({
+            ...tx,
+            _id: `load-more-${tx._id}`,
+            parentId: tx._id, // Add parentId used in handleLoadMore
+            _rowType: 'load-more',
+            title: `Load more (${cached.pagination.totalCount - cached.children.length} remaining)`
+          } as DisplayTransaction)
+        }
       }
 
       result.push(parentTx)
@@ -194,7 +242,7 @@ const TransactionTable = (props: {
     const expandedSet = new Set(
       typeof expanded === 'object' ? Object.keys(expanded) : []
     )
-    const baseCols = createTransactionColumns(expandedSet, handleExpandRow)
+    const baseCols = createTransactionColumns(expandedSet, handleExpandRow, handleLoadMoreChilds)
 
     // 2. KHAI BÁO TYPE CHUẨN ĐỂ FIX ESLINT "any"
     const enhancedCols = baseCols.map((col) => {
@@ -238,7 +286,7 @@ const TransactionTable = (props: {
         'accessorKey' in col ? String(col.accessorKey) : (col.id ?? '')
       return !props.hiddenColumns!.includes(key)
     })
-  }, [expanded, handleExpandRow, props.hiddenColumns])
+  }, [expanded, handleExpandRow, handleLoadMoreChilds, props.hiddenColumns])
 
   const handleSearch = (value: string) => setSearchTerm(value)
 
@@ -288,21 +336,43 @@ const TransactionTable = (props: {
         expandedIds.forEach((id) => {
           // Chỉ fetch lại nếu dòng cha đó vẫn nằm trong danh sách đang hiển thị
           if (transactions.some((tx) => tx._id === id)) {
-            fetchChildren(id)
-              .unwrap()
-              .then((result) => {
+            // Lấy số lượng đã load hiện tại để refresh đúng bấy nhiêu
+            const currentCount = childrenMap[id]?.children?.length || 10
+            
+            // Backend giới hạn 50, nếu xem nhiều hơn thì phải fetch nhiều trang
+            const CHUNK_SIZE = 50
+            const pagesToFetch = Math.ceil(currentCount / CHUNK_SIZE)
+
+            Promise.all(
+              Array.from({ length: pagesToFetch }, (_, idx) =>
+                fetchChildren({ id, pageNumber: idx + 1, pageSize: CHUNK_SIZE }).unwrap()
+              )
+            )
+              .then((results) => {
+                const mergedChildren = results.flatMap((r) => r.children).slice(0, currentCount)
+                const latest = results[results.length - 1]
                 setChildrenMap((prev: ChildrenMapType) => ({
                   ...prev,
-                  [id]: result
+                  [id]: {
+                    ...latest,
+                    children: mergedChildren,
+                    pagination: {
+                      ...latest.pagination,
+                      pageNumber: Math.ceil(mergedChildren.length / 10), // Reset to match 10-item pages
+                      pageSize: 10
+                    }
+                  }
                 }))
               })
-              .catch(() => {})
+              .catch((error) => {
+                console.error(`Failed to refresh children for transaction ${id}:`, error)
+              })
           }
         })
       }
     }
     previousFetching.current = isFetching
-  }, [isFetching, expanded, fetchChildren, transactions])
+  }, [isFetching, expanded, fetchChildren, transactions, childrenMap])
 
   useEffect(() => {
     if (!isFetching && data) {

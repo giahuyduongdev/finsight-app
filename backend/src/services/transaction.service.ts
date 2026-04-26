@@ -212,7 +212,9 @@ export const getTransactionByIdService = async (
 
 export const getChildTransactionsService = async (
   userId: string,
-  parentId: string
+  parentId: string,
+  pageNumber: number = 1,
+  pageSize: number = 10
 ) => {
   const parent = await TransactionModel.findOne({
     _id: parentId,
@@ -222,12 +224,28 @@ export const getChildTransactionsService = async (
 
   if (!parent) throw new NotFoundException('Transaction not found')
 
-  const children = await TransactionModel.find({
+  const query = {
     recurringSourceId: parentId,
     userId
-  }).sort({ date: -1 }) // mới nhất lên đầu
+  }
 
-  return children
+  const [children, totalCount] = await Promise.all([
+    TransactionModel.find(query)
+      .sort({ date: -1 }) // mới nhất lên đầu
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize),
+    TransactionModel.countDocuments(query)
+  ])
+
+  return {
+    children,
+    pagination: {
+      totalCount,
+      pageSize,
+      pageNumber,
+      totalPages: Math.ceil(totalCount / pageSize)
+    }
+  }
 }
 
 export const duplicateTransactionService = async (
