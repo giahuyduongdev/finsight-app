@@ -145,12 +145,12 @@ const TransactionTable = (props: {
     [expanded, childrenMap, fetchChildren]
   )
 
-  const [loadingParents, setLoadingParents] = useState<Set<string>>(new Set())
+  const loadingParentsRef = useRef<Set<string>>(new Set())
 
   const handleLoadMoreChilds = useCallback(
     async (parentId: string) => {
       // Ngăn chặn gọi API trùng lặp nếu đang fetch dở cho parent này
-      if (loadingParents.has(parentId)) return
+      if (loadingParentsRef.current.has(parentId)) return
 
       const cached = childrenMap[parentId]
       if (!cached || !cached.pagination) return
@@ -158,7 +158,7 @@ const TransactionTable = (props: {
       const { pageNumber, totalPages } = cached.pagination
       if (pageNumber >= totalPages) return
 
-      setLoadingParents((prev) => new Set(prev).add(parentId))
+      loadingParentsRef.current.add(parentId)
 
       const nextPage = pageNumber + 1
       try {
@@ -174,17 +174,14 @@ const TransactionTable = (props: {
             }
           }
         })
-      } catch {
+      } catch (error) {
+        console.error('Failed to load more child transactions:', error)
         toast.error('Failed to load more child transactions')
       } finally {
-        setLoadingParents((prev) => {
-          const next = new Set(prev)
-          next.delete(parentId)
-          return next
-        })
+        loadingParentsRef.current.delete(parentId)
       }
     },
-    [childrenMap, fetchChildren, loadingParents]
+    [childrenMap, fetchChildren]
   )
 
   const displayTransactions = useMemo(() => {
@@ -358,11 +355,13 @@ const TransactionTable = (props: {
                   ...prev,
                   [id]: {
                     ...latest,
-                    children: mergedChildren as DisplayTransaction[]
+                    children: mergedChildren
                   }
                 }))
               })
-              .catch(() => {})
+              .catch((error) => {
+                console.error(`Failed to refresh children for transaction ${id}:`, error)
+              })
           }
         })
       }
