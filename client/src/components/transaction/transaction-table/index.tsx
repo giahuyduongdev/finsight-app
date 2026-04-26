@@ -355,7 +355,12 @@ const TransactionTable = (props: {
                   ...prev,
                   [id]: {
                     ...latest,
-                    children: mergedChildren
+                    children: mergedChildren,
+                    pagination: {
+                      ...latest.pagination,
+                      pageNumber: Math.ceil(mergedChildren.length / 10), // Reset to match 10-item pages
+                      pageSize: 10
+                    }
                   }
                 }))
               })
