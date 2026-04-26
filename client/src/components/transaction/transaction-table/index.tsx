@@ -326,15 +326,27 @@ const TransactionTable = (props: {
         expandedIds.forEach((id) => {
           // Chỉ fetch lại nếu dòng cha đó vẫn nằm trong danh sách đang hiển thị
           if (transactions.some((tx) => tx._id === id)) {
-            // Lấy số lượng đã load hiện tại để refresh đúng bấy nhiêu, không bị reset về 10
+            // Lấy số lượng đã load hiện tại để refresh đúng bấy nhiêu
             const currentCount = childrenMap[id]?.children?.length || 10
             
-            fetchChildren({ id, pageNumber: 1, pageSize: currentCount })
-              .unwrap()
-              .then((result) => {
+            // Backend giới hạn 50, nếu xem nhiều hơn thì phải fetch nhiều trang
+            const CHUNK_SIZE = 50
+            const pagesToFetch = Math.ceil(currentCount / CHUNK_SIZE)
+
+            Promise.all(
+              Array.from({ length: pagesToFetch }, (_, idx) =>
+                fetchChildren({ id, pageNumber: idx + 1, pageSize: CHUNK_SIZE }).unwrap()
+              )
+            )
+              .then((results) => {
+                const mergedChildren = results.flatMap((r) => r.children).slice(0, currentCount)
+                const latest = results[results.length - 1]
                 setChildrenMap((prev: ChildrenMapType) => ({
                   ...prev,
-                  [id]: result
+                  [id]: {
+                    ...latest,
+                    children: mergedChildren as DisplayTransaction[]
+                  }
                 }))
               })
               .catch(() => {})

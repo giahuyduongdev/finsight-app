@@ -148,9 +148,9 @@ Use GitHub MCP to create a PR:
 
 **CodeRabbit check:**
 - Use GitHub MCP to get PR check runs status
-- If CodeRabbit status is still "Review in progress" → wait 60 seconds and re-check (max 10 minutes)
+- If CodeRabbit status is `in_progress` → wait 60 seconds and re-check (max 10 minutes)
 - Still in progress after 10 minutes → stop and notify user: "⚠️ CodeRabbit review not complete after 10 minutes: <PR link>. Manual intervention needed."
-- Only after CodeRabbit review is complete: use GitHub MCP to get PR review comments
+- Only after CodeRabbit review status is `completed`: use GitHub MCP to get PR review comments
 - Read `skills/coderabbit.md` to know which comments to act on
 - 🔴 Critical → fix immediately
 - 🟠 Major → fix before notifying user
