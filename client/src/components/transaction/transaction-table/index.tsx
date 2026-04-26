@@ -145,13 +145,20 @@ const TransactionTable = (props: {
     [expanded, childrenMap, fetchChildren]
   )
 
+  const [loadingParents, setLoadingParents] = useState<Set<string>>(new Set())
+
   const handleLoadMoreChilds = useCallback(
     async (parentId: string) => {
+      // Ngăn chặn gọi API trùng lặp nếu đang fetch dở cho parent này
+      if (loadingParents.has(parentId)) return
+
       const cached = childrenMap[parentId]
       if (!cached || !cached.pagination) return
       
       const { pageNumber, totalPages } = cached.pagination
       if (pageNumber >= totalPages) return
+
+      setLoadingParents((prev) => new Set(prev).add(parentId))
 
       const nextPage = pageNumber + 1
       try {
@@ -169,9 +176,15 @@ const TransactionTable = (props: {
         })
       } catch {
         toast.error('Failed to load more child transactions')
+      } finally {
+        setLoadingParents((prev) => {
+          const next = new Set(prev)
+          next.delete(parentId)
+          return next
+        })
       }
     },
-    [childrenMap, fetchChildren]
+    [childrenMap, fetchChildren, loadingParents]
   )
 
   const displayTransactions = useMemo(() => {
