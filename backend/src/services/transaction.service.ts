@@ -27,14 +27,36 @@ async function invalidateUserAnalyticsCache(userId: string | any) {
     if (!id) return
 
     const pattern = `analytics:*:${id}:*`
-    const keys = await redis.keys(pattern)
+    const stream = redis.scanStream({
+      match: pattern,
+      count: 100
+    })
 
-    if (keys.length > 0) {
-      await redis.del(...keys)
-      logger.info(
-        `🧹 [Cache] Invalidated ${keys.length} analytics keys for user ${id}`
-      )
-    }
+    let totalDeleted = 0
+
+    return new Promise<void>((resolve, reject) => {
+      stream.on('data', async (keys: string[]) => {
+        if (keys.length > 0) {
+          totalDeleted += keys.length
+          // Use unlink for non-blocking deletion in Redis >= 4.0
+          await redis.unlink(...keys)
+        }
+      })
+
+      stream.on('end', () => {
+        if (totalDeleted > 0) {
+          logger.info(
+            `🧹 [Cache] Invalidated ${totalDeleted} analytics keys for user ${id}`
+          )
+        }
+        resolve()
+      })
+
+      stream.on('error', (err) => {
+        logger.error('❌ [Cache] Redis scan error', err)
+        reject(err)
+      })
+    })
   } catch (err) {
     logger.error('❌ [Cache] Failed to invalidate analytics cache', err)
   }
@@ -296,6 +318,8 @@ export const duplicateTransactionService = async (
     createdAt: undefined,
     updatedAt: undefined
   })
+
+  await invalidateUserAnalyticsCache(userId)
 
   return duplicated
 }

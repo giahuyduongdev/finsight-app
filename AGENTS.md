@@ -85,9 +85,12 @@ Decided during planning (Section 4), not after. Format:
 
 ### Before committing — verify task is complete
 
-> [!NOTE]
-> - **macOS / Linux (zsh/bash):** The `&&` operator works natively.
-> - **Windows PowerShell:** **PowerShell 5.1 (default) does NOT support `&&`.** In that case, use `;` (sequential even if fails) or run them as separate sequential commands. Alternatively, use `cmd /c "command1 && command2"` or upgrade to **PowerShell 7+** which supports `&&`.
+> [!IMPORTANT]
+> **Shell Compatibility for Command Chaining:**
+> - **macOS / Linux (zsh/bash/fish):** Use `&&` (e.g., `cd backend && npm run lint`).
+> - **Windows PowerShell (Default):** **DO NOT use `&&`.** Use `;` instead (e.g., `cd backend; npm run lint`). Note that `;` runs the second command even if the first fails.
+> - **Windows CMD:** Use `&&`.
+> - **AI Strategy:** When in doubt on Windows, run commands **separately** or wrap them in `cmd /c "command1 && command2"`.
 
 ```bash
 # Backend
