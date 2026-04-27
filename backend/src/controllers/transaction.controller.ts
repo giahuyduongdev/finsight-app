@@ -230,6 +230,21 @@ export const scanReceiptController = asyncHandler(
       })
     }
 
+    // 🟠 Nitpick: Add file validation
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid file type. Allowed: JPEG, PNG, WebP'
+      })
+    }
+
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'File too large. Maximum size: 10MB'
+      })
+    }
+
     const job = await receiptQueue.add(RECEIPT_JOBS.SCAN_RECEIPT, {
       userId,
       fileBuffer: file.buffer,

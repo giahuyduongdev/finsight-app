@@ -135,6 +135,7 @@ git commit -m "<type>(<scope>): <description>
 - <why or impact>
 - <3rd line only if genuinely needed>"
 ```
+
 # Body rules: 2-3 lines max. Each line = 1 specific thing. No vague lines like "minor fixes".
 
 # 3. Push

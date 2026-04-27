@@ -58,7 +58,8 @@ async function extractReceiptData(base64String: string) {
     config: {
       temperature: 0,
       topP: 1,
-      responseMimeType: 'application/json'
+      responseMimeType: 'application/json',
+      httpOptions: { timeout: 30000 } // Major: Add timeout
     }
   })
 }
@@ -159,12 +160,15 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       error: err.message
     })
 
-    // Emit failure event
-    const io = getIO()
-    io.to(userId).emit('receipt:scan-failed', {
-      jobId: job.id,
-      error: err.message || 'Receipt scanning failed'
-    })
+    // 🟠 Minor: Only emit failure on final attempt
+    const maxAttempts = job.opts.attempts || 3
+    if (job.attemptsMade >= maxAttempts - 1) {
+      const io = getIO()
+      io.to(userId).emit('receipt:scan-failed', {
+        jobId: job.id,
+        error: err.message || 'Receipt scanning failed'
+      })
+    }
 
     throw error // Trigger retry for transient failures
   }
