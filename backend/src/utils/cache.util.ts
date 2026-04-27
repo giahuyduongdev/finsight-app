@@ -4,6 +4,7 @@ import { logger } from '../config/logger.config'
 /**
  * Centralized helper to invalidate all analytics cache for a specific user.
  * Uses a non-blocking scanStream and unlink for performance.
+ * Implements a bounded-chunk approach to process keys incrementally.
  */
 export async function invalidateUserAnalyticsCache(userId: string | { toString(): string }) {
   try {
@@ -16,36 +17,50 @@ export async function invalidateUserAnalyticsCache(userId: string | { toString()
       count: 100
     })
 
-    const keysToDelete: string[] = []
+    let totalDeleted = 0
+    let draining = Promise.resolve()
 
     return new Promise<void>((resolve, _reject) => {
       stream.on('data', (keys: string[]) => {
-        if (keys.length > 0) {
-          keysToDelete.push(...keys)
-        }
+        // Stop scanning while we process the current chunk
+        stream.pause()
+
+        draining = draining
+          .then(async () => {
+            if (keys.length > 0) {
+              // Non-blocking unlink for the current chunk
+              await redis.unlink(...keys)
+              totalDeleted += keys.length
+            }
+          })
+          .then(() => {
+            // Processing done, resume scanning for next chunk
+            stream.resume()
+          })
+          .catch((err) => {
+            logger.error(`❌ [Cache] Chunk invalidation failed for user ${id}`, err)
+            stream.resume() // Resume even on error
+          })
       })
 
-      stream.on('end', async () => {
-        try {
-          if (keysToDelete.length > 0) {
-            // Batch unlink to avoid overwhelming Redis or exceeding argument limits
-            const BATCH_SIZE = 1000
-            for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
-              const batch = keysToDelete.slice(i, i + BATCH_SIZE)
-              await redis.unlink(...batch)
+      stream.on('end', () => {
+        // Wait for all in-flight chunks to finish before resolving
+        draining
+          .then(() => {
+            if (totalDeleted > 0) {
+              logger.info(`🧹 [Cache] Invalidated ${totalDeleted} analytics keys for user ${id}`)
             }
-            logger.info(`🧹 [Cache] Invalidated ${keysToDelete.length} analytics keys for user ${id}`)
-          }
-          resolve()
-        } catch (err) {
-          logger.error(`❌ [Cache] Failed to unlink keys for user ${id}`, err)
-          resolve() // Resolve anyway to avoid crashing the caller (fire-and-forget)
-        }
+            resolve()
+          })
+          .catch((err) => {
+            logger.error(`❌ [Cache] Final cache cleanup failed for user ${id}`, err)
+            resolve() // Still resolve to avoid crashing the caller
+          })
       })
 
       stream.on('error', (err) => {
         logger.error(`❌ [Cache] Redis scan error for user ${id}`, err)
-        resolve() // Resolve anyway to avoid crashing the caller
+        resolve() // Resolve to avoid crashing the caller
       })
     })
   } catch (err) {
