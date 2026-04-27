@@ -103,22 +103,28 @@ Decided during planning (Section 4), not after. Format:
 
 If any errors → fix them first. Do not commit broken code.
 
-Then stop and notify user:
+### Step 1: Notify User for Review
+
+Stop and notify user **before** any `git add`, `git commit`, or `git push` operations:
 
 ```text
-✅ Task complete. Ready to commit.
+✅ Task complete. Please review the changes.
 Summary of changes:
 - <what was done>
 
-Proceed with commit? (y/n)
+Proceed with git add, commit, and push? (y/n)
 ```
 
-Wait for user to confirm. If the reply indicates approval → proceed. If it indicates changes are needed → fix and re-verify.
+**Wait for user to confirm.**
+- If the reply indicates approval → proceed to Step 2.
+- If it indicates changes are needed → fix, re-verify, and ask for review again.
 
-### Required git steps (in order)
+### Step 2: Required git steps (in order)
+
+Only perform these steps after receiving explicit user approval in Step 1.
 
 ```bash
-# 1. Create and switch to branch (always — never commit directly to develop)
+# 1. Create and switch to branch (if not already done at start of implementation)
 git checkout -b <branch-name>
 
 # 2. Stage and commit
@@ -128,6 +134,7 @@ git commit -m "<type>(<scope>): <description>
 - <what changed>
 - <why or impact>
 - <3rd line only if genuinely needed>"
+```
 
 # Body rules: 2-3 lines max. Each line = 1 specific thing. No vague lines like "minor fixes".
 

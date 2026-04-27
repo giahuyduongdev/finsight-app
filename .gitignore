@@ -44,3 +44,6 @@ client/.env
 GEMINI.md
 AGENTS.md
 skills/
+
+# Kiro specs
+.kiro/
