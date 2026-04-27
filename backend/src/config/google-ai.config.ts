@@ -1,26 +1,112 @@
-import { GoogleGenAI } from '@google/genai'
+import {
+  GoogleGenAI,
+  type ContentListUnion,
+  type GenerateContentConfig,
+  type GenerateContentResponse,
+} from '@google/genai'
 import { Env } from './env.config'
+import { logger } from './logger.config'
 
-// Parse API keys from comma-separated string
 const apiKeys = Env.GEMINI_API_KEY.split(',')
   .map((key) => key.trim())
   .filter(Boolean)
 
-// Model priority sequence
-export const AI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro'
-]
-
-/**
- * Get a pool of generative AI instances
- */
-export const getAiPool = () => {
-  if (apiKeys.length === 0) {
-    throw new Error('GEMINI_API_KEY is not configured in environment variables')
-  }
-  return apiKeys.map((key) => new GoogleGenAI({ apiKey: key }))
+if (apiKeys.length === 0) {
+  throw new Error('GEMINI_API_KEY is not configured in environment variables')
 }
 
+// Model priority sequence — cập nhật 27/4/2026
+// gemini-2.5-flash     → hết hạn 17/6/2026
+// gemini-2.5-flash-lite → hết hạn 22/7/2026
+// gemini-3-flash-preview → chưa có ngày hết hạn
+export const AI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-3-flash-preview',
+] as const
+
 export const defaultModel = AI_MODELS[0]
+
+// fix bug indexOf khi key trùng → dùng index từ map
+const aiPool = apiKeys.map((key, i) => ({
+  instance: new GoogleGenAI({ apiKey: key }),
+  keyIndex: i + 1,
+}))
+
+const isRetryableError = (message: string): boolean => {
+  return (
+    message.includes('429') ||
+    message.includes('RESOURCE_EXHAUSTED') ||
+    message.includes('503') ||
+    message.includes('504') ||
+    message.includes('UNAVAILABLE') ||
+    message.includes('DEADLINE_EXCEEDED') ||
+    message.includes('403') ||
+    message.includes('PERMISSION_DENIED') ||
+    message.includes('404') ||
+    message.includes('NOT_FOUND') ||
+    message.includes('INVALID_ARGUMENT')
+  )
+}
+
+const isFatalError = (message: string): boolean => {
+  return (
+    message.includes('SAFETY') ||
+    message.includes('BLOCKED') ||
+    message.includes('API_KEY_INVALID') ||
+    message.includes('invalid api key')
+  )
+}
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms))
+
+export const generateWithFallback = async (
+  contents: ContentListUnion,
+  config: GenerateContentConfig = {}
+): Promise<GenerateContentResponse> => {
+  let lastError: Error | null = null
+
+  for (const modelName of AI_MODELS) {
+    for (const { instance, keyIndex } of aiPool) {
+      try {
+        logger.info(`🤖  [AI] Attempting: ${modelName} | Key ${keyIndex}`)
+
+        const response = await instance.models.generateContent({
+          model: modelName,
+          contents,
+          config: {
+            ...config,
+            httpOptions: { timeout: 30000, ...config.httpOptions },
+          },
+        })
+
+        logger.info(`✅  [AI] Success: ${modelName} | Key ${keyIndex}`)
+        return response
+
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
+        const msg = lastError.message
+
+        if (isFatalError(msg)) {
+          logger.error(`🚫  [AI] Fatal error on ${modelName}: ${msg}`)
+          throw lastError
+        }
+
+        if (isRetryableError(msg)) {
+          logger.warn(`⚠️  [AI] Retry: ${modelName} | Key ${keyIndex}: ${msg.slice(0, 80)}`)
+          if (msg.includes('503') || msg.includes('504') || msg.includes('DEADLINE')) {
+            await delay(2000)
+          }
+          continue
+        }
+
+        logger.error(`❌ [AI] Unknown error on ${modelName}: ${msg}`)
+        throw lastError
+      }
+    }
+  }
+
+  logger.error('💀 [AI] All models and API keys exhausted')
+  throw lastError ?? new Error('All AI models and API keys exhausted')
+}

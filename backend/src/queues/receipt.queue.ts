@@ -11,7 +11,7 @@ export const RECEIPT_JOBS = {
 
 export type ScanReceiptJobData = {
   userId: string
-  fileBuffer: Buffer
+  fileBuffer: string
   fileName: string
   fileSize: number
 }

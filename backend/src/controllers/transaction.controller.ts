@@ -247,7 +247,7 @@ export const scanReceiptController = asyncHandler(
 
     const job = await receiptQueue.add(RECEIPT_JOBS.SCAN_RECEIPT, {
       userId,
-      fileBuffer: file.buffer,
+      fileBuffer: file.buffer.toString('base64'),
       fileName: file.originalname,
       fileSize: file.size
     })

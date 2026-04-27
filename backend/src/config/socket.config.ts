@@ -24,18 +24,25 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
       }
 
       const decoded = jwt.verify(token, Env.JWT_SECRET, {
-        audience: ['user'] // khớp với defaults trong jwt.util.ts
-      }) as JwtPayload & { userId: string } //đúng với AccessTokenPayload
+        audience: ['user']
+      }) as JwtPayload & { userId: string }
 
       if (!decoded.userId) {
         return next(new Error('UNAUTHORIZED: Invalid token payload'))
       }
 
-      socket.data.userId = decoded.userId // dùng userId không phải id
+      socket.data.userId = decoded.userId
       next()
-    } catch (error) {
-      logger.error('❌ [Socket] Auth error:', (error as Error).message)
-      next(new Error('UNAUTHORIZED: Token verification failed'))
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error'
+      logger.error(`❌ [Socket] Auth error: ${errorMessage}`)
+      
+      // Gửi về mã lỗi cụ thể để FE biết đường làm mới Token
+      if (error?.name === 'TokenExpiredError') {
+        return next(new Error('UNAUTHORIZED: Token expired'))
+      }
+      
+      next(new Error(`UNAUTHORIZED: ${errorMessage}`))
     }
   })
 

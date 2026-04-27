@@ -32,6 +32,8 @@ const ReceiptScanner = ({
 
   const [aiScanReceipt] = useAiScanReceiptMutation()
   const socket = useSocket()
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const stopProgressSimulation = useCallback(() => {
@@ -41,28 +43,59 @@ const ReceiptScanner = ({
     }
   }, [])
 
-  const cleanup = useCallback(() => {
+  const stopSafetyTimeout = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+  }, [])
+
+  const resetState = useCallback(() => {
     stopProgressSimulation()
-    doneProgress()
+    stopSafetyTimeout()
     resetProgress()
     setReceipt(null)
+    setPendingJobId(null)
     onLoadingChange(false)
-  }, [doneProgress, resetProgress, onLoadingChange, stopProgressSimulation])
+  }, [resetProgress, onLoadingChange, stopProgressSimulation, stopSafetyTimeout])
+
+  const completeSuccess = useCallback(() => {
+    stopProgressSimulation()
+    stopSafetyTimeout()
+    updateProgress(100)
+    // Settle for a bit before clearing UI
+    setTimeout(() => {
+      doneProgress()
+      setReceipt(null)
+      setPendingJobId(null)
+      onLoadingChange(false)
+    }, 500)
+  }, [
+    doneProgress,
+    updateProgress,
+    onLoadingChange,
+    stopProgressSimulation,
+    stopSafetyTimeout
+  ])
 
   // Listen for background scan events
   useEffect(() => {
     if (!socket) return
 
     const handleSuccess = (payload: { jobId: string; data: AIScanReceiptData }) => {
-      updateProgress(100)
+      // Ignore if no job is pending (e.g., timed out) or if jobId doesn't match
+      if (!pendingJobId || payload.jobId !== pendingJobId) return
+
       onScanComplete(payload.data)
       toast.success('Receipt scanned successfully')
-      cleanup()
+      completeSuccess()
     }
 
     const handleFailure = (payload: { jobId: string; error: string }) => {
+      if (!pendingJobId || payload.jobId !== pendingJobId) return
+
       toast.error(payload.error || 'Failed to scan receipt')
-      cleanup()
+      resetState()
     }
 
     socket.on('receipt:scan-completed', handleSuccess)
@@ -72,7 +105,7 @@ const ReceiptScanner = ({
       socket.off('receipt:scan-completed', handleSuccess)
       socket.off('receipt:scan-failed', handleFailure)
     }
-  }, [socket, onScanComplete, updateProgress, cleanup])
+  }, [socket, onScanComplete, completeSuccess, resetState, pendingJobId])
 
   const handleReceiptUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -111,19 +144,25 @@ const ReceiptScanner = ({
         .unwrap()
         .then((res) => {
           if (res.jobId) {
-            // Async mode: The worker will send the results via socket
+            setPendingJobId(res.jobId)
             toast.info('Receipt is being processed in background')
+
+            // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
+            stopSafetyTimeout()
+            timeoutRef.current = setTimeout(() => {
+              toast.error('Processing timed out. Please check your internet or try again.')
+              resetState()
+            }, 60000) // 60 seconds
           } else if (res.data) {
             // Sync mode fallback: Populate immediately
-            updateProgress(100)
             onScanComplete(res.data)
             toast.success('Receipt scanned successfully')
-            cleanup()
+            completeSuccess()
           }
         })
         .catch((error) => {
           toast.error(error.data?.message || 'Failed to scan receipt')
-          cleanup()
+          resetState()
         })
     }
     reader.readAsDataURL(file)

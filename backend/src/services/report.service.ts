@@ -1,5 +1,4 @@
-import { createUserContent } from '@google/genai'
-import { genAI, genAIModel } from '../config/google-ai.config'
+import { generateWithFallback } from '../config/google-ai.config'
 import ReportSettingModel from '../models/report-setting.model'
 import ReportModel, { ReportStatusEnum } from '../models/report.model'
 import { NotFoundException } from '../utils/errors/index'
@@ -242,13 +241,10 @@ async function generateInsightsAI({
       currency
     })
 
-    const result = await genAI.models.generateContent({
-      model: genAIModel,
-      contents: [createUserContent([prompt])],
-      config: {
-        responseMimeType: 'application/json'
-      }
-    })
+    const result = await generateWithFallback(
+      [{ role: 'user', parts: [{ text: prompt }] }],
+      { responseMimeType: 'application/json' }
+    )
 
     const response = result.text
     const cleanedText = response?.replace(/```(?:json)?\n?/g, '').trim()

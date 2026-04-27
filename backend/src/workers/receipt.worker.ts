@@ -5,8 +5,7 @@ import type { UploadApiResponse } from 'cloudinary'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
 import {
-  AI_MODELS,
-  getAiPool
+  generateWithFallback
 } from '../config/google-ai.config'
 import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { getIO } from '../config/socket.config'
@@ -42,66 +41,31 @@ async function uploadToCloudinary(buffer: Buffer): Promise<UploadApiResponse> {
  * Extract receipt data using Google Gemini AI with Model/Key Fallback
  */
 async function extractReceiptData(base64String: string) {
-  const aiPool = getAiPool()
-  let lastError: Error | null = null
-
-  // Strategy: Try all API keys for each model in priority order
-  for (const modelName of AI_MODELS) {
-    for (let i = 0; i < aiPool.length; i++) {
-      const aiInstance = aiPool[i]
-      try {
-        logger.info(
-          `🤖 [Worker] Attempting extraction with model: ${modelName} (Key ${i + 1}/${aiPool.length})`
-        )
-
-        const result = await aiInstance.models.generateContent({
-          model: modelName,
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: receiptPrompt },
-                {
-                  inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: base64String
-                  }
-                }
-              ]
+  return await generateWithFallback(
+    [
+      {
+        role: 'user',
+        parts: [
+          { text: receiptPrompt },
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: base64String
             }
-          ],
-          config: {
-            temperature: 0,
-            topP: 1,
-            responseMimeType: 'application/json',
-            httpOptions: { timeout: 30000 }
           }
-        })
-
-        return result
-      } catch (error: any) {
-        lastError = error
-        const msg = error.message || ''
-
-        // If quota exhausted, continue to next key or model
-        if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
-          logger.warn(
-            `⚠️ [Worker] AI Quota reached for ${modelName} (Key ${i + 1}). Rotating...`
-          )
-          continue
-        }
-
-        // If it's a terminal error (invalid content, etc.), rethrow immediately
-        throw error
+        ]
       }
+    ],
+    {
+      temperature: 0,
+      topP: 1,
+      responseMimeType: 'application/json'
     }
-  }
-
-  throw lastError || new Error('All AI models and API keys exhausted')
+  )
 }
 
 /**
- * Parse and validate Gemini response
+ * Parse and validate Gemini response with strict checks
  */
 function parseGeminiResponse(responseText: string) {
   const cleanedText = responseText?.replace(/```(?:json)?\n?/g, '').trim()
@@ -112,20 +76,27 @@ function parseGeminiResponse(responseText: string) {
 
   const data = JSON.parse(cleanedText)
 
-  if (!data.amount || !data.date) {
-    throw new Error('Receipt missing required information')
+  // Strict check: amount must be a number (allow 0), date must be present
+  const amount = Number(data.amount)
+  if (isNaN(amount) || !data.date) {
+    throw new Error('Receipt missing valid amount or date information')
   }
 
+  // Predefined allowed values for enums
+  const allowedCurrencies = ['VND', 'USD', 'EUR']
+  const allowedTypes = ['EXPENSE', 'INCOME']
+  const allowedStatus = ['COMPLETED', 'PENDING']
+
   return {
-    title: data.title || 'Receipt',
-    amount: data.amount,
-    currency: data.currency || 'USD',
+    title: (data.title || 'Receipt').substring(0, 100),
+    amount: amount,
+    currency: allowedCurrencies.includes(data.currency) ? data.currency : 'VND',
     date: data.date,
-    description: data.description,
-    category: data.category,
+    description: data.description || '',
+    category: data.category || 'General',
     paymentMethod: data.paymentMethod || 'CASH',
-    type: data.type || 'EXPENSE',
-    status: data.status || 'COMPLETED'
+    type: allowedTypes.includes(data.type) ? data.type : 'EXPENSE',
+    status: allowedStatus.includes(data.status) ? data.status : 'COMPLETED'
   }
 }
 
@@ -138,31 +109,27 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
   const { userId, fileBuffer, fileName, fileSize } = job.data
 
   try {
-    // 1. Compress image
-    // Note: fileBuffer might arrive as a plain object {type: 'Buffer', data: [...]} if passed directly through BullMQ/Redis
-    const actualBuffer = Buffer.isBuffer(fileBuffer)
-      ? fileBuffer
-      : Buffer.from((fileBuffer as any).data || (fileBuffer as any))
+    const actualBuffer = Buffer.from(fileBuffer, 'base64')
 
     const compressedBuffer = await sharp(actualBuffer)
       .resize({ width: 1024, withoutEnlargement: true })
       .jpeg({ quality: 80 })
       .toBuffer()
 
-    const base64String = compressedBuffer.toString('base64')
+    const base64StringForAI = compressedBuffer.toString('base64')
 
-    // 2. Parallel execution: Upload to Cloudinary and extract with Gemini
-    const [uploadResult, geminiResult] = await Promise.all([
-      uploadToCloudinary(compressedBuffer),
-      extractReceiptData(base64String)
-    ])
+    // 2. [CodeRabbit] Sequential: AI Extraction & Validation FIRST
+    const geminiResult = await extractReceiptData(base64StringForAI)
 
-    // 3. Process Gemini response
+    // 3. Process and Validate Gemini response
     const responseText = geminiResult.text
     if (!responseText) {
       throw new Error('Could not read receipt content from Gemini')
     }
     const data = parseGeminiResponse(responseText)
+
+    // 4. [CodeRabbit] Upload to Cloudinary only after validation succeeds
+    const uploadResult = await uploadToCloudinary(compressedBuffer)
 
     // 4. Emit success event
     const io = getIO()
