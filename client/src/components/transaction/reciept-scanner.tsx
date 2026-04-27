@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { ScanText } from 'lucide-react'
@@ -7,6 +7,7 @@ import { AIScanReceiptData } from '@/features/transaction/transationType'
 import { toast } from 'sonner'
 import { useProgressLoader } from '@/hooks/use-progress-loader'
 import { useAiScanReceiptMutation } from '@/features/transaction/transactionAPI'
+import { useSocket } from '@/hooks/use-socket'
 
 interface ReceiptScannerProps {
   loadingChange: boolean
@@ -30,6 +31,39 @@ const ReceiptScanner = ({
   } = useProgressLoader({ initialProgress: 10, completionDelay: 500 })
 
   const [aiScanReceipt] = useAiScanReceiptMutation()
+  const socket = useSocket()
+
+  const cleanup = useCallback(() => {
+    doneProgress()
+    resetProgress()
+    setReceipt(null)
+    onLoadingChange(false)
+  }, [doneProgress, resetProgress, onLoadingChange])
+
+  // Listen for background scan events
+  useEffect(() => {
+    if (!socket) return
+
+    const handleSuccess = (payload: { jobId: string; data: AIScanReceiptData }) => {
+      updateProgress(100)
+      onScanComplete(payload.data)
+      toast.success('Receipt scanned successfully')
+      cleanup()
+    }
+
+    const handleFailure = (payload: { jobId: string; error: string }) => {
+      toast.error(payload.error || 'Failed to scan receipt')
+      cleanup()
+    }
+
+    socket.on('receipt:scan-completed', handleSuccess)
+    socket.on('receipt:scan-failed', handleFailure)
+
+    return () => {
+      socket.off('receipt:scan-completed', handleSuccess)
+      socket.off('receipt:scan-failed', handleFailure)
+    }
+  }, [socket, onScanComplete, updateProgress, cleanup])
 
   const handleReceiptUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -66,19 +100,23 @@ const ReceiptScanner = ({
       aiScanReceipt(formData)
         .unwrap()
         .then((res) => {
-          updateProgress(100)
-          onScanComplete(res.data)
-          toast.success('Receipt scanned successfully')
+          if (res.jobId) {
+            // Async mode: The worker will send the results via socket
+            toast.info('Receipt is being processed in background...')
+          } else if (res.data) {
+            // Sync mode fallback: Populate immediately
+            updateProgress(100)
+            onScanComplete(res.data)
+            toast.success('Receipt scanned successfully')
+            cleanup()
+          }
         })
         .catch((error) => {
           toast.error(error.data?.message || 'Failed to scan receipt')
+          cleanup()
         })
         .finally(() => {
           clearInterval(interval)
-          doneProgress()
-          resetProgress()
-          setReceipt(null)
-          onLoadingChange(false)
         })
     }
     reader.readAsDataURL(file)

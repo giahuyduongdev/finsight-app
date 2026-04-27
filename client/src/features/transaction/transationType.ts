@@ -87,7 +87,8 @@ export interface AIScanReceiptData {
 
 export interface AIScanReceiptResponse {
   message: string
-  data: AIScanReceiptData
+  data?: AIScanReceiptData
+  jobId?: string
 }
 
 export interface GetSingleTransactionResponse {
