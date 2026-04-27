@@ -43,20 +43,41 @@ export const startJobs = () => {
     }),
 
     scheduleJob('Redis Cleanup', '0 3 * * *', async () => {
-      // Xóa analytics cache cũ hơn 7 ngày
-      const keys = await redis.keys('analytics:*')
-      const pipeline = redis.pipeline()
+      // Xóa analytics cache mồ côi (không có TTL)
+      const stream = redis.scanStream({
+        match: 'analytics:*',
+        count: 100
+      })
 
-      for (const key of keys) {
-        const ttl = await redis.ttl(key)
-        if (ttl === -1) {
-          // key không có TTL → xóa luôn
-          pipeline.del(key)
-        }
-      }
-
-      await pipeline.exec()
-      logger.info('🧹 [Redis] Cleanup completed')
+      return new Promise<void>((resolve, reject) => {
+        const keysFound: string[] = []
+        stream.on('data', (keys) => keysFound.push(...keys))
+        stream.on('error', (err) => reject(err))
+        stream.on('end', async () => {
+          try {
+            if (keysFound.length > 0) {
+              const pipeline = redis.pipeline()
+              let orphansCount = 0
+              for (const key of keysFound) {
+                const ttl = await redis.ttl(key)
+                if (ttl === -1) {
+                  pipeline.unlink(key)
+                  orphansCount++
+                }
+              }
+              if (orphansCount > 0) {
+                await pipeline.exec()
+                logger.info(
+                  `🧹 [Redis] Cleanup completed: ${orphansCount} orphaned analytics keys unlinked`
+                )
+              }
+            }
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        })
+      })
     })
   ]
 }

@@ -88,9 +88,10 @@ Decided during planning (Section 4), not after. Format:
 > [!IMPORTANT]
 > **Shell Compatibility for Command Chaining:**
 > - **macOS / Linux (zsh/bash/fish):** Use `&&` (e.g., `cd backend && npm run lint`).
-> - **Windows PowerShell (Default):** **DO NOT use `&&`.** Use `;` instead (e.g., `cd backend; npm run lint`). Note that `;` runs the second command even if the first fails.
+> - **Windows PowerShell 7+:** Use `&&` (same as macOS/Linux).
+> - **Windows PowerShell (5.x and earlier):** **DO NOT use `&&`.** Run commands **separately** or wrap them in `cmd /c "command1 && command2"`. ⚠️ Avoid `;` for verification workflows—it runs the second command even if the first fails.
 > - **Windows CMD:** Use `&&`.
-> - **AI Strategy:** When in doubt on Windows, run commands **separately** or wrap them in `cmd /c "command1 && command2"`.
+> - **AI Strategy:** When in doubt on Windows, prefer running commands **separately** to ensure failures are caught.
 
 ```bash
 # Backend

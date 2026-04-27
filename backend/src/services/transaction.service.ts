@@ -16,51 +16,8 @@ import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
 import { DateRangePreset } from '../enums/date-range.enum'
 import { logger } from '../config/logger.config'
+import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 
-/**
- * Centralized helper to invalidate all analytics cache for a specific user.
- * Uses a glob pattern to match all summary, chart, and pie chart keys.
- */
-async function invalidateUserAnalyticsCache(userId: string | any) {
-  try {
-    const id = userId?.toString()
-    if (!id) return
-
-    const pattern = `analytics:*:${id}:*`
-    const stream = redis.scanStream({
-      match: pattern,
-      count: 100
-    })
-
-    let totalDeleted = 0
-
-    return new Promise<void>((resolve, reject) => {
-      stream.on('data', async (keys: string[]) => {
-        if (keys.length > 0) {
-          totalDeleted += keys.length
-          // Use unlink for non-blocking deletion in Redis >= 4.0
-          await redis.unlink(...keys)
-        }
-      })
-
-      stream.on('end', () => {
-        if (totalDeleted > 0) {
-          logger.info(
-            `🧹 [Cache] Invalidated ${totalDeleted} analytics keys for user ${id}`
-          )
-        }
-        resolve()
-      })
-
-      stream.on('error', (err) => {
-        logger.error('❌ [Cache] Redis scan error', err)
-        reject(err)
-      })
-    })
-  } catch (err) {
-    logger.error('❌ [Cache] Failed to invalidate analytics cache', err)
-  }
-}
 
 export const createTransactionService = async (
   body: CreateTransactionType,
