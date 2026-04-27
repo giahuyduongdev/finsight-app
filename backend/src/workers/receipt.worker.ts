@@ -102,7 +102,12 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
   try {
     // 1. Compress image
-    const compressedBuffer = await sharp(fileBuffer)
+    // Note: fileBuffer might arrive as a plain object {type: 'Buffer', data: [...]} if passed directly through BullMQ/Redis
+    const actualBuffer = Buffer.isBuffer(fileBuffer)
+      ? fileBuffer
+      : Buffer.from((fileBuffer as any).data || (fileBuffer as any))
+
+    const compressedBuffer = await sharp(actualBuffer)
       .resize({ width: 1024, withoutEnlargement: true })
       .jpeg({ quality: 80 })
       .toBuffer()
@@ -115,11 +120,12 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       extractReceiptData(base64String)
     ])
 
-    // 3. Parse and validate Gemini response
-    if (!geminiResult.text) {
-      throw new Error('Could not read receipt content')
+    // 3. Process Gemini response
+    const responseText = geminiResult.text
+    if (!responseText) {
+      throw new Error('Could not read receipt content from Gemini')
     }
-    const data = parseGeminiResponse(geminiResult.text)
+    const data = parseGeminiResponse(responseText)
 
     // 4. Emit success event
     const io = getIO()

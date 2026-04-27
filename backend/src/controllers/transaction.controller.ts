@@ -239,7 +239,7 @@ export const scanReceiptController = asyncHandler(
 
     return res.status(HTTPSTATUS.ACCEPTED).json({
       message: 'Receipt is being processed',
-      jobId: job.id
+      jobId: job.id?.toString() || 'unknown'
     })
   }
 )
