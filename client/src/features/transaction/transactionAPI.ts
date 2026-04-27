@@ -87,7 +87,7 @@ export const transactionApi = apiClient.injectEndpoints({
         url: `/transaction/${id}/duplicate`,
         method: 'POST'
       }),
-      invalidatesTags: ['transactions']
+      invalidatesTags: ['transactions', 'analytics']
     }),
 
     updateTransaction: builder.mutation<void, UpdateTransactionPayload>({

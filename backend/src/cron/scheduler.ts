@@ -43,20 +43,60 @@ export const startJobs = () => {
     }),
 
     scheduleJob('Redis Cleanup', '0 3 * * *', async () => {
-      // Xóa analytics cache cũ hơn 7 ngày
-      const keys = await redis.keys('analytics:*')
-      const pipeline = redis.pipeline()
+      // Xóa analytics cache mồ côi (không có TTL)
+      const stream = redis.scanStream({
+        match: 'analytics:*',
+        count: 100
+      })
 
-      for (const key of keys) {
-        const ttl = await redis.ttl(key)
-        if (ttl === -1) {
-          // key không có TTL → xóa luôn
-          pipeline.del(key)
-        }
-      }
+      let orphansCount = 0
+      let draining = Promise.resolve()
 
-      await pipeline.exec()
-      logger.info('🧹 [Redis] Cleanup completed')
+      return new Promise<void>((resolve, reject) => {
+        stream.on('data', (keys: string[]) => {
+          stream.pause()
+          draining = draining
+            .then(async () => {
+              if (keys.length === 0) return
+
+              // Pipeline TTL checks for the current chunk
+              const ttlPipeline = redis.pipeline()
+              for (const key of keys) {
+                ttlPipeline.ttl(key)
+              }
+              const ttlResults = await ttlPipeline.exec()
+
+              // Filter out keys that don't have a TTL (-1)
+              const orphanKeys = keys.filter(
+                (_, index) => ttlResults?.[index]?.[1] === -1
+              )
+
+              if (orphanKeys.length > 0) {
+                await redis.unlink(...orphanKeys)
+                orphansCount += orphanKeys.length
+              }
+            })
+            .then(() => {
+              stream.resume()
+            })
+            .catch(reject)
+        })
+
+        stream.on('error', (err) => reject(err))
+
+        stream.on('end', () => {
+          draining
+            .then(() => {
+              if (orphansCount > 0) {
+                logger.info(
+                  `🧹 [Redis] Cleanup completed: ${orphansCount} orphaned analytics keys unlinked`
+                )
+              }
+              resolve()
+            })
+            .catch(reject)
+        })
+      })
     })
   ]
 }

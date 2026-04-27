@@ -16,6 +16,8 @@ import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
 import { DateRangePreset } from '../enums/date-range.enum'
 import { logger } from '../config/logger.config'
+import { invalidateUserAnalyticsCache } from '../utils/cache.util'
+
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -85,12 +87,7 @@ export const createTransactionService = async (
   // --- END BACKFILL ---
 
   // Invalidate analytics cache
-  try {
-    const keys = await redis.keys(`analytics:*:${userId}:*`)
-    if (keys.length) await redis.del(...keys)
-  } catch (err) {
-    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
-  }
+  await invalidateUserAnalyticsCache(userId)
 
   return transaction
 }
@@ -279,6 +276,8 @@ export const duplicateTransactionService = async (
     updatedAt: undefined
   })
 
+  await invalidateUserAnalyticsCache(userId)
+
   return duplicated
 }
 
@@ -346,12 +345,7 @@ export const updateTransactionService = async (
   }
 
   // Invalidate analytics cache
-  try {
-    const keys = await redis.keys(`analytics:*:${userId}:*`)
-    if (keys.length) await redis.del(...keys)
-  } catch (err) {
-    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
-  }
+  await invalidateUserAnalyticsCache(userId)
 
   return existingTransaction
 }
@@ -373,12 +367,7 @@ export const deleteTransactionService = async (
   })
 
   // Invalidate analytics cache
-  try {
-    const keys = await redis.keys(`analytics:*:${userId}:*`)
-    if (keys.length) await redis.del(...keys)
-  } catch (err) {
-    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
-  }
+  await invalidateUserAnalyticsCache(userId)
 
   return
 }
@@ -402,12 +391,7 @@ export const bulkDeleteTransactionService = async (
   })
 
   // Invalidate analytics cache
-  try {
-    const keys = await redis.keys(`analytics:*:${userId}:*`)
-    if (keys.length) await redis.del(...keys)
-  } catch (err) {
-    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
-  }
+  await invalidateUserAnalyticsCache(userId)
 
   return {
     sucess: true,
@@ -446,12 +430,7 @@ export const bulkImportTransactionService = async (
   })
 
   // Invalidate analytics cache
-  try {
-    const keys = await redis.keys(`analytics:*:${userId}:*`)
-    if (keys.length) await redis.del(...keys)
-  } catch (err) {
-    logger.warn('⚠️ [Service] Failed to invalidate analytics cache', err)
-  }
+  await invalidateUserAnalyticsCache(userId)
 
   return {
     insertedCount: result.insertedCount,

@@ -7,8 +7,8 @@ import {
   BulkImportJobData,
   RecurringJobData
 } from '../queues/transaction.queue'
-import { redis } from '../config/redis.config'
 import { getIO } from '../config/socket.config'
+import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 
 import importBatchModel from '../models/import-batch.model'
 import TransactionModel, {
@@ -132,12 +132,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     logger.info(`🗑️ [Worker] Cleaned up import batch: ${importBatchId}`)
 
     // Xóa cache analytics của user
-    try {
-      const keys = await redis.keys(`analytics:*:${userId}:*`)
-      if (keys.length) await redis.del(...keys)
-    } catch (err) {
-      logger.warn('⚠️ [Worker] Failed to invalidate analytics cache', err)
-    }
+    await invalidateUserAnalyticsCache(userId)
 
     //  Emit completed
     const room = userId.toString()
