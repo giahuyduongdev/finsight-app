@@ -20,7 +20,7 @@ export async function invalidateUserAnalyticsCache(userId: string | { toString()
     let totalDeleted = 0
     let draining = Promise.resolve()
 
-    return new Promise<void>((resolve, _reject) => {
+    return new Promise<void>((resolve) => {
       stream.on('data', (keys: string[]) => {
         // Stop scanning while we process the current chunk
         stream.pause()
