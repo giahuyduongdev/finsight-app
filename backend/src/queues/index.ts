@@ -3,10 +3,12 @@ import { logger } from '../config/logger.config'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 
 import { transactionQueue } from './transaction.queue'
+import { receiptQueue } from './receipt.queue'
 // import { reportQueue } from './report.queue'
 
 const queues = [
-  transactionQueue
+  transactionQueue,
+  receiptQueue
   // reportQueue,
 ]
 
@@ -28,5 +30,6 @@ export const transactionFlowProducer = new FlowProducer({
   connection: bullMQConnection
 })
 
-export { transactionQueue }
+export { transactionQueue, receiptQueue }
 export * from './transaction.queue'
+export * from './receipt.queue'

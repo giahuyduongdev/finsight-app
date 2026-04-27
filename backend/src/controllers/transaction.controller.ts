@@ -16,7 +16,6 @@ import {
   getAllTransactionService,
   getChildTransactionsService,
   getTransactionByIdService,
-  scanReceiptService,
   updateTransactionService
 } from '../services/transaction.service'
 import {
@@ -24,8 +23,9 @@ import {
   RecurringIntervalEnum
 } from '../models/transaction.model'
 import { CurrencyType, CurrencyEnum } from '../enums/currency.enum'
-import { transactionQueue } from '../queues'
+import { transactionQueue, receiptQueue } from '../queues'
 import { TRANSACTION_JOBS } from '../queues/transaction.queue'
+import { RECEIPT_JOBS } from '../queues/receipt.queue'
 import importBatchModel from '../models/import-batch.model'
 import { processRecurringTransactions } from '../cron/jobs/transaction.job'
 import TransactionModel from '../models/transaction.model'
@@ -222,12 +222,24 @@ export const bulkTransactionController = asyncHandler(
 export const scanReceiptController = asyncHandler(
   async (req: Request, res: Response) => {
     const file = req?.file
+    const userId = req.user?._id
 
-    const result = await scanReceiptService(file)
+    if (!file) {
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'No file uploaded'
+      })
+    }
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Reciept scanned successfully',
-      data: result
+    const job = await receiptQueue.add(RECEIPT_JOBS.SCAN_RECEIPT, {
+      userId,
+      fileBuffer: file.buffer,
+      fileName: file.originalname,
+      fileSize: file.size
+    })
+
+    return res.status(HTTPSTATUS.ACCEPTED).json({
+      message: 'Receipt is being processed',
+      jobId: job.id
     })
   }
 )
