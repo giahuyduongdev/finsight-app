@@ -4,7 +4,10 @@ import { v2 as cloudinary } from 'cloudinary'
 import type { UploadApiResponse } from 'cloudinary'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
-import { genAI, genAIModel } from '../config/google-ai.config'
+import {
+  AI_MODELS,
+  getAiPool
+} from '../config/google-ai.config'
 import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { getIO } from '../config/socket.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
@@ -36,32 +39,65 @@ async function uploadToCloudinary(buffer: Buffer): Promise<UploadApiResponse> {
 }
 
 /**
- * Extract receipt data using Google Gemini AI
+ * Extract receipt data using Google Gemini AI with Model/Key Fallback
  */
 async function extractReceiptData(base64String: string) {
-  return genAI.models.generateContent({
-    model: genAIModel,
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { text: receiptPrompt },
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64String
+  const aiPool = getAiPool()
+  let lastError: Error | null = null
+
+  // Strategy: Try all API keys for each model in priority order
+  for (const modelName of AI_MODELS) {
+    for (let i = 0; i < aiPool.length; i++) {
+      const aiInstance = aiPool[i]
+      try {
+        logger.info(
+          `🤖 [Worker] Attempting extraction with model: ${modelName} (Key ${i + 1}/${aiPool.length})`
+        )
+
+        const result = await aiInstance.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: receiptPrompt },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: base64String
+                  }
+                }
+              ]
             }
+          ],
+          config: {
+            temperature: 0,
+            topP: 1,
+            responseMimeType: 'application/json',
+            httpOptions: { timeout: 30000 }
           }
-        ]
+        })
+
+        return result
+      } catch (error: any) {
+        lastError = error
+        const msg = error.message || ''
+
+        // If quota exhausted, continue to next key or model
+        if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+          logger.warn(
+            `⚠️ [Worker] AI Quota reached for ${modelName} (Key ${i + 1}). Rotating...`
+          )
+          continue
+        }
+
+        // If it's a terminal error (invalid content, etc.), rethrow immediately
+        throw error
       }
-    ],
-    config: {
-      temperature: 0,
-      topP: 1,
-      responseMimeType: 'application/json',
-      httpOptions: { timeout: 30000 } // Major: Add timeout
     }
-  })
+  }
+
+  throw lastError || new Error('All AI models and API keys exhausted')
 }
 
 /**
@@ -160,13 +196,23 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       error: err.message
     })
 
+    // Catch Gemini Rate Limit (429) details
+    let friendlyMessage = err.message || 'Receipt scanning failed'
+    if (
+      friendlyMessage.includes('429') ||
+      friendlyMessage.includes('RESOURCE_EXHAUSTED')
+    ) {
+      friendlyMessage =
+        'AI service is currently busy due to free tier limits. Please try again in 1 minute.'
+    }
+
     // 🟠 Minor: Only emit failure on final attempt
     const maxAttempts = job.opts.attempts || 3
     if (job.attemptsMade >= maxAttempts - 1) {
       const io = getIO()
       io.to(userId).emit('receipt:scan-failed', {
         jobId: job.id,
-        error: err.message || 'Receipt scanning failed'
+        error: friendlyMessage
       })
     }
 
