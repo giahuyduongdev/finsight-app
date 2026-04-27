@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { ScanText } from 'lucide-react'
@@ -32,13 +32,22 @@ const ReceiptScanner = ({
 
   const [aiScanReceipt] = useAiScanReceiptMutation()
   const socket = useSocket()
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const stopProgressSimulation = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }, [])
 
   const cleanup = useCallback(() => {
+    stopProgressSimulation()
     doneProgress()
     resetProgress()
     setReceipt(null)
     onLoadingChange(false)
-  }, [doneProgress, resetProgress, onLoadingChange])
+  }, [doneProgress, resetProgress, onLoadingChange, stopProgressSimulation])
 
   // Listen for background scan events
   useEffect(() => {
@@ -89,20 +98,21 @@ const ReceiptScanner = ({
       setReceipt(result)
 
       // Simulate scanning progress
-      // Start progress
       let currentProgress = 10
-      const interval = setInterval(() => {
-        const increment = currentProgress < 90 ? 10 : 1
+      stopProgressSimulation()
+      intervalRef.current = setInterval(() => {
+        // Slow down as we get closer to 90
+        const increment = currentProgress < 70 ? 5 : currentProgress < 85 ? 1 : 0.5
         currentProgress = Math.min(currentProgress + increment, 90)
-        updateProgress(currentProgress)
-      }, 250)
+        updateProgress(Math.floor(currentProgress))
+      }, 300)
 
       aiScanReceipt(formData)
         .unwrap()
         .then((res) => {
           if (res.jobId) {
             // Async mode: The worker will send the results via socket
-            toast.info('Receipt is being processed in background...')
+            toast.info('Receipt is being processed in background')
           } else if (res.data) {
             // Sync mode fallback: Populate immediately
             updateProgress(100)
@@ -114,9 +124,6 @@ const ReceiptScanner = ({
         .catch((error) => {
           toast.error(error.data?.message || 'Failed to scan receipt')
           cleanup()
-        })
-        .finally(() => {
-          clearInterval(interval)
         })
     }
     reader.readAsDataURL(file)
@@ -148,7 +155,7 @@ const ReceiptScanner = ({
                 type="file"
                 accept="image/*"
                 onChange={handleReceiptUpload}
-                className="max-w-[250px] px-1 h-9 cursor-pointer text-sm file:mr-2 
+                className="max-w-[250px] px-1 h-9 cursor-pointer file:cursor-pointer text-sm file:mr-2 
             file:rounded file:border-0 file:bg-primary file:px-3 file:py-px
              file:text-sm file:font-medium file:text-white 
              hover:file:bg-primary/90"

@@ -208,7 +208,8 @@ const TransactionForm = (props: {
       backfill: values.backfill ?? false,
       date: values.date.toISOString(),
       isRecurring: values.isRecurring || false,
-      recurringInterval: values.frequency || null
+      recurringInterval: values.frequency || null,
+      receiptUrl: values.receiptUrl || ''
     }
     if (isEdit && transactionId) {
       updateTransaction({ id: transactionId, transaction: payload })
