@@ -18,7 +18,7 @@ export async function invalidateUserAnalyticsCache(userId: string | { toString()
 
     const keysToDelete: string[] = []
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, _reject) => {
       stream.on('data', (keys: string[]) => {
         if (keys.length > 0) {
           keysToDelete.push(...keys)
@@ -39,13 +39,13 @@ export async function invalidateUserAnalyticsCache(userId: string | { toString()
           resolve()
         } catch (err) {
           logger.error(`❌ [Cache] Failed to unlink keys for user ${id}`, err)
-          reject(err)
+          resolve() // Resolve anyway to avoid crashing the caller (fire-and-forget)
         }
       })
 
       stream.on('error', (err) => {
         logger.error(`❌ [Cache] Redis scan error for user ${id}`, err)
-        reject(err)
+        resolve() // Resolve anyway to avoid crashing the caller
       })
     })
   } catch (err) {

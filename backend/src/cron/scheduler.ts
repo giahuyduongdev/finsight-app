@@ -49,33 +49,52 @@ export const startJobs = () => {
         count: 100
       })
 
+      let orphansCount = 0
+      let draining = Promise.resolve()
+
       return new Promise<void>((resolve, reject) => {
-        const keysFound: string[] = []
-        stream.on('data', (keys) => keysFound.push(...keys))
-        stream.on('error', (err) => reject(err))
-        stream.on('end', async () => {
-          try {
-            if (keysFound.length > 0) {
-              const pipeline = redis.pipeline()
-              let orphansCount = 0
-              for (const key of keysFound) {
-                const ttl = await redis.ttl(key)
-                if (ttl === -1) {
-                  pipeline.unlink(key)
-                  orphansCount++
-                }
+        stream.on('data', (keys: string[]) => {
+          stream.pause()
+          draining = draining
+            .then(async () => {
+              if (keys.length === 0) return
+
+              // Pipeline TTL checks for the current chunk
+              const ttlPipeline = redis.pipeline()
+              for (const key of keys) {
+                ttlPipeline.ttl(key)
               }
+              const ttlResults = await ttlPipeline.exec()
+
+              // Filter out keys that don't have a TTL (-1)
+              const orphanKeys = keys.filter(
+                (_, index) => ttlResults?.[index]?.[1] === -1
+              )
+
+              if (orphanKeys.length > 0) {
+                await redis.unlink(...orphanKeys)
+                orphansCount += orphanKeys.length
+              }
+            })
+            .then(() => {
+              stream.resume()
+            })
+            .catch(reject)
+        })
+
+        stream.on('error', (err) => reject(err))
+
+        stream.on('end', () => {
+          draining
+            .then(() => {
               if (orphansCount > 0) {
-                await pipeline.exec()
                 logger.info(
                   `🧹 [Redis] Cleanup completed: ${orphansCount} orphaned analytics keys unlinked`
                 )
               }
-            }
-            resolve()
-          } catch (err) {
-            reject(err)
-          }
+              resolve()
+            })
+            .catch(reject)
         })
       })
     })
