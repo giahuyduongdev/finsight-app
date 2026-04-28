@@ -1,7 +1,7 @@
 import TransactionModel from '../../models/transaction.model'
 import {
   transactionQueue,
-  transactionFlowProducer, // 👈 Thêm FlowProducer
+  transactionFlowProducer, // Thêm FlowProducer
   TRANSACTION_JOBS
 } from '../../queues'
 import { logger } from '../../config/logger.config'
@@ -17,7 +17,9 @@ export const processRecurringTransactions = async () => {
       nextRecurringDate: { $lte: now }
     }).select('_id userId')
 
-    logger.info(`🔍 Found ${transactions.length} due transactions across all users`)
+    logger.info(
+      `🔍 Found ${transactions.length} due transactions across all users`
+    )
 
     // 2. Nhóm theo UserId để tạo Flow cho từng người
     const userGroups: Record<string, any[]> = {}

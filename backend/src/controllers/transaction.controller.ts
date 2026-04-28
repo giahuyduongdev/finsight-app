@@ -60,7 +60,11 @@ export const getAllTransactionController = asyncHandler(
         | 'NON_RECURRING'
         | undefined,
       currency: req.query.currency as CurrencyType | undefined,
-      status: req.query.status as 'COMPLETED' | 'PENDING' | 'FAILED' | undefined,
+      status: req.query.status as
+        | 'COMPLETED'
+        | 'PENDING'
+        | 'FAILED'
+        | undefined,
       dateRangePreset: req.query.dateRangePreset as any,
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined,
@@ -98,11 +102,22 @@ export const getChildTransactionsController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?._id
     const parentId = transactionIdSchema.parse(req.params.id)
-    
-    const pageNumber = Math.max(1, parseInt(req.query.pageNumber as string) || 1)
-    const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize as string) || 10))
 
-    const result = await getChildTransactionsService(userId, parentId, pageNumber, pageSize)
+    const pageNumber = Math.max(
+      1,
+      parseInt(req.query.pageNumber as string) || 1
+    )
+    const pageSize = Math.min(
+      50,
+      Math.max(1, parseInt(req.query.pageSize as string) || 10)
+    )
+
+    const result = await getChildTransactionsService(
+      userId,
+      parentId,
+      pageNumber,
+      pageSize
+    )
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Child transactions fetched successfully',
@@ -255,55 +270,6 @@ export const scanReceiptController = asyncHandler(
     return res.status(HTTPSTATUS.ACCEPTED).json({
       message: 'Receipt is being processed',
       jobId: job.id?.toString() || 'unknown'
-    })
-  }
-)
-
-export const triggerRecurringTestController = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userId = req.user?._id
-
-    // 1. Kiểm tra số lượng giao dịch định kỳ hiện có
-    const existingCount = await TransactionModel.countDocuments({
-      userId,
-      isRecurring: true
-    })
-
-    const TARGET_COUNT = 1000
-
-    if (existingCount < TARGET_COUNT) {
-      const needed = TARGET_COUNT - existingCount
-      const dummyTxs = Array.from({ length: needed }).map((_, i) => ({
-        userId,
-        title: `MOCK RECURRING #${existingCount + i + 1}`,
-        amount: Math.floor(Math.random() * 1000) + 1,
-        type: TransactionTypeEnum.EXPENSE,
-        category: 'Test',
-        currency: CurrencyEnum.USD,
-        isRecurring: true,
-        recurringInterval: RecurringIntervalEnum.DAILY,
-        nextRecurringDate: new Date(Date.now() - 86400000), // Hôm qua
-        date: new Date()
-      }))
-
-      await TransactionModel.insertMany(dummyTxs)
-    }
-
-    // 2. Ép tất cả giao dịch định kỳ của user này về trạng thái "đến hạn"
-    await TransactionModel.updateMany(
-      { userId, isRecurring: true },
-      { $set: { nextRecurringDate: new Date(Date.now() - 86400000) } }
-    )
-
-    // 3. Kích hoạt logic quét và enqueue của Cron Job
-    await processRecurringTransactions()
-
-    return res.status(HTTPSTATUS.OK).json({
-      message: `Triggered ${TARGET_COUNT} recurring transactions test`,
-      data: {
-        totalTarget: TARGET_COUNT,
-        existingBefore: existingCount
-      }
     })
   }
 )

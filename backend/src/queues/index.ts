@@ -4,13 +4,10 @@ import { bullMQConnection } from '../config/bull/bullmq.config'
 
 import { transactionQueue } from './transaction.queue'
 import { receiptQueue } from './receipt.queue'
+import { reportQueue } from './report.queue'
 // import { reportQueue } from './report.queue'
 
-const queues = [
-  transactionQueue,
-  receiptQueue
-  // reportQueue,
-]
+const queues = [transactionQueue, receiptQueue, reportQueue]
 
 export const closeQueues = async () => {
   logger.info('🛑 [BullMQ] Closing the queues...')
@@ -33,3 +30,4 @@ export const transactionFlowProducer = new FlowProducer({
 export { transactionQueue, receiptQueue }
 export * from './transaction.queue'
 export * from './receipt.queue'
+export * from './report.queue'

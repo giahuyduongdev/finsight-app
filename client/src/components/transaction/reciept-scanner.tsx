@@ -54,10 +54,19 @@ const ReceiptScanner = ({
     stopProgressSimulation()
     stopSafetyTimeout()
     resetProgress()
+    if (receipt && receipt.startsWith('blob:')) {
+      URL.revokeObjectURL(receipt)
+    }
     setReceipt(null)
     setPendingJobId(null)
     onLoadingChange(false)
-  }, [resetProgress, onLoadingChange, stopProgressSimulation, stopSafetyTimeout])
+  }, [
+    receipt,
+    resetProgress,
+    onLoadingChange,
+    stopProgressSimulation,
+    stopSafetyTimeout
+  ])
 
   const completeSuccess = useCallback(() => {
     stopProgressSimulation()
@@ -66,17 +75,30 @@ const ReceiptScanner = ({
     // Settle for a bit before clearing UI
     setTimeout(() => {
       doneProgress()
+      if (receipt && receipt.startsWith('blob:')) {
+        URL.revokeObjectURL(receipt)
+      }
       setReceipt(null)
       setPendingJobId(null)
       onLoadingChange(false)
     }, 500)
   }, [
+    receipt,
     doneProgress,
     updateProgress,
     onLoadingChange,
     stopProgressSimulation,
     stopSafetyTimeout
   ])
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (receipt && receipt.startsWith('blob:')) {
+        URL.revokeObjectURL(receipt)
+      }
+    }
+  }, [receipt])
 
   // Listen for background scan events
   useEffect(() => {
@@ -119,53 +141,55 @@ const ReceiptScanner = ({
       toast.error('Please upload an image file')
       return
     }
+
+    // Cleanup old preview
+    if (receipt && receipt.startsWith('blob:')) {
+      URL.revokeObjectURL(receipt)
+    }
+
+    const previewUrl = URL.createObjectURL(file)
+    setReceipt(previewUrl)
+
     const formData = new FormData()
     formData.append('receipt', file)
 
     startProgress(10)
     onLoadingChange(true)
-    // Simulate file upload and processing
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const result = e.target?.result as string
-      setReceipt(result)
 
-      // Simulate scanning progress
-      let currentProgress = 10
-      stopProgressSimulation()
-      intervalRef.current = setInterval(() => {
-        // Slow down as we get closer to 90
-        const increment = currentProgress < 70 ? 5 : currentProgress < 85 ? 1 : 0.5
-        currentProgress = Math.min(currentProgress + increment, 90)
-        updateProgress(Math.floor(currentProgress))
-      }, 300)
+    // Simulate scanning progress
+    let currentProgress = 10
+    stopProgressSimulation()
+    intervalRef.current = setInterval(() => {
+      // Slow down as we get closer to 90
+      const increment = currentProgress < 70 ? 5 : currentProgress < 85 ? 1 : 0.5
+      currentProgress = Math.min(currentProgress + increment, 90)
+      updateProgress(Math.floor(currentProgress))
+    }, 500) // Slightly slower interval to reduce rerenders
 
-      aiScanReceipt(formData)
-        .unwrap()
-        .then((res) => {
-          if (res.jobId) {
-            setPendingJobId(res.jobId)
-            toast.info('Receipt is being processed in background')
+    aiScanReceipt(formData)
+      .unwrap()
+      .then((res) => {
+        if (res.jobId) {
+          setPendingJobId(res.jobId)
+          toast.info('Receipt is being processed in background')
 
-            // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
-            stopSafetyTimeout()
-            timeoutRef.current = setTimeout(() => {
-              toast.error('Processing timed out. Please check your internet or try again.')
-              resetState()
-            }, 60000) // 60 seconds
-          } else if (res.data) {
-            // Sync mode fallback: Populate immediately
-            onScanComplete(res.data)
-            toast.success('Receipt scanned successfully')
-            completeSuccess()
-          }
-        })
-        .catch((error) => {
-          toast.error(error.data?.message || 'Failed to scan receipt')
-          resetState()
-        })
-    }
-    reader.readAsDataURL(file)
+          // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
+          stopSafetyTimeout()
+          timeoutRef.current = setTimeout(() => {
+            toast.error('Processing timed out. Please check your internet or try again.')
+            resetState()
+          }, 60000) // 60 seconds
+        } else if (res.data) {
+          // Sync mode fallback: Populate immediately
+          onScanComplete(res.data)
+          toast.success('Receipt scanned successfully')
+          completeSuccess()
+        }
+      })
+      .catch((error) => {
+        toast.error(error.data?.message || 'Failed to scan receipt')
+        resetState()
+      })
   }
 
   return (
