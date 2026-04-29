@@ -14,8 +14,8 @@ bullMQConnection.on('error', (err) =>
   logger.error('❌ [BullMQ] Connection error:', err.message)
 )
 bullMQConnection.on('reconnecting', () =>
-  logger.warn('🔴 [BullMQ] Connection lost! Waiting to reconnect......')
+  logger.warn('🟡 [BullMQ] Connection lost. Attempting to reconnect...')
 )
 bullMQConnection.on('end', () =>
-  logger.error('🟡 [BullMQ] Reconnected successfully!')
+  logger.warn('🔴 [BullMQ] Connection closed.')
 )
