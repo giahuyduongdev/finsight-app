@@ -39,13 +39,12 @@ export const processReportJob = async () => {
             settingId: setting._id.toString(),
             timezone: user.timezone || 'UTC',
             preferredCurrency: user.preferredCurrency,
-            email: user.email!,
-            username: user.name!,
-            frequency: setting.frequency!
+            frequency: setting.frequency!,
+            dueDate: setting.nextReportDate?.toISOString() || now.toISOString()
           },
           opts: {
             // jobId duy nhất để tránh enqueue trùng nếu cron chạy lại
-            jobId: `process-report-${user.id}-${now.getTime()}`
+            jobId: `process-report-${setting._id}-${setting.nextReportDate?.toISOString() || now.toISOString()}`
           }
         }
       })

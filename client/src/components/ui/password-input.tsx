@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 type PasswordInputProps = React.ComponentProps<typeof Input>
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className, ...props }, ref) => {
+  ({ className, autoComplete = "current-password", ...props }, ref) => {
     const [showPassword, setShowPassword] = React.useState(false)
 
     return (
@@ -14,7 +14,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
         <Input
           type={showPassword ? "text" : "password"}
           className={cn("pr-10", className)}
-          autoComplete={props.autoComplete || "current-password"}
+          autoComplete={autoComplete}
           ref={ref}
           {...props}
         />

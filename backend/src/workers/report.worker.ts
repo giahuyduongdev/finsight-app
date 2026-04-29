@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq'
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
-import { fromZonedTime, toZonedTime } from 'date-fns-tz'
+import { endOfMonth, startOfMonth, subMonths } from 'date-fns'
+import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 import mongoose from 'mongoose'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
@@ -8,6 +8,7 @@ import { REPORT_JOBS, ProcessReportJobData } from '../queues/report.queue'
 import { generateReportService } from '../services/report.service'
 import ReportModel, { ReportStatusEnum } from '../models/report.model'
 import ReportSettingModel from '../models/report-setting.model'
+import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
 
@@ -17,21 +18,24 @@ import { calculateNextReportDate } from '../utils/dates/index'
  * Xử lý tạo và gửi báo cáo cho 1 user
  */
 const processReportJob = async (job: Job<ProcessReportJobData>) => {
-  const {
-    userId,
-    settingId,
-    timezone,
-    preferredCurrency,
-    email,
-    username,
-    frequency
-  } = job.data
+  const { userId, settingId, timezone, preferredCurrency, frequency, dueDate } =
+    job.data
   const now = new Date()
+  const scheduledDate = new Date(dueDate)
 
-  // Tính khoảng thời gian tháng trước theo timezone của user
-  const nowInUserTz = toZonedTime(now, timezone)
-  const from = fromZonedTime(startOfMonth(subMonths(nowInUserTz, 1)), timezone)
-  const to = fromZonedTime(endOfMonth(subMonths(nowInUserTz, 1)), timezone)
+  // 0. Fetch user for PII (email/username)
+  const user = await UserModel.findById(userId).lean()
+  if (!user) {
+    throw new Error(`User not found: ${userId}`)
+  }
+
+  const email = user.email!
+  const username = user.name || email.split('@')[0]
+
+  // Tính khoảng thời gian tháng trước theo timezone của user dựa trên ngày đến hạn (dueDate)
+  const dueInUserTz = toZonedTime(scheduledDate, timezone)
+  const from = fromZonedTime(startOfMonth(subMonths(dueInUserTz, 1)), timezone)
+  const to = fromZonedTime(endOfMonth(subMonths(dueInUserTz, 1)), timezone)
 
   // 1. Generate report
   const report = await generateReportService(
@@ -92,7 +96,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
               sentDate: now,
               period:
                 report?.period ||
-                `${format(from, 'MMMM d')}–${format(to, 'd, yyyy')}`,
+                `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
               status: isSuccess
                 ? ReportStatusEnum.SENT
                 : report
@@ -110,8 +114,8 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
           { _id: settingId },
           {
             $set: {
-              lastSentDate: isSuccess ? now : null,
-              nextReportDate: calculateNextReportDate(now),
+              ...(isSuccess ? { lastSentDate: now } : {}),
+              nextReportDate: calculateNextReportDate(scheduledDate),
               updatedAt: now
             }
           },
@@ -134,9 +138,12 @@ export const reportWorker = new Worker(
   async (job) => {
     if (job.name === REPORT_JOBS.PROCESS_REPORT) {
       return await processReportJob(job as Job<ProcessReportJobData>)
-    } else {
-      logger.warn(`❓ [Worker] Unknown job name: ${job.name}`)
     }
+    logger.error('❌ [Worker] Unknown job name', {
+      jobId: job.id,
+      jobName: job.name
+    })
+    throw new Error(`Unknown report job name: ${job.name}`)
   },
   {
     connection: bullMQConnection,

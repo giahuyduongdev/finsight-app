@@ -14,9 +14,8 @@ export type ProcessReportJobData = {
   settingId: string
   timezone: string
   preferredCurrency?: string
-  email: string
-  username: string
   frequency: string
+  dueDate: string
 }
 
 // ─── Queue ────────────────────────────────────────────────────────────────────

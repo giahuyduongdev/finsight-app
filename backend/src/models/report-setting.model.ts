@@ -47,6 +47,8 @@ const reportSettingSchema = new mongoose.Schema<ReportSettingDocument>(
   }
 )
 
+reportSettingSchema.index({ isEnabled: 1, nextReportDate: 1 })
+
 const ReportSettingModel = mongoose.model<ReportSettingDocument>(
   'ReportSetting',
   reportSettingSchema

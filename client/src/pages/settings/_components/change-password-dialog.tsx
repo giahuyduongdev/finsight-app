@@ -256,7 +256,11 @@ export function ChangePasswordDialog() {
                     <FormItem>
                       <FormLabel>New Password</FormLabel>
                       <FormControl>
-                        <PasswordInput placeholder="••••••" {...field} />
+                        <PasswordInput
+                          placeholder="••••••"
+                          autoComplete="new-password"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -269,7 +273,11 @@ export function ChangePasswordDialog() {
                     <FormItem>
                       <FormLabel>Confirm New Password</FormLabel>
                       <FormControl>
-                        <PasswordInput placeholder="••••••" {...field} />
+                        <PasswordInput
+                          placeholder="••••••"
+                          autoComplete="new-password"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
