@@ -1,8 +1,11 @@
 import {
   endOfDay,
   endOfMonth,
+  endOfQuarter,
   endOfYear,
+  startOfDay,
   startOfMonth,
+  startOfQuarter,
   startOfYear,
   subDays,
   subMonths,
@@ -10,7 +13,8 @@ import {
 } from 'date-fns'
 import { DateRangeEnum, DateRangePreset } from '../../enums/date-range.enum'
 import { fromZonedTime, toZonedTime } from 'date-fns-tz'
-import { addDays, addMonths, addWeeks, addYears } from 'date-fns'
+import { addDays, addMonths, addWeeks, addYears, addQuarters } from 'date-fns'
+import { ReportFrequencyEnum } from '../../enums/report-frequency.enum'
 import { RecurringIntervalEnum } from '../../models/transaction.model'
 
 // backend/src/utils/dates/index.ts
@@ -99,9 +103,34 @@ export const getDateRange = (
   }
 }
 
-export const calculateNextReportDate = (lastSentDate?: Date): Date => {
+export const calculateNextReportDate = (
+  lastSentDate?: Date,
+  frequency: keyof typeof ReportFrequencyEnum = 'MONTHLY'
+): Date => {
   const lastSent = lastSentDate ?? new Date()
-  const nextDate = startOfMonth(addMonths(lastSent, 1))
+  let nextDate: Date
+
+  switch (frequency) {
+    case 'DAILY':
+      nextDate = addDays(lastSent, 1)
+      nextDate.setHours(0, 0, 0, 0)
+      break
+    case 'WEEKLY':
+      nextDate = addWeeks(lastSent, 1)
+      nextDate.setHours(0, 0, 0, 0)
+      break
+    case 'QUARTERLY':
+      nextDate = startOfQuarter(addQuarters(lastSent, 1))
+      break
+    case 'ANNUALLY':
+      nextDate = startOfYear(addYears(lastSent, 1))
+      break
+    case 'MONTHLY':
+    default:
+      nextDate = startOfMonth(addMonths(lastSent, 1))
+      break
+  }
+
   nextDate.setHours(0, 0, 0, 0)
   return nextDate
 }

@@ -1,5 +1,21 @@
 import { Worker, Job } from 'bullmq'
-import { endOfMonth, startOfMonth, subMonths } from 'date-fns'
+import {
+  endOfDay,
+  endOfMonth,
+  endOfQuarter,
+  endOfYear,
+  startOfDay,
+  startOfMonth,
+  startOfQuarter,
+  startOfYear,
+  subDays,
+  subMonths,
+  subQuarters,
+  subWeeks,
+  subYears,
+  startOfWeek,
+  endOfWeek
+} from 'date-fns'
 import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 import mongoose from 'mongoose'
 import { bullMQConnection } from '../config/bull/bullmq.config'
@@ -32,10 +48,38 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const email = user.email!
   const username = user.name || email.split('@')[0]
 
-  // Tính khoảng thời gian tháng trước theo timezone của user dựa trên ngày đến hạn (dueDate)
+  // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
   const dueInUserTz = toZonedTime(scheduledDate, timezone)
-  const from = fromZonedTime(startOfMonth(subMonths(dueInUserTz, 1)), timezone)
-  const to = fromZonedTime(endOfMonth(subMonths(dueInUserTz, 1)), timezone)
+
+  let fromInTz: Date
+  let toInTz: Date
+
+  switch (frequency) {
+    case 'DAILY':
+      fromInTz = startOfDay(subDays(dueInUserTz, 1))
+      toInTz = endOfDay(subDays(dueInUserTz, 1))
+      break
+    case 'WEEKLY':
+      fromInTz = startOfWeek(subWeeks(dueInUserTz, 1))
+      toInTz = endOfWeek(subWeeks(dueInUserTz, 1))
+      break
+    case 'QUARTERLY':
+      fromInTz = startOfQuarter(subQuarters(dueInUserTz, 1))
+      toInTz = endOfQuarter(subQuarters(dueInUserTz, 1))
+      break
+    case 'ANNUALLY':
+      fromInTz = startOfYear(subYears(dueInUserTz, 1))
+      toInTz = endOfYear(subYears(dueInUserTz, 1))
+      break
+    case 'MONTHLY':
+    default:
+      fromInTz = startOfMonth(subMonths(dueInUserTz, 1))
+      toInTz = endOfMonth(subMonths(dueInUserTz, 1))
+      break
+  }
+
+  const from = fromZonedTime(fromInTz, timezone)
+  const to = fromZonedTime(toInTz, timezone)
 
   // 1. Generate report
   const report = await generateReportService(
@@ -115,7 +159,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
           {
             $set: {
               ...(isSuccess ? { lastSentDate: now } : {}),
-              nextReportDate: calculateNextReportDate(scheduledDate),
+              nextReportDate: calculateNextReportDate(scheduledDate, frequency),
               updatedAt: now
             }
           },

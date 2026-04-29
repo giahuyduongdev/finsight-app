@@ -82,6 +82,7 @@ const ReceiptScanner = ({
     stopProgressSimulation()
     stopSafetyTimeout()
     stopCompletionTimeout()
+    pendingJobIdRef.current = null
     updateProgress(100)
     // Settle for a bit before clearing UI
     completionTimeoutRef.current = setTimeout(() => {
@@ -90,7 +91,6 @@ const ReceiptScanner = ({
         URL.revokeObjectURL(receipt)
       }
       setReceipt(null)
-      pendingJobIdRef.current = null
       onLoadingChange(false)
     }, 500)
   }, [
@@ -106,12 +106,14 @@ const ReceiptScanner = ({
   // Cleanup object URL on unmount
   useEffect(() => {
     return () => {
+      stopProgressSimulation()
+      stopSafetyTimeout()
       stopCompletionTimeout()
       if (receipt && receipt.startsWith('blob:')) {
         URL.revokeObjectURL(receipt)
       }
     }
-  }, [receipt, stopCompletionTimeout])
+  }, [receipt, stopProgressSimulation, stopSafetyTimeout, stopCompletionTimeout])
 
   // Listen for background scan events
   useEffect(() => {

@@ -1,6 +1,8 @@
 import { Queue } from 'bullmq'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 
+import { ReportFrequencyEnum } from '../enums/report-frequency.enum'
+
 // ─── Job Names ────────────────────────────────────────────────────────────────
 
 export const REPORT_JOBS = {
@@ -14,7 +16,7 @@ export type ProcessReportJobData = {
   settingId: string
   timezone: string
   preferredCurrency?: string
-  frequency: string
+  frequency: keyof typeof ReportFrequencyEnum
   dueDate: string
 }
 

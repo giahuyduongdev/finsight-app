@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Loader, KeyRound, MailCheck, RefreshCw } from 'lucide-react'
+import { Loader, KeyRound, MailCheck, RefreshCw, ArrowLeft } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -372,5 +372,4 @@ export function ChangePasswordDialog() {
   )
 }
 
-// Thêm ArrowLeft vào imports nếu chưa có
-import { ArrowLeft } from 'lucide-react'
+
