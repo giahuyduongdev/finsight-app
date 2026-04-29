@@ -94,10 +94,10 @@ class RedisClient {
       logger.error('❌ [Redis] Connection error:', err.message)
     )
     this.client.on('end', () =>
-      logger.warn('🔴 [Redis] Connection lost! Waiting to reconnect...')
+      logger.warn('🔴 [Redis] Connection closed.')
     )
     this.client.on('reconnecting', () =>
-      logger.info('🟡 [Redis] Reconnected successfully!')
+      logger.info('🟡 [Redis] Connection lost. Attempting to reconnect...')
     )
   }
 
