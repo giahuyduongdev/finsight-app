@@ -2,8 +2,9 @@ import { logger } from '../config/logger.config'
 
 import { transactionWorker } from './transaction.worker'
 import { receiptWorker } from './receipt.worker'
+import { reportWorker } from './report.worker'
 
-const workers = [transactionWorker, receiptWorker]
+const workers = [transactionWorker, receiptWorker, reportWorker]
 
 export const initializeWorkers = () => {
   logger.info(

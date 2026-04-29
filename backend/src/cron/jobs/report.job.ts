@@ -1,153 +1,62 @@
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
 import ReportSettingModel from '../../models/report-setting.model'
 import { UserDocument } from '../../models/user.model'
-import mongoose from 'mongoose'
-import { generateReportService } from '../../services/report.service'
-import ReportModel, { ReportStatusEnum } from '../../models/report.model'
-import { calculateNextReportDate } from '../../utils/dates/index'
-import { sendReportEmail } from '../../mailers/report.mailer'
-import { fromZonedTime, toZonedTime } from 'date-fns-tz'
+import { reportQueue, REPORT_JOBS } from '../../queues/report.queue'
 import { logger } from '../../config/logger.config'
 
 export const processReportJob = async () => {
   const now = new Date()
 
-  let processedCount = 0
-  let failedCount = 0
+  logger.info('🔄 [Cron] Fetching report settings due for processing...')
 
   try {
-    const reportSettingCursor = ReportSettingModel.find({
+    const settings = await ReportSettingModel.find({
       isEnabled: true,
       nextReportDate: { $lte: now }
-    })
-      .populate<{ userId: UserDocument }>('userId')
-      .cursor()
+    }).populate<{ userId: UserDocument }>('userId')
 
-    logger.info('🔄 Starting report job...')
+    if (!settings.length) {
+      logger.info('📭 [Cron] No reports due at this time')
+      return
+    }
 
-    for await (const setting of reportSettingCursor) {
-      const user = setting.userId as UserDocument
-      if (!user) {
-        logger.warn(`User not found for setting: ${setting._id}`)
-        continue
-      }
+    logger.info(`📋 [Cron] Found ${settings.length} report(s) to enqueue`)
 
-      const timezone = user.timezone || 'UTC'
-      const nowInUserTz = toZonedTime(now, timezone)
-      const from = startOfMonth(subMonths(nowInUserTz, 1))
-      const to = endOfMonth(subMonths(nowInUserTz, 1))
-      const fromUTC = fromZonedTime(from, timezone)
-      const toUTC = fromZonedTime(to, timezone)
-
-      const session = await mongoose.startSession()
-
-      try {
-        const report = await generateReportService(
-          user.id,
-          fromUTC,
-          toUTC,
-          timezone,
-          user.preferredCurrency
-        )
-
-        logger.debug('Report data generated', {
-          userId: user.id,
-          period: report?.period
-        })
-
-        let emailSent = false
-        if (report) {
-          try {
-            await sendReportEmail({
-              email: user.email!,
-              username: user.name!,
-              report: {
-                period: report.period,
-                totalIncome: report.summary.income,
-                totalExpenses: report.summary.expenses,
-                availableBalance: report.summary.balance,
-                savingsRate: report.summary.savingsRate,
-                topSpendingCategories: report.summary.topCategories,
-                insights: report.insights,
-                currency: report.currency || 'USD'
-              },
-              frequency: setting.frequency!
-            })
-            emailSent = true
-            logger.info('📧 Email sent successfully', { userId: user.id })
-          } catch (error) {
-            logger.error('Email failed', {
-              userId: user.id,
-              error: (error as Error).message
-            })
+    const jobs = settings
+      .filter((setting) => {
+        const user = setting.userId as UserDocument
+        if (!user) {
+          logger.warn(`⚠️ [Cron] User not found for setting: ${setting._id}`)
+          return false
+        }
+        return true
+      })
+      .map((setting) => {
+        const user = setting.userId as UserDocument
+        return {
+          name: REPORT_JOBS.PROCESS_REPORT,
+          data: {
+            userId: user.id as string,
+            settingId: setting._id.toString(),
+            timezone: user.timezone || 'UTC',
+            preferredCurrency: user.preferredCurrency,
+            frequency: setting.frequency!,
+            dueDate: setting.nextReportDate?.toISOString() || now.toISOString()
+          },
+          opts: {
+            // jobId duy nhất để tránh enqueue trùng nếu cron chạy lại
+            jobId: `process-report-${setting._id}-${setting.nextReportDate?.toISOString() || now.toISOString()}`
           }
         }
+      })
 
-        // 🚀 BẮT ĐẦU VÙNG AN TOÀN (TRANSACTION)
-        await session.withTransaction(
-          async () => {
-            const isSuccess = report && emailSent
+    await reportQueue.addBulk(jobs)
 
-            // 1. Lưu lịch sử Report
-            await ReportModel.create(
-              [
-                {
-                  userId: user.id,
-                  sentDate: now,
-                  period:
-                    report?.period ||
-                    `${format(from, 'MMMM d')}–${format(to, 'd, yyyy')}`,
-                  status: isSuccess
-                    ? ReportStatusEnum.SENT
-                    : report
-                      ? ReportStatusEnum.FAILED
-                      : ReportStatusEnum.NO_ACTIVITY,
-                  createdAt: now,
-                  updatedAt: now
-                }
-              ],
-              { session } // Bắt buộc đính kèm session
-            )
-
-            // 2. Cập nhật lại ngày gửi tiếp theo cho ReportSetting
-            await ReportSettingModel.updateOne(
-              { _id: setting._id },
-              {
-                $set: {
-                  lastSentDate: isSuccess ? now : null,
-                  nextReportDate: calculateNextReportDate(now),
-                  updatedAt: now
-                }
-              },
-              { session } // Bắt buộc đính kèm session
-            )
-          },
-          { maxCommitTimeMS: 10000 }
-        )
-        // 🚀 KẾT THÚC VÙNG AN TOÀN
-
-        processedCount++
-      } catch (error) {
-        logger.error('Failed to process report', {
-          userId: user.id,
-          error: (error as Error).message
-        })
-        failedCount++
-      } finally {
-        await session.endSession()
-      }
-    }
-
-    logger.info(`✅ Processed: ${processedCount} reports`)
-    if (failedCount > 0) {
-      logger.warn(`❌ Failed: ${failedCount} reports`)
-    }
-
-    return { success: true, processedCount, failedCount }
+    logger.info(
+      `📥 [Cron] Enqueued ${jobs.length} report job(s) into REPORT_QUEUE`
+    )
   } catch (error) {
-    logger.error('Error processing reports', {
+    logger.error('❌ [Cron] Failed to enqueue report jobs', {
       error: (error as Error).message
     })
-    return { success: false, error: 'Report process failed' }
   }
 }

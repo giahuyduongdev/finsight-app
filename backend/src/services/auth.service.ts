@@ -21,9 +21,8 @@ import {
   ChangeEmailRequestSchemaType,
   VerifyChangeEmailOTPSchemaType
 } from '../validators/auth.validator'
-import ReportSettingModel, {
-  ReportFrequencyEnum
-} from '../models/report-setting.model'
+import ReportSettingModel from '../models/report-setting.model'
+import { ReportFrequencyEnum } from '../enums/report-frequency.enum'
 import { calculateNextReportDate } from '../utils/dates/index'
 import { refreshTokenSignOptions, signJwtToken } from '../utils/jwt.util'
 import RefreshTokenModel from '../models/refresh-token.model'

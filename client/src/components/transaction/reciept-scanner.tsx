@@ -32,9 +32,10 @@ const ReceiptScanner = ({
 
   const [aiScanReceipt] = useAiScanReceiptMutation()
   const socket = useSocket()
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const pendingJobIdRef = useRef<string | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const stopProgressSimulation = useCallback(() => {
     if (intervalRef.current) {
@@ -50,41 +51,81 @@ const ReceiptScanner = ({
     }
   }, [])
 
+  const stopCompletionTimeout = useCallback(() => {
+    if (completionTimeoutRef.current) {
+      clearTimeout(completionTimeoutRef.current)
+      completionTimeoutRef.current = null
+    }
+  }, [])
+
   const resetState = useCallback(() => {
     stopProgressSimulation()
     stopSafetyTimeout()
+    stopCompletionTimeout()
     resetProgress()
+    if (receipt && receipt.startsWith('blob:')) {
+      URL.revokeObjectURL(receipt)
+    }
     setReceipt(null)
-    setPendingJobId(null)
+    pendingJobIdRef.current = null
     onLoadingChange(false)
-  }, [resetProgress, onLoadingChange, stopProgressSimulation, stopSafetyTimeout])
+  }, [
+    receipt,
+    resetProgress,
+    onLoadingChange,
+    stopProgressSimulation,
+    stopSafetyTimeout,
+    stopCompletionTimeout
+  ])
 
   const completeSuccess = useCallback(() => {
     stopProgressSimulation()
     stopSafetyTimeout()
+    stopCompletionTimeout()
+    pendingJobIdRef.current = null
     updateProgress(100)
     // Settle for a bit before clearing UI
-    setTimeout(() => {
+    completionTimeoutRef.current = setTimeout(() => {
       doneProgress()
+      if (receipt && receipt.startsWith('blob:')) {
+        URL.revokeObjectURL(receipt)
+      }
       setReceipt(null)
-      setPendingJobId(null)
       onLoadingChange(false)
     }, 500)
   }, [
+    receipt,
     doneProgress,
     updateProgress,
     onLoadingChange,
     stopProgressSimulation,
-    stopSafetyTimeout
+    stopSafetyTimeout,
+    stopCompletionTimeout
   ])
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      stopProgressSimulation()
+      stopSafetyTimeout()
+      stopCompletionTimeout()
+      if (receipt && receipt.startsWith('blob:')) {
+        URL.revokeObjectURL(receipt)
+      }
+    }
+  }, [receipt, stopProgressSimulation, stopSafetyTimeout, stopCompletionTimeout])
 
   // Listen for background scan events
   useEffect(() => {
     if (!socket) return
 
-    const handleSuccess = (payload: { jobId: string; data: AIScanReceiptData }) => {
+    const handleSuccess = (payload: {
+      jobId: string
+      data: AIScanReceiptData
+    }) => {
       // Ignore if no job is pending (e.g., timed out) or if jobId doesn't match
-      if (!pendingJobId || payload.jobId !== pendingJobId) return
+      if (!pendingJobIdRef.current || payload.jobId !== pendingJobIdRef.current)
+        return
 
       onScanComplete(payload.data)
       toast.success('Receipt scanned successfully')
@@ -92,7 +133,8 @@ const ReceiptScanner = ({
     }
 
     const handleFailure = (payload: { jobId: string; error: string }) => {
-      if (!pendingJobId || payload.jobId !== pendingJobId) return
+      if (!pendingJobIdRef.current || payload.jobId !== pendingJobIdRef.current)
+        return
 
       toast.error(payload.error || 'Failed to scan receipt')
       resetState()
@@ -105,7 +147,7 @@ const ReceiptScanner = ({
       socket.off('receipt:scan-completed', handleSuccess)
       socket.off('receipt:scan-failed', handleFailure)
     }
-  }, [socket, onScanComplete, completeSuccess, resetState, pendingJobId])
+  }, [socket, onScanComplete, completeSuccess, resetState])
 
   const handleReceiptUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -119,53 +161,55 @@ const ReceiptScanner = ({
       toast.error('Please upload an image file')
       return
     }
+
+    // Cleanup old preview
+    if (receipt && receipt.startsWith('blob:')) {
+      URL.revokeObjectURL(receipt)
+    }
+
+    const previewUrl = URL.createObjectURL(file)
+    setReceipt(previewUrl)
+
     const formData = new FormData()
     formData.append('receipt', file)
 
     startProgress(10)
     onLoadingChange(true)
-    // Simulate file upload and processing
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const result = e.target?.result as string
-      setReceipt(result)
 
-      // Simulate scanning progress
-      let currentProgress = 10
-      stopProgressSimulation()
-      intervalRef.current = setInterval(() => {
-        // Slow down as we get closer to 90
-        const increment = currentProgress < 70 ? 5 : currentProgress < 85 ? 1 : 0.5
-        currentProgress = Math.min(currentProgress + increment, 90)
-        updateProgress(Math.floor(currentProgress))
-      }, 300)
+    // Simulate scanning progress
+    let currentProgress = 10
+    stopProgressSimulation()
+    intervalRef.current = setInterval(() => {
+      // Slow down as we get closer to 90
+      const increment = currentProgress < 70 ? 5 : currentProgress < 85 ? 1 : 0.5
+      currentProgress = Math.min(currentProgress + increment, 90)
+      updateProgress(Math.floor(currentProgress))
+    }, 500) // Slightly slower interval to reduce rerenders
 
-      aiScanReceipt(formData)
-        .unwrap()
-        .then((res) => {
-          if (res.jobId) {
-            setPendingJobId(res.jobId)
-            toast.info('Receipt is being processed in background')
+    aiScanReceipt(formData)
+      .unwrap()
+      .then((res) => {
+        if (res.jobId) {
+          pendingJobIdRef.current = res.jobId
+          toast.info('Receipt is being processed in background')
 
-            // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
-            stopSafetyTimeout()
-            timeoutRef.current = setTimeout(() => {
-              toast.error('Processing timed out. Please check your internet or try again.')
-              resetState()
-            }, 60000) // 60 seconds
-          } else if (res.data) {
-            // Sync mode fallback: Populate immediately
-            onScanComplete(res.data)
-            toast.success('Receipt scanned successfully')
-            completeSuccess()
-          }
-        })
-        .catch((error) => {
-          toast.error(error.data?.message || 'Failed to scan receipt')
-          resetState()
-        })
-    }
-    reader.readAsDataURL(file)
+          // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
+          stopSafetyTimeout()
+          timeoutRef.current = setTimeout(() => {
+            toast.error('Processing timed out. Please check your internet or try again.')
+            resetState()
+          }, 60000) // 60 seconds
+        } else if (res.data) {
+          // Sync mode fallback: Populate immediately
+          onScanComplete(res.data)
+          toast.success('Receipt scanned successfully')
+          completeSuccess()
+        }
+      })
+      .catch((error) => {
+        toast.error(error.data?.message || 'Failed to scan receipt')
+        resetState()
+      })
   }
 
   return (
