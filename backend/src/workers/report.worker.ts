@@ -86,14 +86,23 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const from = fromZonedTime(fromInTz, timezone)
   const to = fromZonedTime(toInTz, timezone)
 
-  // 1. Generate report
-  const report = await generateReportService(
-    userId,
-    from,
-    to,
-    timezone,
-    preferredCurrency
-  )
+  let forceFailed = false
+  if (!user.email) {
+    logger.error('❌ [Worker] User email not found', { userId })
+    forceFailed = true
+  }
+
+  // 1. Generate báo cáo
+  let report: any = null
+  if (!forceFailed) {
+    report = await generateReportService(
+      userId,
+      from,
+      to,
+      timezone,
+      preferredCurrency
+    )
+  }
 
   logger.debug('[Worker] Report data generated', {
     userId,
@@ -127,7 +136,11 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
         error: (error as Error).message,
         attemptsMade: job.attemptsMade
       })
-      throw error // Re-throw to trigger BullMQ retry
+
+      const maxAttempts = job.opts?.attempts ?? 1
+      if (job.attemptsMade < maxAttempts - 1) {
+        throw error // Re-throw to trigger BullMQ retry
+      }
     }
   }
 
@@ -150,7 +163,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
                 `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
               status: isSuccess
                 ? ReportStatusEnum.SENT
-                : report
+                : report || forceFailed
                   ? ReportStatusEnum.FAILED
                   : ReportStatusEnum.NO_ACTIVITY,
               createdAt: now,

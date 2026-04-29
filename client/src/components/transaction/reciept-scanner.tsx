@@ -134,9 +134,15 @@ const ReceiptScanner = ({
         return
 
       pendingJobIdRef.current = null // Clear immediately for idempotency
-      onScanComplete(payload.data)
-      toast.success('Receipt scanned successfully')
-      completeSuccess()
+      try {
+        onScanComplete(payload.data)
+        toast.success('Receipt scanned successfully')
+        completeSuccess()
+      } catch (error) {
+        console.error('❌ [Scanner] Failed to complete scan', error)
+        toast.error('Scan completed but UI update failed')
+        completeSuccess()
+      }
     }
 
     const handleFailure = (payload: { jobId: string; error: string }) => {
