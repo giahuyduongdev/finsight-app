@@ -45,7 +45,12 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     throw new Error(`User not found: ${userId}`)
   }
 
-  const email = user.email!
+  if (!user.email) {
+    logger.error('❌ [Worker] User has no email', { userId })
+    throw new Error(`User ${userId} has no email address`)
+  }
+
+  const email = user.email
   const username = user.name || email.split('@')[0]
 
   // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
@@ -60,8 +65,8 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
       toInTz = endOfDay(subDays(dueInUserTz, 1))
       break
     case 'WEEKLY':
-      fromInTz = startOfWeek(subWeeks(dueInUserTz, 1))
-      toInTz = endOfWeek(subWeeks(dueInUserTz, 1))
+      fromInTz = startOfWeek(subWeeks(dueInUserTz, 1), { weekStartsOn: 1 })
+      toInTz = endOfWeek(subWeeks(dueInUserTz, 1), { weekStartsOn: 1 })
       break
     case 'QUARTERLY':
       fromInTz = startOfQuarter(subQuarters(dueInUserTz, 1))
@@ -95,7 +100,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     period: report?.period
   })
 
-  // 2. Gửi email (không throw để tránh retry toàn bộ job chỉ vì email lỗi)
+  // 2. Gửi email
   let emailSent = false
   if (report) {
     try {
@@ -119,8 +124,10 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     } catch (error) {
       logger.error('❌ [Worker] Email failed', {
         userId,
-        error: (error as Error).message
+        error: (error as Error).message,
+        attemptsMade: job.attemptsMade
       })
+      throw error // Re-throw to trigger BullMQ retry
     }
   }
 
