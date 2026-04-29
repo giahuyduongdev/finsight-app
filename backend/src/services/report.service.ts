@@ -60,7 +60,7 @@ export const updateReportSettingService = async (
     if (!currentNextReportDate || currentNextReportDate <= now) {
       nextReportDate = calculateNextReportDate(
         existingReportSetting.lastSentDate,
-        existingReportSetting.frequency as any
+        existingReportSetting.frequency
       )
     } else {
       nextReportDate = currentNextReportDate

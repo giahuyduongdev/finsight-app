@@ -45,13 +45,8 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     throw new Error(`User not found: ${userId}`)
   }
 
-  if (!user.email) {
-    logger.error('❌ [Worker] User has no email', { userId })
-    throw new Error(`User ${userId} has no email address`)
-  }
-
   const email = user.email
-  const username = user.name || email.split('@')[0]
+  const username = user.name || (email ? email.split('@')[0] : 'User')
 
   // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
   const dueInUserTz = toZonedTime(scheduledDate, timezone)
@@ -138,7 +133,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
       })
 
       const maxAttempts = job.opts?.attempts ?? 1
-      if (job.attemptsMade < maxAttempts - 1) {
+      if (job.attemptsMade < maxAttempts) {
         throw error // Re-throw to trigger BullMQ retry
       }
     }
