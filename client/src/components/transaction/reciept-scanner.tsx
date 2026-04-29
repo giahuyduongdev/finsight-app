@@ -32,9 +32,10 @@ const ReceiptScanner = ({
 
   const [aiScanReceipt] = useAiScanReceiptMutation()
   const socket = useSocket()
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const pendingJobIdRef = useRef<string | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const stopProgressSimulation = useCallback(() => {
     if (intervalRef.current) {
@@ -50,36 +51,46 @@ const ReceiptScanner = ({
     }
   }, [])
 
+  const stopCompletionTimeout = useCallback(() => {
+    if (completionTimeoutRef.current) {
+      clearTimeout(completionTimeoutRef.current)
+      completionTimeoutRef.current = null
+    }
+  }, [])
+
   const resetState = useCallback(() => {
     stopProgressSimulation()
     stopSafetyTimeout()
+    stopCompletionTimeout()
     resetProgress()
     if (receipt && receipt.startsWith('blob:')) {
       URL.revokeObjectURL(receipt)
     }
     setReceipt(null)
-    setPendingJobId(null)
+    pendingJobIdRef.current = null
     onLoadingChange(false)
   }, [
     receipt,
     resetProgress,
     onLoadingChange,
     stopProgressSimulation,
-    stopSafetyTimeout
+    stopSafetyTimeout,
+    stopCompletionTimeout
   ])
 
   const completeSuccess = useCallback(() => {
     stopProgressSimulation()
     stopSafetyTimeout()
+    stopCompletionTimeout()
     updateProgress(100)
     // Settle for a bit before clearing UI
-    setTimeout(() => {
+    completionTimeoutRef.current = setTimeout(() => {
       doneProgress()
       if (receipt && receipt.startsWith('blob:')) {
         URL.revokeObjectURL(receipt)
       }
       setReceipt(null)
-      setPendingJobId(null)
+      pendingJobIdRef.current = null
       onLoadingChange(false)
     }, 500)
   }, [
@@ -88,25 +99,31 @@ const ReceiptScanner = ({
     updateProgress,
     onLoadingChange,
     stopProgressSimulation,
-    stopSafetyTimeout
+    stopSafetyTimeout,
+    stopCompletionTimeout
   ])
 
   // Cleanup object URL on unmount
   useEffect(() => {
     return () => {
+      stopCompletionTimeout()
       if (receipt && receipt.startsWith('blob:')) {
         URL.revokeObjectURL(receipt)
       }
     }
-  }, [receipt])
+  }, [receipt, stopCompletionTimeout])
 
   // Listen for background scan events
   useEffect(() => {
     if (!socket) return
 
-    const handleSuccess = (payload: { jobId: string; data: AIScanReceiptData }) => {
+    const handleSuccess = (payload: {
+      jobId: string
+      data: AIScanReceiptData
+    }) => {
       // Ignore if no job is pending (e.g., timed out) or if jobId doesn't match
-      if (!pendingJobId || payload.jobId !== pendingJobId) return
+      if (!pendingJobIdRef.current || payload.jobId !== pendingJobIdRef.current)
+        return
 
       onScanComplete(payload.data)
       toast.success('Receipt scanned successfully')
@@ -114,7 +131,8 @@ const ReceiptScanner = ({
     }
 
     const handleFailure = (payload: { jobId: string; error: string }) => {
-      if (!pendingJobId || payload.jobId !== pendingJobId) return
+      if (!pendingJobIdRef.current || payload.jobId !== pendingJobIdRef.current)
+        return
 
       toast.error(payload.error || 'Failed to scan receipt')
       resetState()
@@ -127,7 +145,7 @@ const ReceiptScanner = ({
       socket.off('receipt:scan-completed', handleSuccess)
       socket.off('receipt:scan-failed', handleFailure)
     }
-  }, [socket, onScanComplete, completeSuccess, resetState, pendingJobId])
+  }, [socket, onScanComplete, completeSuccess, resetState])
 
   const handleReceiptUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -170,7 +188,7 @@ const ReceiptScanner = ({
       .unwrap()
       .then((res) => {
         if (res.jobId) {
-          setPendingJobId(res.jobId)
+          pendingJobIdRef.current = res.jobId
           toast.info('Receipt is being processed in background')
 
           // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
