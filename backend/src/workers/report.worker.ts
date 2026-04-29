@@ -45,8 +45,8 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     throw new Error(`User not found: ${userId}`)
   }
 
-  const email = user.email!
-  const username = user.name || email.split('@')[0]
+  const email = user.email
+  const username = user.name || (email ? email.split('@')[0] : 'User')
 
   // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
   const dueInUserTz = toZonedTime(scheduledDate, timezone)
@@ -60,8 +60,8 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
       toInTz = endOfDay(subDays(dueInUserTz, 1))
       break
     case 'WEEKLY':
-      fromInTz = startOfWeek(subWeeks(dueInUserTz, 1))
-      toInTz = endOfWeek(subWeeks(dueInUserTz, 1))
+      fromInTz = startOfWeek(subWeeks(dueInUserTz, 1), { weekStartsOn: 1 })
+      toInTz = endOfWeek(subWeeks(dueInUserTz, 1), { weekStartsOn: 1 })
       break
     case 'QUARTERLY':
       fromInTz = startOfQuarter(subQuarters(dueInUserTz, 1))
@@ -81,21 +81,30 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const from = fromZonedTime(fromInTz, timezone)
   const to = fromZonedTime(toInTz, timezone)
 
-  // 1. Generate report
-  const report = await generateReportService(
-    userId,
-    from,
-    to,
-    timezone,
-    preferredCurrency
-  )
+  let forceFailed = false
+  if (!user.email) {
+    logger.error('❌ [Worker] User email not found', { userId })
+    forceFailed = true
+  }
+
+  // 1. Generate báo cáo
+  let report: any = null
+  if (!forceFailed) {
+    report = await generateReportService(
+      userId,
+      from,
+      to,
+      timezone,
+      preferredCurrency
+    )
+  }
 
   logger.debug('[Worker] Report data generated', {
     userId,
     period: report?.period
   })
 
-  // 2. Gửi email (không throw để tránh retry toàn bộ job chỉ vì email lỗi)
+  // 2. Gửi email
   let emailSent = false
   if (report) {
     try {
@@ -119,8 +128,14 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     } catch (error) {
       logger.error('❌ [Worker] Email failed', {
         userId,
-        error: (error as Error).message
+        error: (error as Error).message,
+        attemptsMade: job.attemptsMade
       })
+
+      const maxAttempts = job.opts?.attempts ?? 1
+      if (job.attemptsMade < maxAttempts) {
+        throw error // Re-throw to trigger BullMQ retry
+      }
     }
   }
 
@@ -143,7 +158,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
                 `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
               status: isSuccess
                 ? ReportStatusEnum.SENT
-                : report
+                : report || forceFailed
                   ? ReportStatusEnum.FAILED
                   : ReportStatusEnum.NO_ACTIVITY,
               createdAt: now,

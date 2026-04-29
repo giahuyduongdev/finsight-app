@@ -103,17 +103,23 @@ const ReceiptScanner = ({
     stopCompletionTimeout
   ])
 
-  // Cleanup object URL on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       stopProgressSimulation()
       stopSafetyTimeout()
       stopCompletionTimeout()
+    }
+  }, [stopProgressSimulation, stopSafetyTimeout, stopCompletionTimeout])
+
+  // Revoke old blob URL when receipt changes or on unmount
+  useEffect(() => {
+    return () => {
       if (receipt && receipt.startsWith('blob:')) {
         URL.revokeObjectURL(receipt)
       }
     }
-  }, [receipt, stopProgressSimulation, stopSafetyTimeout, stopCompletionTimeout])
+  }, [receipt])
 
   // Listen for background scan events
   useEffect(() => {
@@ -127,9 +133,16 @@ const ReceiptScanner = ({
       if (!pendingJobIdRef.current || payload.jobId !== pendingJobIdRef.current)
         return
 
-      onScanComplete(payload.data)
-      toast.success('Receipt scanned successfully')
-      completeSuccess()
+      pendingJobIdRef.current = null // Clear immediately for idempotency
+      try {
+        onScanComplete(payload.data)
+        toast.success('Receipt scanned successfully')
+        completeSuccess()
+      } catch (error) {
+        console.error('❌ [Scanner] Failed to complete scan', error)
+        toast.error('Scan completed but UI update failed')
+        completeSuccess()
+      }
     }
 
     const handleFailure = (payload: { jobId: string; error: string }) => {

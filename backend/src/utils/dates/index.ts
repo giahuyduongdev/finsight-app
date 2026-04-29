@@ -6,6 +6,7 @@ import {
   startOfDay,
   startOfMonth,
   startOfQuarter,
+  startOfWeek,
   startOfYear,
   subDays,
   subMonths,
@@ -116,8 +117,7 @@ export const calculateNextReportDate = (
       nextDate.setHours(0, 0, 0, 0)
       break
     case 'WEEKLY':
-      nextDate = addWeeks(lastSent, 1)
-      nextDate.setHours(0, 0, 0, 0)
+      nextDate = startOfWeek(addWeeks(lastSent, 1), { weekStartsOn: 1 })
       break
     case 'QUARTERLY':
       nextDate = startOfQuarter(addQuarters(lastSent, 1))
