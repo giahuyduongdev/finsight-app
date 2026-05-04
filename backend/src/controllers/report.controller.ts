@@ -9,10 +9,11 @@ import {
 } from '../services/report.service'
 import { updateReportSettingSchema } from '../validators/report.validator'
 import { fromZonedTime } from 'date-fns-tz'
+import { getUserId } from '../utils/getUserId.util'
 
 export const getAllReportsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
 
     const pagination = {
       pageSize: parseInt(req.query.pageSize as string) || 20,
@@ -30,7 +31,7 @@ export const getAllReportsController = asyncHandler(
 
 export const updateReportSettingController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = updateReportSettingSchema.parse(req.body)
 
     const updatedReportSetting = await updateReportSettingService(userId, body)
@@ -44,7 +45,7 @@ export const updateReportSettingController = asyncHandler(
 
 export const generateReportController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const { from, to } = req.query
     const timezone = req.user?.timezone || 'UTC'
     const preferredCurrency = req.user?.preferredCurrency || 'USD'
@@ -68,7 +69,7 @@ export const generateReportController = asyncHandler(
 
 export const resendReportController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const reportId = req.params.reportId as string
 
     const result = await resendReportService(userId, reportId)

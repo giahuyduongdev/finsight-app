@@ -41,6 +41,7 @@ import ms from 'ms'
 import { UnauthorizedException } from '../utils/errors/index'
 import { sanitizeUser } from '../dtos/user.dtos'
 import { logger } from '../config/logger.config'
+import { getUserId } from '../utils/getUserId.util'
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -175,7 +176,7 @@ export const logoutController = asyncHandler(
 
 export const logoutAllController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const accessToken = req.headers.authorization?.split(' ')[1]
     if (!accessToken)
       throw new UnauthorizedException('Access token is required')
@@ -254,7 +255,7 @@ export const oauthCallbackController = asyncHandler(
 
 export const changePasswordRequestController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = changePasswordRequestSchema.parse(req.body)
     const result = await changePasswordRequestService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -263,7 +264,7 @@ export const changePasswordRequestController = asyncHandler(
 
 export const verifyChangePasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = verifyChangePasswordOTPSchema.parse(req.body)
     const result = await verifyChangePasswordOTPService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -272,7 +273,7 @@ export const verifyChangePasswordOTPController = asyncHandler(
 
 export const resendChangePasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const result = await resendChangePasswordOTPService(userId)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -280,7 +281,7 @@ export const resendChangePasswordOTPController = asyncHandler(
 
 export const changeEmailRequestController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = changeEmailRequestSchema.parse(req.body)
     const result = await changeEmailRequestService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -289,7 +290,7 @@ export const changeEmailRequestController = asyncHandler(
 
 export const verifyChangeEmailOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = verifyChangeEmailOTPSchema.parse(req.body)
     const result = await verifyChangeEmailOTPService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -298,7 +299,7 @@ export const verifyChangeEmailOTPController = asyncHandler(
 
 export const resendChangeEmailOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const result = await resendChangeEmailOTPService(userId)
     return res.status(HTTPSTATUS.OK).json(result)
   }

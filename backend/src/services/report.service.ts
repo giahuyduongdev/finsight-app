@@ -20,7 +20,7 @@ export const getAllReportsService = async (
   userId: string,
   pagination: { pageSize: number; pageNumber: number }
 ) => {
-  const query: Record<string, any> = { userId }
+  const query: Record<string, unknown> = { userId }
 
   const { pageSize, pageNumber } = pagination
   const skip = (pageNumber - 1) * pageSize
@@ -254,7 +254,7 @@ async function generateInsightsAI({
 
     const data = JSON.parse(cleanedText)
     return data
-  } catch (error) {
+  } catch {
     return []
   }
 }

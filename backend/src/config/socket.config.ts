@@ -3,6 +3,7 @@ import { Server as HTTPServer } from 'http'
 import jwt, { JwtPayload } from 'jsonwebtoken'
 import { Env } from './env.config'
 import { logger } from './logger.config'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 let io: Server
 
@@ -33,15 +34,18 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
 
       socket.data.userId = decoded.userId
       next()
-    } catch (error: any) {
-      const errorMessage = error?.message || 'Unknown error'
-      logger.error(`❌ [Socket] Auth error: ${errorMessage}`)
-      
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error'
+      logger.error(
+        logIcon(LOG_ICONS.ERROR, `[Socket] Auth error: ${errorMessage}`)
+      )
+
       // Gửi về mã lỗi cụ thể để FE biết đường làm mới Token
-      if (error?.name === 'TokenExpiredError') {
+      if (error instanceof Error && error.name === 'TokenExpiredError') {
         return next(new Error('UNAUTHORIZED: Token expired'))
       }
-      
+
       next(new Error(`UNAUTHORIZED: ${errorMessage}`))
     }
   })
@@ -49,17 +53,29 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
   // ─── Connection ───────────────────────────────────────────────────────────
   io.on('connection', (socket) => {
     const userId = socket.data.userId
-    logger.info(`🔌 [Socket] User ${userId} connected: ${socket.id}`)
+    logger.info(
+      logIcon(
+        LOG_ICONS.SOCKET,
+        `[Socket] User ${userId} connected: ${socket.id}`
+      )
+    )
 
     socket.join(userId) // tự join room, FE không cần gửi userId
-    logger.info(`👥 [Socket] User ${userId} joined room: ${userId}`)
+    logger.info(
+      logIcon(LOG_ICONS.INFO, `[Socket] User ${userId} joined room: ${userId}`)
+    )
 
     socket.on('disconnect', () => {
-      logger.info(`🔌 [Socket] User ${userId} disconnected: ${socket.id}`)
+      logger.info(
+        logIcon(
+          LOG_ICONS.SOCKET,
+          `[Socket] User ${userId} disconnected: ${socket.id}`
+        )
+      )
     })
   })
 
-  logger.info('🚀 [Socket] Initialized')
+  logger.info(logIcon(LOG_ICONS.SUCCESS, '[Socket] Initialized'))
   return io
 }
 

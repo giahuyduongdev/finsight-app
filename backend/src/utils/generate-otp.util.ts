@@ -12,8 +12,6 @@ export const generateSecureOTP = (length: number = 6): string => {
 
   // randomInt sẽ sinh ra một số nguyên cực kỳ ngẫu nhiên và an toàn
   // Cộng 1 vào max vì randomInt(min, max) sẽ không bao gồm giá trị max
-  const otp = crypto.randomInt(min, max + 1)
-
   return crypto
     .randomInt(min, max + 1)
     .toString()

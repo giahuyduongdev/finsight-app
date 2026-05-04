@@ -10,7 +10,6 @@ import {
 import {
   ForgotPasswordSchemaType,
   LoginSchemaType,
-  RefreshTokenSchemaType,
   RegisterSchemaType,
   ResendOTPSchemaType,
   ResetPasswordSchemaType,
@@ -36,7 +35,6 @@ import {
   REDIS_TTL
 } from '../config/redis.config'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
-import { hashValue } from '../utils/bcrypt.util'
 import { generateSecureOTP } from '../utils/generate-otp.util'
 import {
   sendPasswordResetEmail,
@@ -135,7 +133,7 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'OTP sent to your email. Please verify within 5 minutes.'
+    message: 'OTP sent to your email. Please verify within 5 minutes'
   }
 }
 
@@ -289,7 +287,7 @@ export const resendRegisterVerifyOTPService = async (
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'New OTP sent to your email. Please verify within 5 minutes.'
+    message: 'New OTP sent to your email. Please verify within 5 minutes'
   }
 }
 
@@ -930,7 +928,9 @@ export const resendChangePasswordOTPService = async (userId: string) => {
   // 2. Check cooldown
   const isBlocked = await redis.exists(REDIS_KEYS.changePasswordResend(email))
   if (isBlocked) {
-    const remainingTime = await redis.ttl(REDIS_KEYS.changePasswordResend(email))
+    const remainingTime = await redis.ttl(
+      REDIS_KEYS.changePasswordResend(email)
+    )
     throw new BadRequestException(
       'Please wait before requesting a new OTP',
       ErrorCodeEnum.AUTH_OTP_TOO_MANY_REQUESTS,
@@ -1106,8 +1106,14 @@ export const verifyChangeEmailOTPService = async (
   }
 
   // 4. So sánh OTPs
-  const hashedOld = crypto.createHash('sha256').update(oldEmailOtp).digest('hex')
-  const hashedNew = crypto.createHash('sha256').update(newEmailOtp).digest('hex')
+  const hashedOld = crypto
+    .createHash('sha256')
+    .update(oldEmailOtp)
+    .digest('hex')
+  const hashedNew = crypto
+    .createHash('sha256')
+    .update(newEmailOtp)
+    .digest('hex')
 
   const isOldValid = storedOtpOld === hashedOld
   const isNewValid = storedOtpNew === hashedNew
@@ -1115,11 +1121,13 @@ export const verifyChangeEmailOTPService = async (
   if (!isOldValid || !isNewValid) {
     await redis.incr(attemptsKey)
     const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
-    
+
     let errorMsg = 'Invalid verification codes.'
     if (!isOldValid && !isNewValid) errorMsg = 'Both codes are invalid.'
-    else if (!isOldValid) errorMsg = 'Authorization code for old email is invalid.'
-    else if (!isNewValid) errorMsg = 'Verification code for new email is invalid.'
+    else if (!isOldValid)
+      errorMsg = 'Authorization code for old email is invalid.'
+    else if (!isNewValid)
+      errorMsg = 'Verification code for new email is invalid.'
 
     throw new BadRequestException(
       `${errorMsg} You have ${remaining} attempts left.`,
@@ -1225,6 +1233,7 @@ export const resendChangeEmailOTPService = async (userId: string) => {
   ])
 
   return {
-    message: 'New verification codes sent to both your old and new email addresses.'
+    message:
+      'New verification codes sent to both your old and new email addresses.'
   }
 }

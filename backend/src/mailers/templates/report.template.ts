@@ -22,8 +22,8 @@ export const getReportEmailTemplate = (
 
   const categoryList = topSpendingCategories
     .map(
-      (cat: any) => `<li>
-      ${cat.name} - ${formatCurrency(cat.amount, currency)} (${cat.percent}%)
+      (cat: { name: string; percent: number }) => `<li>
+      ${cat.name} - ${cat.percent}%
       </li>
     `
     )

@@ -1,14 +1,19 @@
 import TransactionModel from '../../models/transaction.model'
-import {
-  transactionQueue,
-  transactionFlowProducer, // Thêm FlowProducer
-  TRANSACTION_JOBS
-} from '../../queues'
+import { transactionFlowProducer, TRANSACTION_JOBS } from '../../queues'
 import { logger } from '../../config/logger.config'
+import { Types } from 'mongoose'
+import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
+
+interface TransactionGroup {
+  _id: Types.ObjectId
+  userId: Types.ObjectId
+}
 
 export const processRecurringTransactions = async () => {
   const now = new Date()
-  logger.info('🚀  Enqueuing recurring transactions flows...')
+  logger.info(
+    logIcon(LOG_ICONS.QUEUE, 'Enqueuing recurring transactions flows...')
+  )
 
   try {
     // 1. Lấy tất cả giao dịch đến hạn
@@ -18,11 +23,14 @@ export const processRecurringTransactions = async () => {
     }).select('_id userId')
 
     logger.info(
-      `🔍 Found ${transactions.length} due transactions across all users`
+      logIcon(
+        LOG_ICONS.INFO,
+        ` Found ${transactions.length} due transactions across all users`
+      )
     )
 
     // 2. Nhóm theo UserId để tạo Flow cho từng người
-    const userGroups: Record<string, any[]> = {}
+    const userGroups: Record<string, TransactionGroup[]> = {}
     transactions.forEach((tx) => {
       const uId = tx.userId.toString()
       if (!userGroups[uId]) userGroups[uId] = []
@@ -30,7 +38,9 @@ export const processRecurringTransactions = async () => {
     })
 
     Object.entries(userGroups).forEach(([uId, txs]) => {
-      logger.info(`👥 User ${uId}: ${txs.length} transactions due`)
+      logger.info(
+        logIcon(LOG_ICONS.INFO, `User ${uId}: ${txs.length} transactions due`)
+      )
     })
 
     const timeId = now.getTime()
@@ -70,13 +80,23 @@ export const processRecurringTransactions = async () => {
     }
 
     logger.info(
-      `📥 Enqueued recurring flows for ${Object.keys(userGroups).length} users (${transactions.length} txs, grouped in ${CHUNK_SIZE} per child)`
+      logIcon(
+        LOG_ICONS.QUEUE,
+        `Enqueued recurring flows for ${Object.keys(userGroups).length} users (${transactions.length} txs, grouped in ${CHUNK_SIZE} per child)`
+      )
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 3. Gom hết rủi ro vào đây để Server không bao giờ bị Crash
-    logger.error('❌ Failed to enqueue recurring transactions', {
-      error: error?.message,
-      stack: error?.stack
-    })
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+
+    logger.error(
+      logIcon(LOG_ICONS.ERROR, 'Failed to enqueue recurring transactions'),
+      {
+        error: errorMessage,
+        stack: errorStack
+      }
+    )
   }
 }

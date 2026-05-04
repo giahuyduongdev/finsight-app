@@ -20,6 +20,9 @@ import { rateLimiter } from './config/redis.config'
 import { morganMiddleware } from './middlewares/morgan.middleware'
 import { setupBullBoard } from './config/bull/bull-board.config'
 import { logger } from './config/logger.config'
+import { correlationIdMiddleware } from './middlewares/correlationId.middleware'
+import { requestContextMiddleware } from './middlewares/requestContext.middleware'
+import { logIcon, LOG_ICONS } from './utils/logger-icon.util'
 
 const app = express()
 const BASE_PATH = Env.BASE_PATH
@@ -40,13 +43,20 @@ app.use(
     credentials: true
   })
 )
+app.use(correlationIdMiddleware)
+app.use(requestContextMiddleware)
 
 app.set('trust proxy', 1)
 app.use(rateLimiter)
 
 if (Env.NODE_ENV === 'development') {
   app.use('/admin/queues', setupBullBoard())
-  logger.info(`🎯 Bull Board: http://localhost:${Env.PORT}/admin/queues`)
+  logger.info(
+    logIcon(
+      LOG_ICONS.TARGET,
+      `Bull Board: http://localhost:${Env.PORT}/admin/queues`
+    )
+  )
 }
 
 app.use(`${BASE_PATH}/auth`, authRoutes)

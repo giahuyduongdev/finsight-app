@@ -7,12 +7,9 @@ import {
   UpdateTransactionType
 } from '../validators/transaction.validator'
 import { NotFoundException } from '../utils/errors/index'
-import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
 import { DateRangePreset } from '../enums/date-range.enum'
-import { logger } from '../config/logger.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
-
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -52,7 +49,12 @@ export const createTransactionService = async (
     body.recurringInterval &&
     body.date < currentDate
   ) {
-    const children: any[] = []
+    const children: Array<
+      Partial<CreateTransactionType> & {
+        userId: string
+        recurringSourceId: unknown
+      }
+    > = []
     let cursor = new Date(body.date)
 
     while (cursor <= currentDate) {
@@ -62,8 +64,6 @@ export const createTransactionService = async (
         date: new Date(cursor),
         isRecurring: false,
         recurringInterval: null,
-        nextRecurringDate: null,
-        lastProcessed: null,
         recurringSourceId: transaction._id,
         status: 'COMPLETED'
       })
@@ -117,7 +117,7 @@ export const getAllTransactionService = async (
     timezone
   } = filters
 
-  const filterConditions: Record<string, any> = {
+  const filterConditions: Record<string, unknown> = {
     userId,
     recurringSourceId: null
   }
@@ -131,9 +131,13 @@ export const getAllTransactionService = async (
   )
 
   if (dateRange.from || dateRange.to) {
-    filterConditions.date = {}
-    if (dateRange.from) filterConditions.date.$gte = dateRange.from
-    if (dateRange.to) filterConditions.date.$lte = dateRange.to
+    filterConditions.date = {} as { $gte?: Date; $lte?: Date }
+    if (dateRange.from)
+      (filterConditions.date as { $gte?: Date; $lte?: Date }).$gte =
+        dateRange.from
+    if (dateRange.to)
+      (filterConditions.date as { $gte?: Date; $lte?: Date }).$lte =
+        dateRange.to
   }
 
   if (keyword) {
@@ -432,4 +436,3 @@ export const bulkImportTransactionService = async (
     success: true
   }
 }
-

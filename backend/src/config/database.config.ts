@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { Env } from '../config/env.config'
 import { logger } from './logger.config'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 class Database {
   private static instance: Database
@@ -11,19 +12,31 @@ class Database {
 
   private setupEventListeners(): void {
     mongoose.connection.on('connected', () => {
-      logger.info(`🟢 [MongoDB] Connected successfully!`)
+      logger.info(
+        logIcon(LOG_ICONS.SUCCESS, '[MongoDB] Connected successfully!')
+      )
     })
 
     mongoose.connection.on('disconnected', () => {
-      logger.warn('🔴 [MongoDB] Connection lost! Waiting to reconnect...')
+      logger.warn(
+        logIcon(
+          LOG_ICONS.STOP,
+          '[MongoDB] Connection lost! Waiting to reconnect...'
+        )
+      )
     })
 
     mongoose.connection.on('reconnected', () => {
-      logger.info('🟡 [MongoDB] Reconnected successfully!')
+      logger.info(
+        logIcon(LOG_ICONS.WARNING, '[MongoDB] Reconnected successfully!')
+      )
     })
 
     mongoose.connection.on('error', (err: Error) => {
-      logger.error('❌ [MongoDB] Connection error:', err.message)
+      logger.error(
+        logIcon(LOG_ICONS.ERROR, '[MongoDB] Connection error:'),
+        err.message
+      )
     })
   }
 

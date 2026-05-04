@@ -1,12 +1,15 @@
 import { redis } from '../config/redis.config'
 import { logger } from '../config/logger.config'
+import { logIcon, LOG_ICONS } from './logger-icon.util'
 
 /**
  * Centralized helper to invalidate all analytics cache for a specific user.
  * Uses a non-blocking scanStream and unlink for performance.
  * Implements a bounded-chunk approach to process keys incrementally.
  */
-export async function invalidateUserAnalyticsCache(userId: string | { toString(): string }) {
+export async function invalidateUserAnalyticsCache(
+  userId: string | { toString(): string }
+) {
   try {
     const id = userId?.toString()
     if (!id) return
@@ -38,7 +41,13 @@ export async function invalidateUserAnalyticsCache(userId: string | { toString()
             stream.resume()
           })
           .catch((err) => {
-            logger.error(`❌ [Cache] Chunk invalidation failed for user ${id}`, err)
+            logger.error(
+              logIcon(
+                LOG_ICONS.ERROR,
+                `[Cache] Chunk invalidation failed for user ${id}`
+              ),
+              err
+            )
             stream.resume() // Resume even on error
           })
       })
@@ -48,22 +57,39 @@ export async function invalidateUserAnalyticsCache(userId: string | { toString()
         draining
           .then(() => {
             if (totalDeleted > 0) {
-              logger.info(`🧹 [Cache] Invalidated ${totalDeleted} analytics keys for user ${id}`)
+              logger.info(
+                logIcon(
+                  LOG_ICONS.DELETE,
+                  `[Cache] Invalidated ${totalDeleted} analytics keys for user ${id}`
+                )
+              )
             }
             resolve()
           })
           .catch((err) => {
-            logger.error(`❌ [Cache] Final cache cleanup failed for user ${id}`, err)
+            logger.error(
+              logIcon(
+                LOG_ICONS.ERROR,
+                `[Cache] Final cache cleanup failed for user ${id}`
+              ),
+              err
+            )
             resolve() // Still resolve to avoid crashing the caller
           })
       })
 
       stream.on('error', (err) => {
-        logger.error(`❌ [Cache] Redis scan error for user ${id}`, err)
+        logger.error(
+          logIcon(LOG_ICONS.ERROR, `[Cache] Redis scan error for user ${id}`),
+          err
+        )
         resolve() // Resolve to avoid crashing the caller
       })
     })
   } catch (err) {
-    logger.error('❌ [Cache] Unexpected error during invalidation', err)
+    logger.error(
+      logIcon(LOG_ICONS.ERROR, '[Cache] Unexpected error during invalidation'),
+      err
+    )
   }
 }

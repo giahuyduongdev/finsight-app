@@ -18,23 +18,19 @@ import {
   getTransactionByIdService,
   updateTransactionService
 } from '../services/transaction.service'
-import {
-  TransactionTypeEnum,
-  RecurringIntervalEnum
-} from '../models/transaction.model'
-import { CurrencyType, CurrencyEnum } from '../enums/currency.enum'
+import { TransactionTypeEnum } from '../models/transaction.model'
+import { CurrencyType } from '../enums/currency.enum'
 import { transactionQueue, receiptQueue } from '../queues'
 import { TRANSACTION_JOBS } from '../queues/transaction.queue'
 import { RECEIPT_JOBS } from '../queues/receipt.queue'
 import importBatchModel from '../models/import-batch.model'
-import { processRecurringTransactions } from '../cron/jobs/transaction.job'
-import TransactionModel from '../models/transaction.model'
 import { getIO } from '../config/socket.config'
+import { getUserId } from '../utils/getUserId.util'
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = createTransactionSchema.parse(req.body)
-    const userId = req.user?._id
+    const userId = getUserId(req)
 
     const transaction = await createTransactionService(body, userId)
 
@@ -50,7 +46,7 @@ export const createTransactionController = asyncHandler(
 
 export const getAllTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
 
     const filters = {
       keyword: req.query.keyword as string | undefined,
@@ -65,7 +61,16 @@ export const getAllTransactionController = asyncHandler(
         | 'PENDING'
         | 'FAILED'
         | undefined,
-      dateRangePreset: req.query.dateRangePreset as any,
+      dateRangePreset: req.query.dateRangePreset as
+        | '30days'
+        | 'lastMonth'
+        | 'last3Months'
+        | 'lastYear'
+        | 'thisMonth'
+        | 'thisYear'
+        | 'allTime'
+        | 'custom'
+        | undefined,
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined,
       timezone: req.query.timezone as string | undefined
@@ -86,7 +91,7 @@ export const getAllTransactionController = asyncHandler(
 
 export const getTransactionByIdController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const transactionId = transactionIdSchema.parse(req.params.id)
 
     const transaction = await getTransactionByIdService(userId, transactionId)
@@ -100,7 +105,7 @@ export const getTransactionByIdController = asyncHandler(
 
 export const getChildTransactionsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const parentId = transactionIdSchema.parse(req.params.id)
 
     const pageNumber = Math.max(
@@ -129,7 +134,7 @@ export const getChildTransactionsController = asyncHandler(
 
 export const duplicateTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const transactionId = transactionIdSchema.parse(req.params.id)
 
     const transaction = await duplicateTransactionService(userId, transactionId)
@@ -146,7 +151,7 @@ export const duplicateTransactionController = asyncHandler(
 
 export const updateTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const transactionId = transactionIdSchema.parse(req.params.id)
     const body = updateTransactionSchema.parse(req.body)
 
@@ -168,7 +173,7 @@ export const updateTransactionController = asyncHandler(
 
 export const deleteTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const transactionId = transactionIdSchema.parse(req.params.id)
 
     await deleteTransactionService(userId, transactionId)
@@ -184,7 +189,7 @@ export const deleteTransactionController = asyncHandler(
 
 export const bulkDeleteTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const { transactionIds } = bulkDeleteTransactionSchema.parse(req.body)
 
     const result = await bulkDeleteTransactionService(userId, transactionIds)
@@ -201,7 +206,7 @@ export const bulkDeleteTransactionController = asyncHandler(
 
 export const bulkTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const { transactions } = bulkTransactionSchema.parse(req.body)
 
     // 1. TẠO "VÉ GIỮ ĐỒ": Lưu toàn bộ 300 giao dịch vào MongoDB trước
@@ -237,7 +242,7 @@ export const bulkTransactionController = asyncHandler(
 export const scanReceiptController = asyncHandler(
   async (req: Request, res: Response) => {
     const file = req?.file
-    const userId = req.user?._id
+    const userId = getUserId(req)
 
     if (!file) {
       return res.status(HTTPSTATUS.BAD_REQUEST).json({

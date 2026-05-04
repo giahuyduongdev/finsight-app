@@ -37,7 +37,10 @@ const registerSchema = z.object({
     .min(6, 'Password must be at least 6 characters')
     .regex(/^[A-Z]/, 'Password must start with an uppercase letter')
     .regex(/\d/, 'Password must contain at least one number')
-    .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character'),
+    .regex(
+      /[!@#$%^&*(),.?":{}|<>]/,
+      'Password must contain at least one special character'
+    ),
   timezone: z.string().optional()
 })
 
@@ -256,7 +259,7 @@ const SignUpForm = () => {
       await resendOTP({ email: pendingEmail }).unwrap()
       otpForm.reset()
       resetCountdown()
-      toast.success('New OTP sent to your email.')
+      toast.success('New OTP sent to your email')
     } catch (error: unknown) {
       const err = error as {
         data?: { data?: { remainingTime?: number }; message?: string }
@@ -356,7 +359,7 @@ const SignUpForm = () => {
               setStep('form')
               otpForm.reset()
             }}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-3 w-3" />
             Back to sign up

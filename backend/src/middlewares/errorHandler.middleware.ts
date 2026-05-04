@@ -1,10 +1,13 @@
 import { ErrorRequestHandler } from 'express'
-import { z, ZodError } from 'zod'
+import { ZodError } from 'zod'
 import { MulterError } from 'multer'
 import { HTTPSTATUS } from '../config/http.config'
 import { AppError } from '../utils/errors/index'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
 import { logger } from '../config/logger.config'
+import { getUserMessage } from '../utils/userMessage.util'
+import { redactSensitiveFields } from '../utils/redact.util'
+import { Env } from '../config/env.config'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,11 +46,11 @@ export const errorHandler: ErrorRequestHandler = (
   error,
   req,
   res,
-  next
-): any => {
+  _next
+): void => {
   // 1. Khởi tạo mặc định là lỗi 500 (Internal Server Error)
   let statusCode = HTTPSTATUS.INTERNAL_SERVER_ERROR
-  let responseBody: any = {
+  let responseBody: Record<string, unknown> = {
     message: 'Internal Server Error',
     error: error?.message ?? 'Unknown error occurred'
   }
@@ -76,7 +79,27 @@ export const errorHandler: ErrorRequestHandler = (
     }
   }
 
-  // 3. CHIẾN THUẬT LOG THÔNG MINH
+  // 3. ENHANCE: Add metadata fields (requestId, timestamp, path, method, userMessage)
+  responseBody = {
+    ...responseBody,
+    requestId: req.correlationId || 'unknown',
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    method: req.method,
+    userMessage: getUserMessage(error, statusCode)
+  }
+
+  // 4. ENHANCE: Redact sensitive fields in meta if present
+  if (responseBody.meta) {
+    responseBody.meta = redactSensitiveFields(responseBody.meta)
+  }
+
+  // 5. ENHANCE: Conditionally include stack trace (only in development AND only for server errors)
+  if (Env.NODE_ENV !== 'production' && error.stack && statusCode >= 500) {
+    responseBody.stack = error.stack
+  }
+
+  // 6. CHIẾN THUẬT LOG THÔNG MINH
   const logMessage = `[${req.method}] ${req.path} - ${responseBody.message}`
 
   if (statusCode < 500) {
@@ -93,6 +116,6 @@ export const errorHandler: ErrorRequestHandler = (
     })
   }
 
-  // 4. Trả response về cho Client
-  return res.status(statusCode).json(responseBody)
+  // 7. Trả response về cho Client
+  res.status(statusCode).json(responseBody)
 }

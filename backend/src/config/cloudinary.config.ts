@@ -21,7 +21,7 @@ const STORAGE_PARAMS = {
 
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: (req, file) => ({
+  params: (_req, _file) => ({
     ...STORAGE_PARAMS
   })
 })
@@ -29,12 +29,11 @@ const storage = new CloudinaryStorage({
 const fileFilter: multer.Options['fileFilter'] = (_, file, cb) => {
   const isValid = /^image\/(jpe?g|png)$/.test(file.mimetype)
   if (!isValid) {
-    return cb(
-      new BadRequestException(
-        'Only jpg, jpeg, png files are allowed',
-        ErrorCodeEnum.FILE_UPLOAD_ERROR
-      ) as any
+    const error = new BadRequestException(
+      'Only jpg, jpeg, png files are allowed',
+      ErrorCodeEnum.FILE_UPLOAD_ERROR
     )
+    return cb(error as unknown as Error)
   }
 
   cb(null, true)

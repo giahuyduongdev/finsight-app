@@ -2,10 +2,11 @@ import {
   GoogleGenAI,
   type ContentListUnion,
   type GenerateContentConfig,
-  type GenerateContentResponse,
+  type GenerateContentResponse
 } from '@google/genai'
 import { Env } from './env.config'
 import { logger } from './logger.config'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 const apiKeys = Env.GEMINI_API_KEY.split(',')
   .map((key) => key.trim())
@@ -22,7 +23,7 @@ if (apiKeys.length === 0) {
 export const AI_MODELS = [
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
-  'gemini-3-flash-preview',
+  'gemini-3-flash-preview'
 ] as const
 
 export const defaultModel = AI_MODELS[0]
@@ -30,7 +31,7 @@ export const defaultModel = AI_MODELS[0]
 // fix bug indexOf khi key trùng → dùng index từ map
 const aiPool = apiKeys.map((key, i) => ({
   instance: new GoogleGenAI({ apiKey: key }),
-  keyIndex: i + 1,
+  keyIndex: i + 1
 }))
 
 const isRetryableError = (message: string): boolean => {
@@ -70,43 +71,67 @@ export const generateWithFallback = async (
   for (const modelName of AI_MODELS) {
     for (const { instance, keyIndex } of aiPool) {
       try {
-        logger.info(`🤖  [AI] Attempting: ${modelName} | Key ${keyIndex}`)
+        logger.info(
+          logIcon(
+            LOG_ICONS.INFO,
+            `[AI] Attempting: ${modelName} | Key ${keyIndex}`
+          )
+        )
 
         const response = await instance.models.generateContent({
           model: modelName,
           contents,
           config: {
             ...config,
-            httpOptions: { timeout: 30000, ...config.httpOptions },
-          },
+            httpOptions: { timeout: 30000, ...config.httpOptions }
+          }
         })
 
-        logger.info(`✅  [AI] Success: ${modelName} | Key ${keyIndex}`)
+        logger.info(
+          logIcon(
+            LOG_ICONS.SUCCESS,
+            `[AI] Success: ${modelName} | Key ${keyIndex}`
+          )
+        )
         return response
-
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err))
         const msg = lastError.message
 
         if (isFatalError(msg)) {
-          logger.error(`🚫  [AI] Fatal error on ${modelName}: ${msg}`)
+          logger.error(
+            logIcon(LOG_ICONS.ERROR, `[AI] Fatal error on ${modelName}: ${msg}`)
+          )
           throw lastError
         }
 
         if (isRetryableError(msg)) {
-          logger.warn(`⚠️  [AI] Retry: ${modelName} | Key ${keyIndex}: ${msg.slice(0, 80)}`)
-          if (msg.includes('503') || msg.includes('504') || msg.includes('DEADLINE')) {
+          logger.warn(
+            logIcon(
+              LOG_ICONS.WARNING,
+              `[AI] Retry: ${modelName} | Key ${keyIndex}: ${msg.slice(0, 80)}`
+            )
+          )
+          if (
+            msg.includes('503') ||
+            msg.includes('504') ||
+            msg.includes('DEADLINE')
+          ) {
             await delay(2000)
           }
           continue
         }
 
-        logger.error(`❌ [AI] Unknown error on ${modelName}: ${msg}`)
+        logger.error(
+          logIcon(LOG_ICONS.ERROR, `[AI] Unknown error on ${modelName}: ${msg}`)
+        )
         throw lastError
       }
     }
   }
 
-  logger.error('💀 [AI] All models and API keys exhausted')
+  logger.error(
+    logIcon(LOG_ICONS.ERROR, '[AI] All models and API keys exhausted')
+  )
   throw lastError ?? new Error('All AI models and API keys exhausted')
 }

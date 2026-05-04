@@ -1,9 +1,7 @@
 import {
   endOfDay,
   endOfMonth,
-  endOfQuarter,
   endOfYear,
-  startOfDay,
   startOfMonth,
   startOfQuarter,
   startOfWeek,

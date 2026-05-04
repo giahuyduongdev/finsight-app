@@ -4,13 +4,12 @@ import { v2 as cloudinary } from 'cloudinary'
 import type { UploadApiResponse } from 'cloudinary'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
-import {
-  generateWithFallback
-} from '../config/google-ai.config'
+import { generateWithFallback } from '../config/google-ai.config'
 import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { getIO } from '../config/socket.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 import { RECEIPT_JOBS, ScanReceiptJobData } from '../queues/receipt.queue'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
@@ -146,22 +145,31 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       await invalidateUserAnalyticsCache(userId)
     } catch (cacheError) {
       const error = cacheError as Error
-      logger.warn(`⚠️ [Worker] Cache invalidation failed for user ${userId}`, {
-        error: error.message
-      })
+      logger.warn(
+        logIcon(
+          LOG_ICONS.WARNING,
+          `[Worker] Cache invalidation failed for user ${userId}`
+        ),
+        {
+          error: error.message
+        }
+      )
       // Continue - cache invalidation failure is non-critical
     }
 
     return { success: true, data }
   } catch (error) {
     const err = error as Error
-    logger.error(`❌ [Worker] Receipt scan failed: ${err.message}`, {
-      jobId: job.id,
-      userId,
-      fileName,
-      fileSize,
-      error: err.message
-    })
+    logger.error(
+      logIcon(LOG_ICONS.ERROR, `[Worker] Receipt scan failed: ${err.message}`),
+      {
+        jobId: job.id,
+        userId,
+        fileName,
+        fileSize,
+        error: err.message
+      }
+    )
 
     // Catch Gemini Rate Limit (429) details
     let friendlyMessage = err.message || 'Receipt scanning failed'
@@ -195,7 +203,9 @@ export const receiptWorker = new Worker(
     if (job.name === RECEIPT_JOBS.SCAN_RECEIPT) {
       return await processScanReceiptJob(job as Job<ScanReceiptJobData>)
     } else {
-      logger.warn(`❓ [Worker] Unknown job name: ${job.name}`)
+      logger.warn(
+        logIcon(LOG_ICONS.WARNING, `[Worker] Unknown job name: ${job.name}`)
+      )
     }
   },
   {
@@ -208,16 +218,22 @@ export const receiptWorker = new Worker(
 
 receiptWorker.on('completed', (job) => {
   logger.info(
-    `✅ [Worker] Receipt scan completed: ${job.id} for user ${job.data.userId}`
+    logIcon(
+      LOG_ICONS.SUCCESS,
+      `[Worker] Receipt scan completed: ${job.id} for user ${job.data.userId}`
+    )
   )
 })
 
 receiptWorker.on('failed', (job, err) => {
-  logger.error(`❌ [Worker] Receipt scan failed: ${job?.id}`, {
-    error: err.message,
-    userId: job?.data.userId,
-    fileName: job?.data.fileName,
-    attemptsMade: job?.attemptsMade,
-    maxAttempts: job?.opts.attempts
-  })
+  logger.error(
+    logIcon(LOG_ICONS.ERROR, `[Worker] Receipt scan failed: ${job?.id}`),
+    {
+      error: err.message,
+      userId: job?.data.userId,
+      fileName: job?.data.fileName,
+      attemptsMade: job?.attemptsMade,
+      maxAttempts: job?.opts.attempts
+    }
+  )
 })

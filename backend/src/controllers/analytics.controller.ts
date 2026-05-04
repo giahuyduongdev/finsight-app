@@ -9,10 +9,11 @@ import {
 } from '../services/analytics.service'
 import { CurrencyService } from '../services/currency.service'
 import TransactionModel from '../models/transaction.model'
+import { getUserId } from '../utils/getUserId.util'
 
 export const summaryAnalyticsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const timezone = req.user?.timezone || 'UTC'
     const preferredCurrency = req.user?.preferredCurrency || 'USD'
 
@@ -42,7 +43,7 @@ export const summaryAnalyticsController = asyncHandler(
 
 export const chartAnalyticsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const timezone = req.user?.timezone || 'UTC'
     const preferredCurrency = req.user?.preferredCurrency || 'USD'
 
@@ -72,7 +73,7 @@ export const chartAnalyticsController = asyncHandler(
 
 export const expensePieChartBreakdownController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const timezone = req.user?.timezone || 'UTC'
     const preferredCurrency = req.user?.preferredCurrency || 'USD'
 
@@ -102,13 +103,15 @@ export const expensePieChartBreakdownController = asyncHandler(
 
 export const getExchangeRatesController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
-    
+    const userId = getUserId(req)
+
     // Lấy tỉ giá mới nhất
     const rates = await CurrencyService.getLatestRates()
 
     // Lấy danh sách tiền tệ người dùng đã từng sử dụng trong transactions
-    const usedCurrencies = await TransactionModel.distinct('currency', { userId })
+    const usedCurrencies = await TransactionModel.distinct('currency', {
+      userId
+    })
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Exchange rates fetched successfully',

@@ -1,6 +1,7 @@
 import Redis from 'ioredis'
 import { Env } from '../env.config'
 import { logger } from '../logger.config'
+import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
 
 export const bullMQConnection = new Redis(Env.REDIS_URL, {
   maxRetriesPerRequest: null,
@@ -8,14 +9,22 @@ export const bullMQConnection = new Redis(Env.REDIS_URL, {
 })
 
 bullMQConnection.on('connect', () =>
-  logger.info('🟢 [BullMQ] Connected successfully!')
+  logger.info(logIcon(LOG_ICONS.SUCCESS, '[BullMQ] Connected successfully!'))
 )
 bullMQConnection.on('error', (err) =>
-  logger.error('❌ [BullMQ] Connection error:', err.message)
+  logger.error(
+    logIcon(LOG_ICONS.ERROR, '[BullMQ] Connection error:'),
+    err.message
+  )
 )
 bullMQConnection.on('reconnecting', () =>
-  logger.warn('🟡 [BullMQ] Connection lost. Attempting to reconnect...')
+  logger.warn(
+    logIcon(
+      LOG_ICONS.WARNING,
+      '[BullMQ] Connection lost. Attempting to reconnect...'
+    )
+  )
 )
 bullMQConnection.on('end', () =>
-  logger.warn('🔴 [BullMQ] Connection closed.')
+  logger.warn(logIcon(LOG_ICONS.STOP, '[BullMQ] Connection closed.'))
 )

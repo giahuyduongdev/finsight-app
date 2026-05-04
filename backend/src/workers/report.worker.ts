@@ -27,6 +27,7 @@ import ReportSettingModel from '../models/report-setting.model'
 import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // ─── Job Processing ───────────────────────────────────────────────────────────
 
@@ -83,12 +84,14 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
   let forceFailed = false
   if (!user.email) {
-    logger.error('❌ [Worker] User email not found', { userId })
+    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] User email not found'), {
+      userId
+    })
     forceFailed = true
   }
 
   // 1. Generate báo cáo
-  let report: any = null
+  let report: Awaited<ReturnType<typeof generateReportService>> | null = null
   if (!forceFailed) {
     report = await generateReportService(
       userId,
@@ -124,9 +127,12 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
         frequency
       })
       emailSent = true
-      logger.info('📧 [Worker] Email sent successfully', { userId })
+      logger.info(
+        logIcon(LOG_ICONS.EMAIL, '[Worker] Email sent successfully'),
+        { userId }
+      )
     } catch (error) {
-      logger.error('❌ [Worker] Email failed', {
+      logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] Email failed'), {
         userId,
         error: (error as Error).message,
         attemptsMade: job.attemptsMade
@@ -198,7 +204,7 @@ export const reportWorker = new Worker(
     if (job.name === REPORT_JOBS.PROCESS_REPORT) {
       return await processReportJob(job as Job<ProcessReportJobData>)
     }
-    logger.error('❌ [Worker] Unknown job name', {
+    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] Unknown job name'), {
       jobId: job.id,
       jobName: job.name
     })
@@ -214,12 +220,15 @@ export const reportWorker = new Worker(
 
 reportWorker.on('completed', (job) => {
   logger.info(
-    `✅ [Worker] Report completed: ${job.id} for user ${job.data.userId}`
+    logIcon(
+      LOG_ICONS.SUCCESS,
+      `[Worker] Report completed: ${job.id} for user ${job.data.userId}`
+    )
   )
 })
 
 reportWorker.on('failed', (job, err) => {
-  logger.error(`❌ [Worker] Report failed: ${job?.id}`, {
+  logger.error(logIcon(LOG_ICONS.ERROR, `[Worker] Report failed: ${job?.id}`), {
     error: err.message,
     userId: job?.data.userId,
     attemptsMade: job?.attemptsMade,
