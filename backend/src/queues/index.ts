@@ -16,7 +16,10 @@ export const closeQueues = async () => {
   // 1. Đóng toàn bộ các Queue song song
   await Promise.all(queues.map((q) => q.close()))
 
-  // 2. CHỐT CHẶN CUỐI CÙNG: Ngắt kết nối Redis của toàn bộ hệ thống BullMQ
+  // 2. Đóng FlowProducer
+  await transactionFlowProducer.close()
+
+  // 3. CHỐT CHẶN CUỐI CÙNG: Ngắt kết nối Redis của toàn bộ hệ thống BullMQ
   await bullMQConnection.quit()
 
   logger.info(

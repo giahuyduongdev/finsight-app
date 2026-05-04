@@ -63,13 +63,23 @@ const countMissedOccurrences = (date?: Date, interval?: string): number => {
   }
   const next = intervalMap[interval]
   if (!next) return 0
+
+  // Safety limit to prevent infinite loops
+  const MAX_ITERATIONS = 10000
   let count = 0
   let cursor = new Date(date)
   const now = new Date()
-  while (cursor <= now) {
+
+  while (cursor <= now && count < MAX_ITERATIONS) {
     count++
     cursor = next(cursor)
   }
+
+  // If we hit the limit, log a warning
+  if (count >= MAX_ITERATIONS) {
+    console.warn('countMissedOccurrences hit MAX_ITERATIONS limit')
+  }
+
   return count
 }
 

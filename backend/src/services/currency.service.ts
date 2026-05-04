@@ -25,7 +25,10 @@ export class CurrencyService {
       // Lấy VND làm gốc để dễ tính toán cho người dùng VN
       const baseCurrency = CurrencyEnum.VND
       const response = await axios.get(
-        `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`
+        `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`,
+        {
+          timeout: 10000 // 10 second timeout
+        }
       )
 
       const rates = response.data.rates
@@ -57,7 +60,21 @@ export class CurrencyService {
         }
       }
 
-      await pipeline.exec()
+      const results = await pipeline.exec()
+
+      // Check for partial failures in pipeline execution
+      if (results) {
+        const failures = results.filter(([err]) => err !== null)
+        if (failures.length > 0) {
+          logger.warn(
+            logIcon(
+              LOG_ICONS.WARNING,
+              `[Currency] ${failures.length} cache operations failed`
+            )
+          )
+        }
+      }
+
       logger.info(
         logIcon(LOG_ICONS.SUCCESS, '[Currency] Cache updated in Redis')
       )

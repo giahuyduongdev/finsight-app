@@ -56,7 +56,7 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
     logger.info(
       logIcon(
         LOG_ICONS.SOCKET,
-        `[Socket] User ${userId} connected: ${socket.id}`
+        ` [Socket] User ${userId} connected: ${socket.id}`
       )
     )
 
@@ -69,13 +69,13 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
       logger.info(
         logIcon(
           LOG_ICONS.SOCKET,
-          `[Socket] User ${userId} disconnected: ${socket.id}`
+          ` [Socket] User ${userId} disconnected: ${socket.id}`
         )
       )
     })
   })
 
-  logger.info(logIcon(LOG_ICONS.SUCCESS, '[Socket] Initialized'))
+  logger.info(logIcon(LOG_ICONS.SUCCESS, ' [Socket] Initialized'))
   return io
 }
 

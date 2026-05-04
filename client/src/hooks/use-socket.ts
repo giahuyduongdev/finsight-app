@@ -25,7 +25,9 @@ export const useSocket = () => {
     }
 
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
-    const socketUrl = apiUrl.replace('/api', '')
+    // Use URL API for robust URL manipulation
+    const url = new URL(apiUrl)
+    const socketUrl = `${url.protocol}//${url.host}`
 
     // Nếu socket già đã tồn tại nhưng token thay đổi -> cập nhật token
     if (socketInstance) {
@@ -71,9 +73,22 @@ export const useSocket = () => {
           }
         }
       })
+
+      socketInstance.on('disconnect', () => {
+        console.log('🔌 Socket disconnected')
+      })
     }
 
     setSocket(socketInstance)
+
+    // Cleanup function to remove listeners
+    return () => {
+      if (socketInstance) {
+        socketInstance.off('connect')
+        socketInstance.off('connect_error')
+        socketInstance.off('disconnect')
+      }
+    }
   }, [accessToken, dispatch, refresh])
 
   return socket

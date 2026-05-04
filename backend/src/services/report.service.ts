@@ -309,10 +309,15 @@ export const resendReportService = async (userId: string, reportId: string) => {
     throw new NotFoundException('No activity found for this period')
   }
 
-  // 6. Gửi email
+  // 6. Validate user data before sending email
+  if (!user.email || !user.name) {
+    throw new NotFoundException('User email or name not found')
+  }
+
+  // 7. Gửi email
   await sendReportEmail({
-    email: user.email!,
-    username: user.name!,
+    email: user.email,
+    username: user.name,
     report: {
       period: reportData.period,
       totalIncome: reportData.summary.income,

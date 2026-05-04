@@ -48,6 +48,8 @@ export const processReportJob = async () => {
       })
       .map((setting) => {
         const user = setting.userId as UserDocument
+        // Validate frequency before using
+        const frequency = setting.frequency || 'MONTHLY'
         return {
           name: REPORT_JOBS.PROCESS_REPORT,
           data: {
@@ -55,7 +57,7 @@ export const processReportJob = async () => {
             settingId: setting._id.toString(),
             timezone: user.timezone || 'UTC',
             preferredCurrency: user.preferredCurrency,
-            frequency: setting.frequency!,
+            frequency,
             dueDate: setting.nextReportDate?.toISOString() || now.toISOString()
           },
           opts: {

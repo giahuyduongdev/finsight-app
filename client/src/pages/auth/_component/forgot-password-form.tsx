@@ -93,10 +93,14 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
         inputsRef.current[index - 1]?.focus()
       }
     }
-    if (e.key === 'ArrowLeft' && index > 0)
-      inputsRef.current[index - 1]?.focus()
-    if (e.key === 'ArrowRight' && index < 5)
-      inputsRef.current[index + 1]?.focus()
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      if (index > 0) inputsRef.current[index - 1]?.focus()
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      if (index < 5) inputsRef.current[index + 1]?.focus()
+    }
   }
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -125,6 +129,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
+          aria-label={`OTP digit ${i + 1} of 6`}
           className="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-input bg-background
             focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed transition-all"

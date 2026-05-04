@@ -157,6 +157,16 @@ const RatesPage = () => {
                             const prefRateFromVND =
                               rates.rates[preferredCurrency] || 1
 
+                            // Validate rates are finite and non-zero to prevent division errors
+                            if (
+                              !Number.isFinite(rateFromVND) ||
+                              !Number.isFinite(prefRateFromVND) ||
+                              rateFromVND === 0 ||
+                              prefRateFromVND === 0
+                            ) {
+                              return null // Skip invalid rates
+                            }
+
                             // Tỉ giá chéo: 1 PreferredCurrency = ? Code
                             // Rate(Pref/Code) = Rate(VND/Code) / Rate(VND/Pref)
                             const crossRate = rateFromVND / prefRateFromVND
@@ -164,6 +174,14 @@ const RatesPage = () => {
                             // Giá trị của 1 Code tính bằng PreferredCurrency
                             // Value(Code in Pref) = 1 / crossRate
                             const valueInPref = 1 / crossRate
+
+                            // Additional safety check for calculated values
+                            if (
+                              !Number.isFinite(crossRate) ||
+                              !Number.isFinite(valueInPref)
+                            ) {
+                              return null
+                            }
 
                             return (
                               <tr

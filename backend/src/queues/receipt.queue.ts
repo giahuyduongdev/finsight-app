@@ -11,7 +11,8 @@ export const RECEIPT_JOBS = {
 
 export type ScanReceiptJobData = {
   userId: string
-  fileBuffer: string
+  fileBuffer?: string // Base64 encoded image (compressed) - will be cleared after upload
+  imageUrl?: string // Cloudinary URL after upload
   fileName: string
   fileSize: number
 }

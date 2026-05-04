@@ -112,7 +112,7 @@ export function AccountForm() {
         // 🚀 KẾT THÚC PREFETCH 🚀
       })
       .catch((error) => {
-        toast.error(error.data.message || 'Failed to update account')
+        toast.error(error?.data?.message || 'Failed to update account')
       })
   }
 
@@ -178,9 +178,9 @@ export function AccountForm() {
         />
         <div className="space-y-2">
           <FormLabel>Email Address</FormLabel>
-          <Input 
-            value={user?.email || ''} 
-            disabled 
+          <Input
+            value={user?.email || ''}
+            disabled
             className="bg-muted/50 cursor-not-allowed"
           />
           <p className="text-[0.8rem] text-muted-foreground">

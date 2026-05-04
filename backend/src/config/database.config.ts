@@ -47,11 +47,28 @@ class Database {
       //   mongoose.set('debug', { color: true })
       // }
 
+      // Validate and parse MongoDB config values with fallbacks
+      const maxPoolSize = Number(Env.MONGO_MAX_POOL_SIZE) || 10
+      const serverSelectionTimeout =
+        Number(Env.MONGO_SERVER_SELECTION_TIMEOUT) || 5000
+      const socketTimeout = Number(Env.MONGO_SOCKET_TIMEOUT) || 45000
+      const connectTimeout = Number(Env.MONGO_CONNECT_TIMEOUT) || 10000
+
+      // Validate that parsed values are valid numbers
+      if (
+        !Number.isFinite(maxPoolSize) ||
+        !Number.isFinite(serverSelectionTimeout) ||
+        !Number.isFinite(socketTimeout) ||
+        !Number.isFinite(connectTimeout)
+      ) {
+        throw new Error('Invalid MongoDB configuration values')
+      }
+
       await mongoose.connect(Env.MONGO_URI, {
-        maxPoolSize: Number(Env.MONGO_MAX_POOL_SIZE),
-        serverSelectionTimeoutMS: Number(Env.MONGO_SERVER_SELECTION_TIMEOUT),
-        socketTimeoutMS: Number(Env.MONGO_SOCKET_TIMEOUT),
-        connectTimeoutMS: Number(Env.MONGO_CONNECT_TIMEOUT)
+        maxPoolSize,
+        serverSelectionTimeoutMS: serverSelectionTimeout,
+        socketTimeoutMS: socketTimeout,
+        connectTimeoutMS: connectTimeout
       })
     } catch (error) {
       logger.error('Error connecting to MongoDB: ', error)

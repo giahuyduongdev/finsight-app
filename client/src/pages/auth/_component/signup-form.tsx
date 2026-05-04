@@ -59,7 +59,7 @@ type OtpValues = z.infer<typeof otpSchema>
 const handleOAuth = (provider: 'github' | 'google') => {
   const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone
   const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-  window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${currentTz}`
+  window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
 }
 
 // ─── OTP Input Component ──────────────────────────────────────────────────────
@@ -133,6 +133,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
+          aria-label={`OTP digit ${i + 1} of 6`}
           className="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-input bg-background
             focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed

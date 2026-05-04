@@ -1,5 +1,4 @@
 import { Worker, Job } from 'bullmq'
-import sharp from 'sharp'
 import { v2 as cloudinary } from 'cloudinary'
 import type { UploadApiResponse } from 'cloudinary'
 import { bullMQConnection } from '../config/bull/bullmq.config'
@@ -14,7 +13,7 @@ import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
 /**
- * Upload compressed image buffer to Cloudinary
+ * Upload image buffer to Cloudinary (permanent storage)
  */
 async function uploadToCloudinary(buffer: Buffer): Promise<UploadApiResponse> {
   return new Promise((resolve, reject) => {
@@ -102,62 +101,82 @@ function parseGeminiResponse(responseText: string) {
 // ─── Job Processing ───────────────────────────────────────────────────────────
 
 /**
- * Process receipt scanning job
+ * Process receipt scanning job with async upload and cleanup
  */
 async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
-  const { userId, fileBuffer, fileName, fileSize } = job.data
+  const { userId, fileBuffer, imageUrl, fileName, fileSize } = job.data
 
   try {
-    const actualBuffer = Buffer.from(fileBuffer, 'base64')
+    let finalImageUrl: string
+    let base64ForAI: string
 
-    const compressedBuffer = await sharp(actualBuffer)
-      .resize({ width: 1024, withoutEnlargement: true })
-      .jpeg({ quality: 80 })
-      .toBuffer()
+    // Check if we have base64 (first run) or URL (after cleanup)
+    if (fileBuffer) {
+      // First run: We have base64
+      const imageBuffer = Buffer.from(fileBuffer, 'base64')
+      base64ForAI = fileBuffer
 
-    const base64StringForAI = compressedBuffer.toString('base64')
+      // [OPTIMIZED] Upload to Cloudinary and process AI in parallel
+      const [uploadResult, geminiResult] = await Promise.all([
+        uploadToCloudinary(imageBuffer), // ~600ms
+        extractReceiptData(base64ForAI) // ~2000ms (bottleneck)
+      ])
 
-    // 2. [CodeRabbit] Sequential: AI Extraction & Validation FIRST
-    const geminiResult = await extractReceiptData(base64StringForAI)
+      finalImageUrl = uploadResult.secure_url
 
-    // 3. Process and Validate Gemini response
-    const responseText = geminiResult.text
-    if (!responseText) {
-      throw new Error('Could not read receipt content from Gemini')
-    }
-    const data = parseGeminiResponse(responseText)
+      // [CLEANUP] Update job data: Replace base64 with URL to free Redis memory
+      await job.updateData({
+        userId,
+        imageUrl: uploadResult.secure_url,
+        fileBuffer: undefined, // Clear base64 from Redis
+        fileName,
+        fileSize
+      })
 
-    // 4. [CodeRabbit] Upload to Cloudinary only after validation succeeds
-    const uploadResult = await uploadToCloudinary(compressedBuffer)
-
-    // 4. Emit success event
-    const io = getIO()
-    io.to(userId).emit('receipt:scan-completed', {
-      jobId: job.id,
-      data: {
-        ...data,
-        receiptUrl: uploadResult.secure_url
+      // Process and validate Gemini response
+      const responseText = geminiResult.text
+      if (!responseText) {
+        throw new Error('Could not read receipt content from Gemini')
       }
-    })
+      const data = parseGeminiResponse(responseText)
 
-    // 5. Invalidate analytics cache
-    try {
-      await invalidateUserAnalyticsCache(userId)
-    } catch (cacheError) {
-      const error = cacheError as Error
-      logger.warn(
-        logIcon(
-          LOG_ICONS.WARNING,
-          `[Worker] Cache invalidation failed for user ${userId}`
-        ),
-        {
-          error: error.message
+      // Emit success event
+      const io = getIO()
+      io.to(userId).emit('receipt:scan-completed', {
+        jobId: job.id,
+        data: {
+          ...data,
+          receiptUrl: finalImageUrl
         }
-      )
-      // Continue - cache invalidation failure is non-critical
-    }
+      })
 
-    return { success: true, data }
+      // Invalidate analytics cache
+      try {
+        await invalidateUserAnalyticsCache(userId)
+      } catch (cacheError) {
+        const error = cacheError as Error
+        logger.warn(
+          logIcon(
+            LOG_ICONS.WARNING,
+            `[Worker] Cache invalidation failed for user ${userId}`
+          ),
+          {
+            error: error.message
+          }
+        )
+        // Continue - cache invalidation failure is non-critical
+      }
+
+      return { success: true, data }
+    } else if (imageUrl) {
+      // Retry case: We already have URL (base64 was cleaned up)
+      // This shouldn't happen in normal flow, but handle it gracefully
+      throw new Error(
+        'Job data already cleaned up. This indicates a retry after successful upload.'
+      )
+    } else {
+      throw new Error('Invalid job data: missing both fileBuffer and imageUrl')
+    }
   } catch (error) {
     const err = error as Error
     logger.error(
@@ -167,6 +186,8 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
         userId,
         fileName,
         fileSize,
+        hasFileBuffer: !!fileBuffer,
+        hasImageUrl: !!imageUrl,
         error: err.message
       }
     )
@@ -181,7 +202,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
         'AI service is currently busy due to free tier limits. Please try again in 1 minute.'
     }
 
-    // 🟠 Minor: Only emit failure on final attempt
+    // Only emit failure on final attempt
     const maxAttempts = job.opts.attempts || 3
     if (job.attemptsMade >= maxAttempts - 1) {
       const io = getIO()

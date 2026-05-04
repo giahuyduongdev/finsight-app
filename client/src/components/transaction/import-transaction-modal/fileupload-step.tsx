@@ -79,7 +79,8 @@ const FileUploadStep = ({ onFileUpload }: FileUploadStepProps) => {
             onFileUpload(file, columns, results.data)
           }, 500)
         },
-        error: () => {
+        error: (error) => {
+          toast.error(`Failed to parse CSV: ${error.message}`)
           resetProgress()
         }
       })

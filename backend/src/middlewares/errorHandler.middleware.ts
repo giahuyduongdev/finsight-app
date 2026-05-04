@@ -109,10 +109,11 @@ export const errorHandler: ErrorRequestHandler = (
     })
   } else {
     // Lỗi Server (500): Đánh log lỗi nghiêm trọng (error), CÓ in stack trace và payload để debug
+    // Redact sensitive fields from request body before logging
     logger.error(logMessage, {
       message: error?.message,
       stack: error?.stack,
-      body: req.body
+      body: redactSensitiveFields(req.body)
     })
   }
 

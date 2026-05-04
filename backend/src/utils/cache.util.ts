@@ -14,7 +14,10 @@ export async function invalidateUserAnalyticsCache(
     const id = userId?.toString()
     if (!id) return
 
-    const pattern = `analytics:*:${id}:*`
+    // Escape Redis glob characters to prevent injection
+    const escapedId = id.replace(/[*?[\]]/g, '\\$&')
+    const pattern = `analytics:*:${escapedId}:*`
+
     const stream = redis.scanStream({
       match: pattern,
       count: 100

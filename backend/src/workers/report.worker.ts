@@ -49,6 +49,16 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const email = user.email
   const username = user.name || (email ? email.split('@')[0] : 'User')
 
+  let forceFailed = false
+
+  // Validate email before proceeding
+  if (!email) {
+    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] User email not found'), {
+      userId
+    })
+    forceFailed = true
+  }
+
   // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
   const dueInUserTz = toZonedTime(scheduledDate, timezone)
 
@@ -81,14 +91,6 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
   const from = fromZonedTime(fromInTz, timezone)
   const to = fromZonedTime(toInTz, timezone)
-
-  let forceFailed = false
-  if (!user.email) {
-    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] User email not found'), {
-      userId
-    })
-    forceFailed = true
-  }
 
   // 1. Generate báo cáo
   let report: Awaited<ReturnType<typeof generateReportService>> | null = null

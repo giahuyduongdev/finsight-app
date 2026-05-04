@@ -72,6 +72,13 @@ export const resendReportController = asyncHandler(
     const userId = getUserId(req)
     const reportId = req.params.reportId as string
 
+    // Validate reportId format
+    if (!reportId || !/^[0-9a-fA-F]{24}$/.test(reportId)) {
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid report ID format'
+      })
+    }
+
     const result = await resendReportService(userId, reportId)
 
     return res.status(HTTPSTATUS.OK).json(result)

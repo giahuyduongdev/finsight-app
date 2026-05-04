@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogTrigger
 } from '@/components/ui/dialog'
 import {
   Form,
@@ -20,13 +20,13 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
+  FormMessage
 } from '@/components/ui/form'
 import { PasswordInput } from '@/components/ui/password-input'
 import {
   useChangePasswordRequestMutation,
   useVerifyChangePasswordOTPMutation,
-  useResendChangePasswordOTPMutation,
+  useResendChangePasswordOTPMutation
 } from '@/features/auth/authAPI'
 import { useRef, useEffect } from 'react'
 
@@ -40,19 +40,22 @@ const changePasswordRequestSchema = z
       .min(6, 'Password must be at least 6 characters')
       .regex(/^[A-Z]/, 'Password must start with an uppercase letter')
       .regex(/\d/, 'Password must contain at least one number')
-      .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character'),
-    confirmPassword: z.string().min(1, 'Confirm password is required'),
+      .regex(
+        /[!@#$%^&*(),.?":{}|<>]/,
+        'Password must contain at least one special character'
+      ),
+    confirmPassword: z.string().min(1, 'Confirm password is required')
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: "New password and confirm password don't match",
-    path: ['confirmPassword'],
+    path: ['confirmPassword']
   })
 
 const otpSchema = z.object({
   otp: z
     .string()
     .length(6, 'OTP must be 6 digits')
-    .regex(/^\d+$/, 'OTP must contain only numbers'),
+    .regex(/^\d+$/, 'OTP must contain only numbers')
 })
 
 type ChangePasswordRequestValues = z.infer<typeof changePasswordRequestSchema>
@@ -91,13 +94,18 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
         inputsRef.current[index - 1]?.focus()
       }
     }
-    if (e.key === 'ArrowLeft' && index > 0) inputsRef.current[index - 1]?.focus()
-    if (e.key === 'ArrowRight' && index < 5) inputsRef.current[index + 1]?.focus()
+    if (e.key === 'ArrowLeft' && index > 0)
+      inputsRef.current[index - 1]?.focus()
+    if (e.key === 'ArrowRight' && index < 5)
+      inputsRef.current[index + 1]?.focus()
   }
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault()
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    const pasted = e.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6)
     onChange(pasted)
     const focusIndex = Math.min(pasted.length, 5)
     inputsRef.current[focusIndex]?.focus()
@@ -119,6 +127,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
+          aria-label={`OTP digit ${i + 1} of 6`}
           className="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-input bg-background
             focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed
@@ -135,9 +144,12 @@ export function ChangePasswordDialog() {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<'form' | 'otp'>('form')
 
-  const [requestChange, { isLoading: isRequesting }] = useChangePasswordRequestMutation()
-  const [verifyOTP, { isLoading: isVerifying }] = useVerifyChangePasswordOTPMutation()
-  const [resendOTP, { isLoading: isResending }] = useResendChangePasswordOTPMutation()
+  const [requestChange, { isLoading: isRequesting }] =
+    useChangePasswordRequestMutation()
+  const [verifyOTP, { isLoading: isVerifying }] =
+    useVerifyChangePasswordOTPMutation()
+  const [resendOTP, { isLoading: isResending }] =
+    useResendChangePasswordOTPMutation()
 
   const [seconds, setSeconds] = useState(60)
   const [canResend, setCanResend] = useState(false)
@@ -157,13 +169,13 @@ export function ChangePasswordDialog() {
     defaultValues: {
       oldPassword: '',
       newPassword: '',
-      confirmPassword: '',
-    },
+      confirmPassword: ''
+    }
   })
 
   const otpForm = useForm<OtpValues>({
     resolver: zodResolver(otpSchema),
-    defaultValues: { otp: '' },
+    defaultValues: { otp: '' }
   })
 
   const onRequestSubmit = async (values: ChangePasswordRequestValues) => {
@@ -186,7 +198,7 @@ export function ChangePasswordDialog() {
       setOpen(false)
       // Tự động logout hoặc để user tự logout theo logic BE trả về
       // Ở đây BE trả về "Please login again" và xóa hết refresh token nên user sẽ bị kick
-      window.location.reload() 
+      window.location.reload()
     } catch (error) {
       const err = error as { data?: { message?: string } }
       toast.error(err.data?.message || 'Invalid verification code')
@@ -235,7 +247,10 @@ export function ChangePasswordDialog() {
               </DialogDescription>
             </DialogHeader>
             <Form {...requestForm}>
-              <form onSubmit={requestForm.handleSubmit(onRequestSubmit)} className="space-y-4 pt-4">
+              <form
+                onSubmit={requestForm.handleSubmit(onRequestSubmit)}
+                className="space-y-4 pt-4"
+              >
                 <FormField
                   control={requestForm.control}
                   name="oldPassword"
@@ -285,7 +300,9 @@ export function ChangePasswordDialog() {
                 />
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={isRequesting}>
-                    {isRequesting && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+                    {isRequesting && (
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Send verification code
                   </Button>
                 </div>
@@ -297,9 +314,9 @@ export function ChangePasswordDialog() {
             <DialogHeader>
               <DialogTitle className="flex justify-between items-center">
                 Check your email
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-6 w-6 rounded-full"
                   onClick={() => setStep('form')}
                 >
@@ -315,7 +332,10 @@ export function ChangePasswordDialog() {
                 <MailCheck className="h-6 w-6 text-primary" />
               </div>
               <Form {...otpForm}>
-                <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} className="w-full space-y-6">
+                <form
+                  onSubmit={otpForm.handleSubmit(onOtpSubmit)}
+                  className="w-full space-y-6"
+                >
                   <FormField
                     control={otpForm.control}
                     name="otp"
@@ -337,7 +357,9 @@ export function ChangePasswordDialog() {
                     className="w-full"
                     disabled={isVerifying || otpForm.watch('otp').length < 6}
                   >
-                    {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+                    {isVerifying && (
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Confirm Change
                   </Button>
                 </form>
@@ -371,5 +393,3 @@ export function ChangePasswordDialog() {
     </Dialog>
   )
 }
-
-
