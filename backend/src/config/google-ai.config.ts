@@ -68,10 +68,12 @@ export const generateWithFallback = async (
   config: GenerateContentConfig = {}
 ): Promise<GenerateContentResponse> => {
   let lastError: Error | null = null
+  let attemptCount = 0 // Track total attempts for exponential backoff
 
   for (const modelName of AI_MODELS) {
     for (const { instance, keyIndex } of aiPool) {
       try {
+        attemptCount++
         logger.info(
           logIcon(
             LOG_ICONS.INFO,
@@ -113,11 +115,23 @@ export const generateWithFallback = async (
               `[AI] Retry: ${modelName} | Key ${keyIndex}: ${msg.slice(0, 80)}`
             )
           )
-          if (
+
+          // Exponential backoff for rate limits (429)
+          if (msg.includes('429')) {
+            const baseDelay = 1000
+            const maxDelay = 30000
+            const backoffDelay = Math.min(
+              baseDelay * Math.pow(2, attemptCount),
+              maxDelay
+            )
+            const jitter = Math.random() * 1000 // Add jitter to avoid thundering herd
+            await delay(backoffDelay + jitter)
+          } else if (
             msg.includes('503') ||
             msg.includes('504') ||
             msg.includes('DEADLINE')
           ) {
+            // Fixed delay for server errors
             await delay(2000)
           }
           continue

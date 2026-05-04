@@ -253,9 +253,9 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
         'AI service is currently busy due to free tier limits. Please try again in 1 minute.'
     }
 
-    // Only emit failure on final attempt
+    // Only emit failure on final attempt (when all attempts are exhausted)
     const maxAttempts = job.opts.attempts || 3
-    if (job.attemptsMade >= maxAttempts - 1) {
+    if (job.attemptsMade >= maxAttempts) {
       const io = getIO()
       io.to(userId).emit('receipt:scan-failed', {
         jobId: job.id,

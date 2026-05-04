@@ -137,11 +137,13 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
       logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] Email failed'), {
         userId,
         error: (error as Error).message,
-        attemptsMade: job.attemptsMade
+        attemptsMade: job.attemptsMade,
+        attemptsStarted: job.attemptsStarted
       })
 
       const maxAttempts = job.opts?.attempts ?? 1
-      if (job.attemptsMade < maxAttempts) {
+      // Use attemptsStarted to avoid off-by-one error
+      if (job.attemptsStarted < maxAttempts) {
         throw error // Re-throw to trigger BullMQ retry
       }
     }

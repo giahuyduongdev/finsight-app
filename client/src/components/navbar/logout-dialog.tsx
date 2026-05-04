@@ -58,15 +58,22 @@ const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
             to access your account.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button
-            className="text-white !bg-red-500"
+            variant="outline"
+            type="button"
+            onClick={() => setOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="text-white bg-red-500 hover:bg-red-600"
             disabled={isPending}
             type="button"
             onClick={handleLogout}
           >
             {isPending && <Loader className="animate-spin" />}
-            Yes
+            Yes, Log Out
           </Button>
         </DialogFooter>
       </DialogContent>

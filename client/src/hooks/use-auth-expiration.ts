@@ -61,17 +61,30 @@ const useAuthExpiration = () => {
   useEffect(() => {
     if (!accessToken || !expiresAt) return
 
+    // Use ref to track current refresh request
+    const refreshRequestIdRef = { current: 0 }
+
     const handleTokenRefresh = async () => {
+      // Increment request ID before starting refresh
+      const currentRequestId = ++refreshRequestIdRef.current
+
       try {
         const data = await refreshToken({}).unwrap()
-        dispatch(
-          updateCredentials({
-            accessToken: data.accessToken,
-            expiresAt: data.expiresAt
-          })
-        )
+
+        // Only update if this is still the latest request
+        if (currentRequestId === refreshRequestIdRef.current) {
+          dispatch(
+            updateCredentials({
+              accessToken: data.accessToken,
+              expiresAt: data.expiresAt
+            })
+          )
+        }
       } catch {
-        dispatch(logout())
+        // Only logout if this is still the latest request
+        if (currentRequestId === refreshRequestIdRef.current) {
+          dispatch(logout())
+        }
       }
     }
 
@@ -83,7 +96,11 @@ const useAuthExpiration = () => {
     } else {
       const refreshTime = Math.max(timeUntilExpiration - 60 * 1000, 0)
       const timer = setTimeout(handleTokenRefresh, refreshTime)
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(timer)
+        // Mark any in-flight request as stale
+        refreshRequestIdRef.current++
+      }
     }
   }, [accessToken, expiresAt, dispatch, refreshToken])
 }

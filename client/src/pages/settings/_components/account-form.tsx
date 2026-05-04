@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -146,11 +146,13 @@ export function AccountForm() {
     reader.readAsDataURL(file)
   }
 
+  const avatarInputId = useId()
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="flex flex-col items-start space-y-4">
-          <FormLabel>Profile Picture</FormLabel>
+          <FormLabel htmlFor={avatarInputId}>Profile Picture</FormLabel>
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
               <AvatarImage
@@ -163,6 +165,7 @@ export function AccountForm() {
             </Avatar>
             <div className="flex flex-col gap-2">
               <Input
+                id={avatarInputId}
                 type="file"
                 accept="image/*"
                 onChange={handleAvatarChange}
