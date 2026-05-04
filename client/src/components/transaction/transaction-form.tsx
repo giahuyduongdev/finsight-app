@@ -229,7 +229,7 @@ const TransactionForm = (props: {
           toast.success('Transaction updated successfully')
         })
         .catch((error) => {
-          toast.error(error.data.message || 'Failed to update transaction')
+          toast.error(error?.data?.message || 'Failed to update transaction')
         })
       return
     }
@@ -241,7 +241,7 @@ const TransactionForm = (props: {
         toast.success('Transaction created successfully')
       })
       .catch((error) => {
-        toast.error(error.data.message || 'Failed to create transaction')
+        toast.error(error?.data?.message || 'Failed to create transaction')
       })
   }
 

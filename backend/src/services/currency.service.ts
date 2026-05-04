@@ -115,21 +115,37 @@ export class CurrencyService {
       const baseCurrency = CurrencyEnum.VND
       const rates: Record<string, number> = {}
 
-      // Lấy tỉ giá so với VND từ cache
+      // Lấy tỉ giá so với VND từ cache - Optimized with mget
       let hasData = false
+
+      // Build keys array for mget
+      const keys: string[] = []
+      const keyToCurrency: Record<string, string> = {}
+
       for (const code of currencies) {
         if (code === baseCurrency) {
           rates[code] = 1
           continue
         }
-        const val = await redis.get(
-          `${CACHE_KEY_PREFIX}${baseCurrency}:${code}`
-        )
-        if (val) {
-          rates[code] = parseFloat(val)
-          hasData = true
-        } else {
-          rates[code] = 0
+        const key = `${CACHE_KEY_PREFIX}${baseCurrency}:${code}`
+        keys.push(key)
+        keyToCurrency[key] = code
+      }
+
+      // Single mget call instead of N redis.get calls
+      if (keys.length > 0) {
+        const values = await redis.mget(...keys)
+
+        for (let i = 0; i < keys.length; i++) {
+          const code = keyToCurrency[keys[i]]
+          const val = values[i]
+
+          if (val) {
+            rates[code] = parseFloat(val)
+            hasData = true
+          } else {
+            rates[code] = 0
+          }
         }
       }
 

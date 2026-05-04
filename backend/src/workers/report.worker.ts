@@ -111,7 +111,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
   // 2. Gửi email
   let emailSent = false
-  if (report) {
+  if (report && email) {
     try {
       await sendReportEmail({
         email,

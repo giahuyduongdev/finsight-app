@@ -110,7 +110,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     let finalImageUrl: string
     let base64ForAI: string
 
-    // Check if we have base64 (first run) or URL (after cleanup)
+    // Check if we have base64 (first run) or URL (after cleanup/retry)
     if (fileBuffer) {
       // First run: We have base64
       const imageBuffer = Buffer.from(fileBuffer, 'base64')
@@ -169,11 +169,62 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
       return { success: true, data }
     } else if (imageUrl) {
-      // Retry case: We already have URL (base64 was cleaned up)
-      // This shouldn't happen in normal flow, but handle it gracefully
-      throw new Error(
-        'Job data already cleaned up. This indicates a retry after successful upload.'
+      // Retry case: Upload succeeded but AI extraction failed
+      // Download image from Cloudinary and retry AI extraction
+      logger.info(
+        logIcon(
+          LOG_ICONS.INFO,
+          `[Worker] Retrying AI extraction for existing image: ${imageUrl}`
+        )
       )
+
+      // Fetch image from Cloudinary
+      const response = await fetch(imageUrl)
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch image from Cloudinary: ${response.statusText}`
+        )
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const imageBuffer = Buffer.from(arrayBuffer)
+      base64ForAI = imageBuffer.toString('base64')
+
+      // Retry AI extraction
+      const geminiResult = await extractReceiptData(base64ForAI)
+      const responseText = geminiResult.text
+      if (!responseText) {
+        throw new Error('Could not read receipt content from Gemini')
+      }
+      const data = parseGeminiResponse(responseText)
+
+      // Emit success event
+      const io = getIO()
+      io.to(userId).emit('receipt:scan-completed', {
+        jobId: job.id,
+        data: {
+          ...data,
+          receiptUrl: imageUrl
+        }
+      })
+
+      // Invalidate analytics cache
+      try {
+        await invalidateUserAnalyticsCache(userId)
+      } catch (cacheError) {
+        const error = cacheError as Error
+        logger.warn(
+          logIcon(
+            LOG_ICONS.WARNING,
+            `[Worker] Cache invalidation failed for user ${userId}`
+          ),
+          {
+            error: error.message
+          }
+        )
+      }
+
+      return { success: true, data }
     } else {
       throw new Error('Invalid job data: missing both fileBuffer and imageUrl')
     }

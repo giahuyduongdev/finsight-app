@@ -49,6 +49,7 @@ export const createTransactionService = async (
     body.recurringInterval &&
     body.date < currentDate
   ) {
+    const MAX_BACKFILL_ENTRIES = 1000
     const children: Array<
       Partial<CreateTransactionType> & {
         userId: string
@@ -56,8 +57,9 @@ export const createTransactionService = async (
       }
     > = []
     let cursor = new Date(body.date)
+    let count = 0
 
-    while (cursor <= currentDate) {
+    while (cursor <= currentDate && count < MAX_BACKFILL_ENTRIES) {
       children.push({
         ...body,
         userId,
@@ -68,6 +70,7 @@ export const createTransactionService = async (
         status: 'COMPLETED'
       })
       cursor = calculateNextOccurrence(cursor, body.recurringInterval)
+      count++
     }
 
     if (children.length) await TransactionModel.insertMany(children)
@@ -393,7 +396,7 @@ export const bulkDeleteTransactionService = async (
   await invalidateUserAnalyticsCache(userId)
 
   return {
-    sucess: true,
+    success: true,
     deletedCount: result.deletedCount
   }
 }

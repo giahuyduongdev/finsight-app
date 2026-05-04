@@ -167,7 +167,7 @@ export const TIMEZONE_OPTIONS = [
   }
 ]
 
-// 5. BỘ TỪ ĐIỂN ÁNH XẠ (Giữ nguyên logic của bạn)
+// 5. BỘ TỪ ĐIỂN ÁNH XẠ (Fixed: Remove incorrect DST mappings)
 export const TIMEZONE_ALIAS_MAPPING: Record<string, string> = {
   'Asia/Bangkok': 'Asia/Saigon',
   'Asia/Jakarta': 'Asia/Saigon',
@@ -198,13 +198,15 @@ export const TIMEZONE_ALIAS_MAPPING: Record<string, string> = {
   'Africa/Lagos': 'Europe/Paris',
   'America/Toronto': 'America/New_York',
   'America/Havana': 'America/New_York',
-  'America/Bogota': 'America/New_York',
-  'America/Lima': 'America/New_York',
+  // FIXED: Remove incorrect mappings for non-DST zones
+  // 'America/Bogota': 'America/New_York', // REMOVED - Bogota doesn't observe DST
+  // 'America/Lima': 'America/New_York', // REMOVED - Lima doesn't observe DST
   'America/Mexico_City': 'America/Chicago',
   'America/Monterrey': 'America/Chicago',
   'America/Vancouver': 'America/Los_Angeles',
   'America/Tijuana': 'America/Los_Angeles',
-  'America/Buenos_Aires': 'America/Sao_Paulo',
-  'America/Santiago': 'America/Sao_Paulo',
-  'America/Montevideo': 'America/Sao_Paulo'
+  'America/Buenos_Aires': 'America/Sao_Paulo'
+  // FIXED: Remove incorrect mapping for Santiago
+  // 'America/Santiago': 'America/Sao_Paulo', // REMOVED - Chile has different DST schedule
+  // 'America/Montevideo': 'America/Sao_Paulo' // REMOVED - Uruguay has different DST schedule
 }

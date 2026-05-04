@@ -34,6 +34,10 @@ type FilterType = {
   status?: 'COMPLETED' | 'PENDING' | 'FAILED' | undefined
   pageNumber?: number
   pageSize?: number
+  dateRangePreset?: DateRangePreset | undefined
+  from?: string | undefined
+  to?: string | undefined
+  timezone?: string | undefined
 }
 
 import { GetChildTransactionsResponse } from '@/features/transaction/transationType'
@@ -417,7 +421,11 @@ const TransactionTable = (props: {
           currency: filter.currency,
           status: filter.status,
           pageNumber: currentPage + 1,
-          pageSize: filter.pageSize
+          pageSize: filter.pageSize,
+          dateRangePreset: filter.dateRangePreset,
+          from: filter.from,
+          to: filter.to,
+          timezone: filter.timezone
         })
       }
     }

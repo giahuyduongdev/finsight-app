@@ -44,6 +44,7 @@ import {
   sendChangeEmailNewOTP
 } from '../mailers/auth.mailer'
 import crypto from 'crypto'
+import { encrypt, decrypt } from '../utils/encryption.util'
 
 export const registerService = async (body: RegisterSchemaType) => {
   const { email } = body
@@ -622,11 +623,14 @@ export const logoutService = async (
     throw new NotFoundException('Refresh token not found or already revoked')
   }
   // 2. Blacklist access token trong Redis
-  const decoded = jwt.decode(accessToken) as JwtPayload
-  const ttl = decoded.exp! - Math.floor(Date.now() / 1000) // giây còn lại
+  const decoded = jwt.decode(accessToken) as JwtPayload | null
 
-  if (ttl > 0) {
-    await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+  if (decoded && typeof decoded.exp === 'number') {
+    const ttl = decoded.exp - Math.floor(Date.now() / 1000) // giây còn lại
+
+    if (ttl > 0) {
+      await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+    }
   }
 
   return { message: 'Logged out successfully' }
@@ -640,11 +644,14 @@ export const logoutAllService = async (userId: string, accessToken: string) => {
   )
 
   // 2. Blacklist access token hiện tại
-  const decoded = jwt.decode(accessToken) as JwtPayload
-  const ttl = decoded.exp! - Math.floor(Date.now() / 1000)
+  const decoded = jwt.decode(accessToken) as JwtPayload | null
 
-  if (ttl > 0) {
-    await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+  if (decoded && typeof decoded.exp === 'number') {
+    const ttl = decoded.exp - Math.floor(Date.now() / 1000)
+
+    if (ttl > 0) {
+      await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+    }
   }
 
   return { message: 'Logged out from all devices successfully' }
@@ -800,10 +807,9 @@ export const changePasswordRequestService = async (
   const otp = generateSecureOTP()
   const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
 
-  // 5. Lưu vào Redis
-  // - OTP để xác thực
-  // - Mật khẩu mới (plain text) để update sau khi xác thực OTP thành công
-  // Theo pattern của registerOTPService
+  // 5. Lưu vào Redis - MÃ HÓA mật khẩu mới trước khi lưu
+  const encryptedPassword = encrypt(newPassword)
+
   await redis
     .pipeline()
     .setex(
@@ -814,7 +820,7 @@ export const changePasswordRequestService = async (
     .setex(
       REDIS_KEYS.changePasswordPending(user.email),
       REDIS_TTL.CHANGE_PASSWORD_OTP,
-      newPassword
+      encryptedPassword
     )
     .setex(
       REDIS_KEYS.changePasswordResend(user.email),
@@ -891,14 +897,18 @@ export const verifyChangePasswordOTPService = async (
     )
   }
 
-  // 5. Lấy mật khẩu mới từ Redis
-  const newPassword = await redis.get(REDIS_KEYS.changePasswordPending(email))
-  if (!newPassword) {
+  // 5. Lấy mật khẩu mới từ Redis và GIẢI MÃ
+  const encryptedPassword = await redis.get(
+    REDIS_KEYS.changePasswordPending(email)
+  )
+  if (!encryptedPassword) {
     throw new BadRequestException(
       'Change password session expired',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
+
+  const newPassword = decrypt(encryptedPassword)
 
   // 6. Cập nhật Database
   user.password = newPassword
@@ -1150,7 +1160,7 @@ export const verifyChangeEmailOTPService = async (
   await user.save()
 
   // 6.1. Thu hồi toàn bộ session cũ (vì email là định danh đăng nhập đã thay đổi)
-  await redis.del(`refresh_tokens:${userId}`)
+  await RefreshTokenModel.deleteMany({ userId: user._id })
 
   // 7. Dọn dẹp Redis OTP
   await Promise.all([

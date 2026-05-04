@@ -75,7 +75,7 @@ const ScheduleReportForm = ({
         toast.success('Report setting updated successfully')
       })
       .catch((error) => {
-        toast.error(error.data.message || 'Failed to update report setting')
+        toast.error(error?.data?.message || 'Failed to update report setting')
       })
   }
 
