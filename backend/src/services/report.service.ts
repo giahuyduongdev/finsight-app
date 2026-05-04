@@ -15,6 +15,8 @@ import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { sendReportEmail } from '../mailers/report.mailer'
 import UserModel from '../models/user.model'
+import { logger } from '../config/logger.config'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 export const getAllReportsService = async (
   userId: string,
@@ -139,28 +141,60 @@ export const generateReportService = async (
 
   if (!summary.length) return null
 
-  // Convert từng currency về preferredCurrency
+  // Types for aggregation results
+  type SummaryItem = {
+    _id: string
+    totalIncome: number
+    totalExpenses: number
+  }
+
+  type CategoryItem = {
+    _id: { category: string; currency: string }
+    total: number
+  }
+
+  // Convert từng currency về preferredCurrency - PARALLEL để tránh N+1 latency
+  const conversionPromises = summary.map(async (item: SummaryItem) => {
+    const fromCurrency = item._id || 'USD'
+    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
+    return {
+      income: item.totalIncome * rate,
+      expenses: item.totalExpenses * rate
+    }
+  })
+
+  const conversions = await Promise.all(conversionPromises)
+
   let convertedIncome = 0
   let convertedExpenses = 0
 
-  for (const item of summary) {
-    const fromCurrency = item._id || 'USD'
-    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
-    convertedIncome += item.totalIncome * rate
-    convertedExpenses += item.totalExpenses * rate
-  }
+  conversions.forEach((conv) => {
+    convertedIncome += conv.income
+    convertedExpenses += conv.expenses
+  })
 
   if (convertedIncome === 0 && convertedExpenses === 0) return null
 
-  // Convert categories theo currency
+  // Convert categories theo currency - PARALLEL
+  const categoryConversionPromises = categories.map(
+    async (item: CategoryItem) => {
+      const { category, currency } = item._id
+      const fromCurrency = currency || 'USD'
+      const rate = await getExchangeRate(fromCurrency, preferredCurrency)
+      return {
+        category,
+        convertedTotal: item.total * rate
+      }
+    }
+  )
+
+  const categoryConversions = await Promise.all(categoryConversionPromises)
+
+  // Aggregate categories
   const categoryMap: Record<string, number> = {}
-  for (const item of categories) {
-    const { category, currency } = item._id
-    const fromCurrency = currency || 'USD'
-    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
-    const convertedTotal = item.total * rate
+  categoryConversions.forEach(({ category, convertedTotal }) => {
     categoryMap[category] = (categoryMap[category] || 0) + convertedTotal
-  }
+  })
 
   // Sort và limit top 5
   const top5Categories = Object.entries(categoryMap)
@@ -254,7 +288,11 @@ async function generateInsightsAI({
 
     const data = JSON.parse(cleanedText)
     return data
-  } catch {
+  } catch (error) {
+    logger.error(
+      logIcon(LOG_ICONS.ERROR, '[Report] Failed to generate AI insights'),
+      { error: error instanceof Error ? error.message : String(error) }
+    )
     return []
   }
 }

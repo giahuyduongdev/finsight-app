@@ -522,8 +522,6 @@ export const loginService = async (
   const user = await UserModel.findOne({ email })
   if (!user) throw new NotFoundException('Email/password not found')
 
-  if (!user) throw new NotFoundException('Email/password not found')
-
   const isValidPassword = await user.comparePassword(password)
   if (!isValidPassword) {
     throw new UnauthorizedException('Invalid email/password')
@@ -700,79 +698,104 @@ export const oauthCallbackService = async (
   timezone: string = 'UTC'
 ) => {
   // 1. Đổi code → tokens từ Auth0
-  const tokenResponse = await fetch(`https://${Env.AUTH0_DOMAIN}/oauth/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'authorization_code',
-      client_id: Env.AUTH0_CLIENT_ID,
-      client_secret: Env.AUTH0_CLIENT_SECRET,
-      code,
-      redirect_uri: Env.AUTH0_CALLBACK_URL
-    })
-  })
+  const tokenController = new AbortController()
+  const tokenTimeout = setTimeout(() => tokenController.abort(), 10000) // 10s timeout
 
-  if (!tokenResponse.ok) {
-    throw new BadRequestException('Invalid Auth0 code or authorization failed')
-  }
-
-  const { access_token } = (await tokenResponse.json()) as {
-    access_token: string
-  }
-
-  // 2. Lấy profile từ Auth0
-  interface Auth0Profile {
-    email: string
-    name: string
-    picture: string
-    sub: string
-  }
-  const profile = (await fetch(`https://${Env.AUTH0_DOMAIN}/userinfo`, {
-    headers: { Authorization: `Bearer ${access_token}` }
-  }).then((r) => r.json())) as Auth0Profile
-
-  // 3. Tìm/Tạo/Liên kết user
-  let user = await UserModel.findOne({ auth0Ids: profile.sub })
-
-  if (!user) {
-    user = await UserModel.findOne({ email: profile.email })
-
-    if (user) {
-      let needsSave = false
-      if (!user.auth0Ids?.includes(profile.sub)) {
-        user.auth0Ids = [...(user.auth0Ids || []), profile.sub]
-        needsSave = true
+  try {
+    const tokenResponse = await fetch(
+      `https://${Env.AUTH0_DOMAIN}/oauth/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: Env.AUTH0_CLIENT_ID,
+          client_secret: Env.AUTH0_CLIENT_SECRET,
+          code,
+          redirect_uri: Env.AUTH0_CALLBACK_URL
+        }),
+        signal: tokenController.signal
       }
-      if (user.timezone === 'UTC' && timezone !== 'UTC') {
-        user.timezone = timezone
-        needsSave = true
+    )
+
+    clearTimeout(tokenTimeout)
+
+    if (!tokenResponse.ok) {
+      throw new BadRequestException(
+        'Invalid Auth0 code or authorization failed'
+      )
+    }
+
+    const { access_token } = (await tokenResponse.json()) as {
+      access_token: string
+    }
+
+    // 2. Lấy profile từ Auth0
+    interface Auth0Profile {
+      email: string
+      name: string
+      picture: string
+      sub: string
+    }
+
+    const profileController = new AbortController()
+    const profileTimeout = setTimeout(() => profileController.abort(), 10000) // 10s timeout
+
+    const profile = (await fetch(`https://${Env.AUTH0_DOMAIN}/userinfo`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+      signal: profileController.signal
+    }).then((r) => r.json())) as Auth0Profile
+
+    clearTimeout(profileTimeout)
+
+    // 3. Tìm/Tạo/Liên kết user
+    let user = await UserModel.findOne({ auth0Ids: profile.sub })
+
+    if (!user) {
+      user = await UserModel.findOne({ email: profile.email })
+
+      if (user) {
+        let needsSave = false
+        if (!user.auth0Ids?.includes(profile.sub)) {
+          user.auth0Ids = [...(user.auth0Ids || []), profile.sub]
+          needsSave = true
+        }
+        if (user.timezone === 'UTC' && timezone !== 'UTC') {
+          user.timezone = timezone
+          needsSave = true
+        }
+        if (needsSave) await user.save()
+      } else {
+        user = await UserModel.create({
+          email: profile.email,
+          name: profile.name,
+          profilePicture: profile.picture,
+          password: crypto.randomUUID(),
+          timezone,
+          auth0Ids: [profile.sub]
+        })
+        await ReportSettingModel.create({ userId: user._id, isEnabled: false })
       }
-      if (needsSave) await user.save()
     } else {
-      user = await UserModel.create({
-        email: profile.email,
-        name: profile.name,
-        profilePicture: profile.picture,
-        password: crypto.randomUUID(),
-        timezone,
-        auth0Ids: [profile.sub]
-      })
-      await ReportSettingModel.create({ userId: user._id, isEnabled: false })
+      // User đã tồn tại qua auth0Ids → cập nhật timezone nếu cần
+      // Nếu múi giờ gửi lên khác với múi giờ đang lưu trong DB thì mới update
+      if (timezone && user.timezone !== timezone) {
+        user.timezone = timezone
+        await user.save()
+      }
     }
-  } else {
-    // User đã tồn tại qua auth0Ids → cập nhật timezone nếu cần
-    // Nếu múi giờ gửi lên khác với múi giờ đang lưu trong DB thì mới update
-    if (timezone && user.timezone !== timezone) {
-      user.timezone = timezone
-      await user.save()
+
+    // 4. Tạo JWT
+    const { token: accessToken, expiresAt } = signJwtToken({ userId: user.id })
+    const refreshToken = await createRefreshToken(user.id)
+
+    return { accessToken, expiresAt, refreshToken, user }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new BadRequestException('OAuth request timed out')
     }
+    throw error
   }
-
-  // 4. Tạo JWT
-  const { token: accessToken, expiresAt } = signJwtToken({ userId: user.id })
-  const refreshToken = await createRefreshToken(user.id)
-
-  return { accessToken, expiresAt, refreshToken, user }
 }
 
 export const changePasswordRequestService = async (

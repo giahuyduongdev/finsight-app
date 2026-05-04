@@ -39,7 +39,7 @@ const accountFormSchema = z.object({
       message: 'Name must be at least 2 characters.'
     })
     .optional(),
-  profilePicture: z.string(),
+  profilePicture: z.string().optional(), // Make optional to match file state
   timezone: z.string().optional(),
   preferredCurrency: z.string().optional()
 })
@@ -126,11 +126,22 @@ export function AccountForm() {
       toast.error('Please select an image file')
       return
     }
+    // Add file size validation (max 5MB)
+    const MAX_SIZE = 5 * 1024 * 1024 // 5MB in bytes
+    if (file.size > MAX_SIZE) {
+      toast.error('Image size must be less than 5MB')
+      return
+    }
     setFile(file)
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
       setAvatarUrl(result)
+    }
+    reader.onerror = () => {
+      toast.error('Failed to read image file')
+      setFile(null)
+      setAvatarUrl(null)
     }
     reader.readAsDataURL(file)
   }

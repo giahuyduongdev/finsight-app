@@ -29,13 +29,12 @@ export const useSocket = () => {
     const url = new URL(apiUrl)
     const socketUrl = `${url.protocol}//${url.host}`
 
-    // Nếu socket già đã tồn tại nhưng token thay đổi -> cập nhật token
+    // Nếu socket già đã tồn tại nhưng token thay đổi -> disconnect và reconnect với token mới
     if (socketInstance) {
       console.log('🔄 Updating socket auth token')
+      socketInstance.disconnect() // Disconnect first
       socketInstance.auth = { token: accessToken }
-      if (!socketInstance.connected) {
-        socketInstance.connect()
-      }
+      socketInstance.connect() // Reconnect with new token
       setSocket(socketInstance)
       return
     }
@@ -60,9 +59,18 @@ export const useSocket = () => {
           console.warn('🔑 Socket unauthorized. Attempting token refresh...')
           isRefreshing = true
 
+          // Disable reconnection during refresh to prevent race condition
+          if (socketInstance) {
+            socketInstance.io.opts.reconnection = false
+          }
+
           try {
             const result = await refresh({}).unwrap()
             dispatch(setCredentials(result))
+            // Re-enable reconnection after successful refresh
+            if (socketInstance) {
+              socketInstance.io.opts.reconnection = true
+            }
             // useEffect sẽ tự chạy lại và cập nhật token ở block "socketInstance" phía trên
           } catch (refreshErr) {
             console.error('❌ Token refresh failed for socket:', refreshErr)
@@ -70,6 +78,8 @@ export const useSocket = () => {
             socketInstance?.disconnect()
             socketInstance = null
             setSocket(null)
+          } finally {
+            isRefreshing = false
           }
         }
       })

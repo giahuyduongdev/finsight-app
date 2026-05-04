@@ -155,6 +155,7 @@ const TransactionTable = (props: {
   )
 
   const loadingParentsRef = useRef<Set<string>>(new Set())
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
 
   const handleLoadMoreChilds = useCallback(
     async (parentId: string) => {
@@ -168,6 +169,10 @@ const TransactionTable = (props: {
       if (pageNumber >= totalPages) return
 
       loadingParentsRef.current.add(parentId)
+
+      // Create AbortController for this request
+      const controller = new AbortController()
+      abortControllersRef.current.set(parentId, controller)
 
       const nextPage = pageNumber + 1
       try {
@@ -187,10 +192,15 @@ const TransactionTable = (props: {
           }
         })
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('Request cancelled for parent:', parentId)
+          return
+        }
         console.error('Failed to load more child transactions:', error)
         toast.error('Failed to load more child transactions')
       } finally {
         loadingParentsRef.current.delete(parentId)
+        abortControllersRef.current.delete(parentId)
       }
     },
     [childrenMap, fetchChildren]
@@ -350,6 +360,15 @@ const TransactionTable = (props: {
   useEffect(() => {
     childrenMapRef.current = childrenMap
   }, [childrenMap])
+
+  // Cleanup: Cancel all pending requests when component unmounts
+  useEffect(() => {
+    const controllers = abortControllersRef.current
+    return () => {
+      controllers.forEach((controller) => controller.abort())
+      controllers.clear()
+    }
+  }, [])
 
   useEffect(() => {
     if (previousFetching.current && !isFetching) {

@@ -33,7 +33,16 @@ const ImportBatchSchema = new Schema<IImportBatch>(
   }
 )
 
-// TTL: Tự xóa document sau 24 giờ (dọn rác tự động)
-ImportBatchSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 })
+// TTL: Tự xóa document sau 24 giờ CHỈ KHI đã hoàn thành hoặc thất bại
+// Partial filter đảm bảo không xóa batch đang PENDING hoặc PROCESSING
+ImportBatchSchema.index(
+  { createdAt: 1 },
+  {
+    expireAfterSeconds: 86400,
+    partialFilterExpression: {
+      status: { $in: ['COMPLETED', 'FAILED'] }
+    }
+  }
+)
 
 export default mongoose.model<IImportBatch>('ImportBatch', ImportBatchSchema)

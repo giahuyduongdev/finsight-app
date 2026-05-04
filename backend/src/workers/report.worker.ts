@@ -234,6 +234,6 @@ reportWorker.on('failed', (job, err) => {
     error: err.message,
     userId: job?.data.userId,
     attemptsMade: job?.attemptsMade,
-    maxAttempts: job?.opts.attempts
+    maxAttempts: job?.opts?.attempts
   })
 })

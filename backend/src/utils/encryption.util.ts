@@ -15,10 +15,11 @@ export const encrypt = (text: string): string => {
   const salt = crypto.randomBytes(SALT_LENGTH)
 
   // Derive key from secret using PBKDF2
+  // OWASP recommends 600,000 iterations for PBKDF2-SHA256
   const key = crypto.pbkdf2Sync(
     Env.JWT_SECRET, // Use existing secret as base
     salt,
-    100000, // iterations
+    600000, // iterations (OWASP recommendation)
     32, // key length
     'sha256'
   )
@@ -70,7 +71,7 @@ export const decrypt = (encryptedData: string): string => {
   const authTag = Buffer.from(authTagHex, 'hex')
 
   // Derive key using same parameters
-  const key = crypto.pbkdf2Sync(Env.JWT_SECRET, salt, 100000, 32, 'sha256')
+  const key = crypto.pbkdf2Sync(Env.JWT_SECRET, salt, 600000, 32, 'sha256')
 
   // Create decipher
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)

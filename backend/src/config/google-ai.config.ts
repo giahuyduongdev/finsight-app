@@ -45,8 +45,8 @@ const isRetryableError = (message: string): boolean => {
     message.includes('403') ||
     message.includes('PERMISSION_DENIED') ||
     message.includes('404') ||
-    message.includes('NOT_FOUND') ||
-    message.includes('INVALID_ARGUMENT')
+    message.includes('NOT_FOUND')
+    // Removed INVALID_ARGUMENT - it's now in isFatalError
   )
 }
 
@@ -55,7 +55,8 @@ const isFatalError = (message: string): boolean => {
     message.includes('SAFETY') ||
     message.includes('BLOCKED') ||
     message.includes('API_KEY_INVALID') ||
-    message.includes('invalid api key')
+    message.includes('invalid api key') ||
+    message.includes('INVALID_ARGUMENT') // INVALID_ARGUMENT is not retryable
   )
 }
 

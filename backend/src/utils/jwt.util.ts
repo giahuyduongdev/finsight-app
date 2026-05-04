@@ -31,7 +31,9 @@ export const signJwtToken = (
   payload: AccessTokenPayload,
   options?: SignOptsAndSecret
 ) => {
-  const isAccessToken = !options || options === accessTokenSignOptions
+  // Check if this is an access token by comparing the secret
+  const isAccessToken =
+    !options || options.secret === accessTokenSignOptions.secret
 
   const { secret, ...opts } = options || accessTokenSignOptions
 

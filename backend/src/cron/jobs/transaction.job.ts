@@ -16,11 +16,13 @@ export const processRecurringTransactions = async () => {
   )
 
   try {
-    // 1. Lấy tất cả giao dịch đến hạn
+    // 1. Lấy tất cả giao dịch đến hạn - CHỈ LẤY _id và userId để tiết kiệm memory
     const transactions = await TransactionModel.find({
       isRecurring: true,
       nextRecurringDate: { $lte: now }
-    }).select('_id userId')
+    })
+      .select('_id userId')
+      .lean() // Sử dụng lean() để giảm memory footprint
 
     logger.info(
       logIcon(
@@ -45,39 +47,67 @@ export const processRecurringTransactions = async () => {
 
     const timeId = now.getTime()
 
-    // 3. Tạo Flow cho mỗi User
+    // 3. Tạo Flow cho mỗi User - XỬ LÝ TỪNG USER RIÊNG BIỆT để tránh 1 user fail → stop all
     const CHUNK_SIZE = 200 // Mỗi Job con sẽ xử lý tối đa 200 giao dịch
 
-    for (const userId in userGroups) {
-      const userTxs = userGroups[userId]
-
-      // Chia nhỏ danh sách giao dịch của user này thành từng mẻ
-      const batches = []
-      for (let i = 0; i < userTxs.length; i += CHUNK_SIZE) {
-        batches.push(userTxs.slice(i, i + CHUNK_SIZE))
-      }
-
-      await transactionFlowProducer.add({
-        name: TRANSACTION_JOBS.RECURRING_SUMMARY, // Job CHA (Chốt hạ)
-        queueName: 'TRANSACTION_QUEUE',
-        data: { userId, count: userTxs.length },
-        opts: {
-          jobId: `recurring-summary-${userId}-${timeId}`
-        },
-        children: batches.map((batch, index) => ({
-          name: TRANSACTION_JOBS.RECURRING, // Job CON (Xử lý mẻ)
-          queueName: 'TRANSACTION_QUEUE',
-          data: {
-            transactionIds: batch.map((tx) => tx._id.toString()),
-            userId: userId
-          },
-          opts: {
-            // Đảm bảo jobId không trùng lặp cho từng mẻ
-            jobId: `recurring-batch-${userId}-${index}-${timeId}`
+    const flowPromises = Object.entries(userGroups).map(
+      async ([userId, userTxs]) => {
+        try {
+          // Chia nhỏ danh sách giao dịch của user này thành từng mẻ
+          const batches = []
+          for (let i = 0; i < userTxs.length; i += CHUNK_SIZE) {
+            batches.push(userTxs.slice(i, i + CHUNK_SIZE))
           }
-        }))
-      })
-    }
+
+          await transactionFlowProducer.add({
+            name: TRANSACTION_JOBS.RECURRING_SUMMARY, // Job CHA (Chốt hạ)
+            queueName: 'TRANSACTION_QUEUE',
+            data: { userId, count: userTxs.length },
+            opts: {
+              jobId: `recurring-summary-${userId}-${timeId}`
+            },
+            children: batches.map((batch, index) => ({
+              name: TRANSACTION_JOBS.RECURRING, // Job CON (Xử lý mẻ)
+              queueName: 'TRANSACTION_QUEUE',
+              data: {
+                transactionIds: batch.map((tx) => tx._id.toString()),
+                userId: userId
+              },
+              opts: {
+                // Đảm bảo jobId không trùng lặp cho từng mẻ
+                jobId: `recurring-batch-${userId}-${index}-${timeId}`
+              }
+            }))
+          })
+
+          logger.info(
+            logIcon(
+              LOG_ICONS.SUCCESS,
+              `Enqueued flow for user ${userId} (${userTxs.length} txs)`
+            )
+          )
+        } catch (error: unknown) {
+          // Xử lý lỗi PER-USER - không để 1 user fail làm dừng toàn bộ
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error'
+          logger.error(
+            logIcon(
+              LOG_ICONS.ERROR,
+              `Failed to enqueue flow for user ${userId}`
+            ),
+            {
+              error: errorMessage,
+              userId,
+              transactionCount: userTxs.length
+            }
+          )
+          // Không throw - tiếp tục xử lý user khác
+        }
+      }
+    )
+
+    // Chờ tất cả flows được enqueue (hoặc fail riêng lẻ)
+    await Promise.allSettled(flowPromises)
 
     logger.info(
       logIcon(

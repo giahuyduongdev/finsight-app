@@ -99,8 +99,17 @@ const FileUploadStep = ({ onFileUpload }: FileUploadStepProps) => {
       </DialogHeader>
 
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Upload CSV file"
         className="flex-1 flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-muted/50 transition-colors px-10 py-16 min-h-[250px]"
         onClick={() => !isLoading && fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !isLoading) {
+            e.preventDefault()
+            fileInputRef.current?.click()
+          }
+        }}
       >
         <input
           type="file"

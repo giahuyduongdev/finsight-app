@@ -62,12 +62,13 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
   let io: ReturnType<typeof getIO> | null = null
   try {
     io = getIO()
-  } catch {
+  } catch (error) {
     logger.warn(
       logIcon(
         LOG_ICONS.WARNING,
         '[Worker] Socket not initialized, skipping emit'
-      )
+      ),
+      { error: error instanceof Error ? error.message : String(error) }
     )
   }
 
@@ -180,12 +181,20 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
         `[Worker] Emitting bulk-import:completed to room: ${room}`
       )
     )
-    io?.to(room).emit('bulk-import:completed', {
-      totalInserted,
-      rejectedCount,
-      totalProcessed,
-      message: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`
-    })
+
+    try {
+      io?.to(room).emit('bulk-import:completed', {
+        totalInserted,
+        rejectedCount,
+        totalProcessed,
+        message: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`
+      })
+    } catch (error) {
+      logger.error(
+        logIcon(LOG_ICONS.ERROR, '[Worker] Failed to emit completion event'),
+        { error: error instanceof Error ? error.message : String(error) }
+      )
+    }
 
     return { insertedCount: totalInserted, rejectedCount, success: true }
   } catch (error) {
@@ -196,9 +205,16 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     })
 
     // Emit failed
-    io?.to(userId.toString()).emit('bulk-import:failed', {
-      message: 'Import failed, please try again'
-    })
+    try {
+      io?.to(userId.toString()).emit('bulk-import:failed', {
+        message: 'Import failed, please try again'
+      })
+    } catch (error) {
+      logger.error(
+        logIcon(LOG_ICONS.ERROR, '[Worker] Failed to emit failure event'),
+        { error: error instanceof Error ? error.message : String(error) }
+      )
+    }
 
     throw error
   }
@@ -310,10 +326,20 @@ const processRecurringSummaryJob = async (job: Job<RecurringJobData>) => {
   // BullMQ Flows cho phép truy cập kết quả của các job con nếu cần,
   // nhưng ở đây ta chỉ cần biết là tất cả đã xong để bắn báo cáo.
 
-  const io = getIO()
-  io.to(userId).emit('recurring-transaction:processed', {
-    message: `The system has processed your recurring transactions.`
-  })
+  try {
+    const io = getIO()
+    io.to(userId).emit('recurring-transaction:processed', {
+      message: `The system has processed your recurring transactions.`
+    })
+  } catch (error) {
+    logger.error(
+      logIcon(
+        LOG_ICONS.ERROR,
+        '[Worker] Failed to emit recurring summary event'
+      ),
+      { error: error instanceof Error ? error.message : String(error) }
+    )
+  }
 
   logger.info(
     logIcon(

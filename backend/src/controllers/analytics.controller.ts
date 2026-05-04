@@ -19,10 +19,32 @@ export const summaryAnalyticsController = asyncHandler(
 
     const { preset, from, to } = req.query
 
+    // Validate date parameters
+    let customFrom: Date | undefined
+    let customTo: Date | undefined
+
+    if (from) {
+      customFrom = new Date(from as string)
+      if (isNaN(customFrom.getTime())) {
+        return res.status(HTTPSTATUS.BAD_REQUEST).json({
+          message: 'Invalid "from" date parameter'
+        })
+      }
+    }
+
+    if (to) {
+      customTo = new Date(to as string)
+      if (isNaN(customTo.getTime())) {
+        return res.status(HTTPSTATUS.BAD_REQUEST).json({
+          message: 'Invalid "to" date parameter'
+        })
+      }
+    }
+
     const filter = {
       dateRangePreset: preset as DateRangePreset,
-      customFrom: from ? new Date(from as string) : undefined,
-      customTo: to ? new Date(to as string) : undefined
+      customFrom,
+      customTo
     }
 
     const stats = await summaryAnalyticsService(
@@ -49,10 +71,32 @@ export const chartAnalyticsController = asyncHandler(
 
     const { preset, from, to } = req.query
 
+    // Validate date parameters
+    let customFrom: Date | undefined
+    let customTo: Date | undefined
+
+    if (from) {
+      customFrom = new Date(from as string)
+      if (isNaN(customFrom.getTime())) {
+        return res.status(HTTPSTATUS.BAD_REQUEST).json({
+          message: 'Invalid "from" date parameter'
+        })
+      }
+    }
+
+    if (to) {
+      customTo = new Date(to as string)
+      if (isNaN(customTo.getTime())) {
+        return res.status(HTTPSTATUS.BAD_REQUEST).json({
+          message: 'Invalid "to" date parameter'
+        })
+      }
+    }
+
     const filter = {
       dateRangePreset: preset as DateRangePreset,
-      customFrom: from ? new Date(from as string) : undefined,
-      customTo: to ? new Date(to as string) : undefined
+      customFrom,
+      customTo
     }
 
     const chartData = await chartAnalyticsService(
@@ -79,10 +123,32 @@ export const expensePieChartBreakdownController = asyncHandler(
 
     const { preset, from, to } = req.query
 
+    // Validate date parameters
+    let customFrom: Date | undefined
+    let customTo: Date | undefined
+
+    if (from) {
+      customFrom = new Date(from as string)
+      if (isNaN(customFrom.getTime())) {
+        return res.status(HTTPSTATUS.BAD_REQUEST).json({
+          message: 'Invalid "from" date parameter'
+        })
+      }
+    }
+
+    if (to) {
+      customTo = new Date(to as string)
+      if (isNaN(customTo.getTime())) {
+        return res.status(HTTPSTATUS.BAD_REQUEST).json({
+          message: 'Invalid "to" date parameter'
+        })
+      }
+    }
+
     const filter = {
       dateRangePreset: preset as DateRangePreset,
-      customFrom: from ? new Date(from as string) : undefined,
-      customTo: to ? new Date(to as string) : undefined
+      customFrom,
+      customTo
     }
 
     const pieChartData = await expensePieChartBreakdownService(
