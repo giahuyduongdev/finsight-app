@@ -62,7 +62,7 @@ const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
           <Button
             variant="outline"
             type="button"
-            onClick={() => setOpen(false)}
+            onClick={() => setIsOpen(false)}
           >
             Cancel
           </Button>

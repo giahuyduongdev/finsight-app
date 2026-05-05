@@ -129,7 +129,8 @@ export const generateWithFallback = async (
           } else if (
             msg.includes('503') ||
             msg.includes('504') ||
-            msg.includes('DEADLINE')
+            msg.includes('DEADLINE') ||
+            msg.includes('UNAVAILABLE')
           ) {
             // Fixed delay for server errors
             await delay(2000)
