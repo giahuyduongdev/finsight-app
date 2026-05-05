@@ -1,25 +1,29 @@
 import crypto from 'crypto'
 import { Env } from '../config/env.config'
+import { promisify } from 'util'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
 const AUTH_TAG_LENGTH = 16
 const SALT_LENGTH = 64
 
+// Promisify pbkdf2 for async usage
+const pbkdf2Async = promisify(crypto.pbkdf2)
+
 /**
  * Encrypt sensitive data before storing in Redis
  * Uses AES-256-GCM for authenticated encryption
  */
-export const encrypt = (text: string): string => {
+export const encrypt = async (text: string): Promise<string> => {
   // Generate a random salt for key derivation
   const salt = crypto.randomBytes(SALT_LENGTH)
 
-  // Derive key from secret using PBKDF2
+  // Derive key from secret using PBKDF2 (async)
   // OWASP recommends 600,000 iterations for PBKDF2-SHA256
   // NOTE: Key derivation depends on JWT_SECRET. Encrypted data becomes
   // unrecoverable if JWT_SECRET rotates. This is acceptable since this
   // utility is only used for short-lived Redis storage (OTP flows).
-  const key = crypto.pbkdf2Sync(
+  const key = await pbkdf2Async(
     Env.JWT_SECRET, // Use existing secret as base
     salt,
     600000, // iterations (OWASP recommendation)
@@ -53,7 +57,7 @@ export const encrypt = (text: string): string => {
 /**
  * Decrypt data from Redis
  */
-export const decrypt = (encryptedData: string): string => {
+export const decrypt = async (encryptedData: string): Promise<string> => {
   // Extract components
   const saltHex = encryptedData.slice(0, SALT_LENGTH * 2)
   const ivHex = encryptedData.slice(
@@ -73,8 +77,8 @@ export const decrypt = (encryptedData: string): string => {
   const iv = Buffer.from(ivHex, 'hex')
   const authTag = Buffer.from(authTagHex, 'hex')
 
-  // Derive key using same parameters
-  const key = crypto.pbkdf2Sync(Env.JWT_SECRET, salt, 600000, 32, 'sha256')
+  // Derive key using same parameters (async)
+  const key = await pbkdf2Async(Env.JWT_SECRET, salt, 600000, 32, 'sha256')
 
   // Create decipher
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)

@@ -136,6 +136,33 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
         attemptsStarted: job.attemptsStarted
       })
 
+      // Persist FAILED report before throwing (for audit trail)
+      const session = await mongoose.startSession()
+      try {
+        await session.withTransaction(
+          async () => {
+            await ReportModel.create(
+              [
+                {
+                  userId,
+                  sentDate: now,
+                  period:
+                    report?.period ||
+                    `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
+                  status: ReportStatusEnum.FAILED,
+                  createdAt: now,
+                  updatedAt: now
+                }
+              ],
+              { session }
+            )
+          },
+          { maxCommitTimeMS: 10000 }
+        )
+      } finally {
+        await session.endSession()
+      }
+
       // Always throw to mark job as failed
       throw error
     }

@@ -19,10 +19,15 @@ const acquireRefreshLock = (): boolean => {
   const lockData = localStorage.getItem(REFRESH_LOCK_KEY)
 
   if (lockData) {
-    const { timestamp } = JSON.parse(lockData)
-    // If lock is expired, we can acquire it
-    if (now - timestamp < REFRESH_LOCK_TIMEOUT) {
-      return false // Lock is held by another tab
+    try {
+      const { timestamp } = JSON.parse(lockData)
+      // If lock is expired, we can acquire it
+      if (now - timestamp < REFRESH_LOCK_TIMEOUT) {
+        return false // Lock is held by another tab
+      }
+    } catch {
+      // Corrupted lock data, clear it and proceed
+      localStorage.removeItem(REFRESH_LOCK_KEY)
     }
   }
 

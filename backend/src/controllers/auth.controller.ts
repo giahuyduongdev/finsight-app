@@ -249,6 +249,16 @@ export const oauthCallbackController = asyncHandler(
       )
       timezone = decoded.timezone || 'UTC'
       csrfTokenFromState = decoded.csrfToken || ''
+
+      // Validate timezone against IANA database
+      if (timezone !== 'UTC') {
+        try {
+          Intl.DateTimeFormat(undefined, { timeZone: timezone })
+        } catch {
+          logger.warn('Invalid timezone received:', { timezone })
+          timezone = 'UTC'
+        }
+      }
     } catch (e) {
       logger.warn('State decoding failed:', e)
       return res.redirect(`${Env.FRONTEND_ORIGIN}/?error=invalid_state`)

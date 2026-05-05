@@ -119,7 +119,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         .filter(Boolean)
         .join('\n')
 
-      return `${prefix} [data-chart=${id}] {\n${rules}\n}`
+      return `${prefix} [data-chart="${id}"] {\n${rules}\n}`
     })
     .join('\n')
 

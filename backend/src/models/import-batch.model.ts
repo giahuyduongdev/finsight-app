@@ -48,4 +48,8 @@ ImportBatchSchema.index(
   }
 )
 
+// Compound index for efficient stale batch queries
+// Used by cleanup cron job to find old PENDING/PROCESSING batches
+ImportBatchSchema.index({ status: 1, updatedAt: 1 })
+
 export default mongoose.model<IImportBatch>('ImportBatch', ImportBatchSchema)

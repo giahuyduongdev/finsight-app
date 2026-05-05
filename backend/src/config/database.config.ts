@@ -61,7 +61,10 @@ class Database {
         connectTimeoutMS: connectTimeout
       })
     } catch (error) {
-      logger.error('Error connecting to MongoDB: ', error)
+      logger.error('Error connecting to MongoDB:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
       process.exit(1)
     }
   }

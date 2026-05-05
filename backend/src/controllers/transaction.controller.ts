@@ -240,6 +240,9 @@ export const bulkTransactionController = asyncHandler(
   }
 )
 
+// Import sharp at module level for better performance
+import sharp from 'sharp'
+
 export const scanReceiptController = asyncHandler(
   async (req: Request, res: Response) => {
     const file = req?.file
@@ -269,12 +272,10 @@ export const scanReceiptController = asyncHandler(
     // [OPTIMIZED] Compress image in controller and send base64 to Redis
     // This provides fast response (~250ms) while keeping Redis payload reasonable (~2.66MB)
     // Trade-off: Redis usage vs response time (optimized for UX)
-    const sharp = await import('sharp')
 
     try {
       // Compress image before sending to queue
-      const compressedBuffer = await sharp
-        .default(file.buffer)
+      const compressedBuffer = await sharp(file.buffer)
         .resize({ width: 1024, withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer()

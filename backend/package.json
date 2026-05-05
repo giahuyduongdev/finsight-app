@@ -11,12 +11,6 @@
     "build": "npm run clean && tsc",
     "start": "cross-env NODE_ENV=production node dist/index.js"
   },
-  "lint-staged": {
-    "src/**/*.{ts,tsx}": [
-      "eslint --fix --max-warnings=0",
-      "tsc --noEmit"
-    ]
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",

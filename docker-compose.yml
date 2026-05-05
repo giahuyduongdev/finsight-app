@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   redis:
-    image: redis:latest
+    image: redis:7.4.2
     container_name: finsight-redis
     ports:
       - '6379:6379'

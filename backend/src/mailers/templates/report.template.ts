@@ -62,7 +62,7 @@ export const getReportEmailTemplate = (
              </tr>
              <tr>
                <td style="padding: 20px 30px;">
-                 <p style="margin: 0 0 10px; font-size: 16px;">Hi <strong>${username}</strong>,</p>
+                 <p style="margin: 0 0 10px; font-size: 16px;">Hi <strong>${escapeHtml(username)}</strong>,</p>
                  <p style="margin: 0 0 20px; font-size: 16px;">Here's your financial summary for <strong>${period}</strong>.</p>
  
                  <table width="100%" style="border-collapse: collapse;">

@@ -13,6 +13,27 @@ import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
 /**
+ * Safely invalidate user analytics cache with error handling
+ */
+async function safeInvalidateUserAnalyticsCache(userId: string): Promise<void> {
+  try {
+    await invalidateUserAnalyticsCache(userId)
+  } catch (cacheError) {
+    const error = cacheError as Error
+    logger.warn(
+      logIcon(
+        LOG_ICONS.WARNING,
+        `[Worker] Cache invalidation failed for user ${userId}`
+      ),
+      {
+        error: error.message
+      }
+    )
+    // Continue - cache invalidation failure is non-critical
+  }
+}
+
+/**
  * Upload image buffer to Cloudinary (permanent storage)
  */
 async function uploadToCloudinary(buffer: Buffer): Promise<UploadApiResponse> {
@@ -165,21 +186,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       })
 
       // Invalidate analytics cache
-      try {
-        await invalidateUserAnalyticsCache(userId)
-      } catch (cacheError) {
-        const error = cacheError as Error
-        logger.warn(
-          logIcon(
-            LOG_ICONS.WARNING,
-            `[Worker] Cache invalidation failed for user ${userId}`
-          ),
-          {
-            error: error.message
-          }
-        )
-        // Continue - cache invalidation failure is non-critical
-      }
+      await safeInvalidateUserAnalyticsCache(userId)
 
       return { success: true, data }
     } else if (imageUrl) {
@@ -228,20 +235,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       })
 
       // Invalidate analytics cache
-      try {
-        await invalidateUserAnalyticsCache(userId)
-      } catch (cacheError) {
-        const error = cacheError as Error
-        logger.warn(
-          logIcon(
-            LOG_ICONS.WARNING,
-            `[Worker] Cache invalidation failed for user ${userId}`
-          ),
-          {
-            error: error.message
-          }
-        )
-      }
+      await safeInvalidateUserAnalyticsCache(userId)
 
       return { success: true, data }
     } else {
@@ -294,9 +288,9 @@ export const receiptWorker = new Worker(
     if (job.name === RECEIPT_JOBS.SCAN_RECEIPT) {
       return await processScanReceiptJob(job as Job<ScanReceiptJobData>)
     } else {
-      logger.warn(
-        logIcon(LOG_ICONS.WARNING, `[Worker] Unknown job name: ${job.name}`)
-      )
+      const errorMsg = `Unknown job name: ${job.name}`
+      logger.error(logIcon(LOG_ICONS.ERROR, `[Worker] ${errorMsg}`))
+      throw new Error(errorMsg)
     }
   },
   {

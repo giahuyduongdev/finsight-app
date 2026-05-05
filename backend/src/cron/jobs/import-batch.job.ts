@@ -13,12 +13,13 @@ export const cleanupStaleImportBatches = async () => {
     )
 
     // Mark batches older than 7 days as FAILED
+    // Use updatedAt to detect stale batches (no progress for 7 days)
     const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 7 days ago
 
     const result = await ImportBatchModel.updateMany(
       {
         status: { $in: ['PENDING', 'PROCESSING'] },
-        createdAt: { $lt: threshold }
+        updatedAt: { $lt: threshold }
       },
       {
         status: 'FAILED',
@@ -39,11 +40,12 @@ export const cleanupStaleImportBatches = async () => {
       )
     }
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error'
     logger.error(
       logIcon(LOG_ICONS.ERROR, '[Cron] Failed to cleanup stale import batches'),
-      { error: errorMessage }
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      }
     )
   }
 }

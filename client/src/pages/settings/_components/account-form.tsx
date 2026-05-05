@@ -196,10 +196,14 @@ export function AccountForm() {
           )}
         />
         <div className="space-y-2">
-          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+          <label
+            htmlFor="email-input"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
             Email Address
           </label>
           <Input
+            id="email-input"
             value={user?.email || ''}
             disabled
             className="bg-muted/50 cursor-not-allowed"

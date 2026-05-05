@@ -12,14 +12,17 @@ const queues = [transactionQueue, receiptQueue, reportQueue]
 export const closeQueues = async () => {
   logger.info(logIcon(LOG_ICONS.STOP, '[BullMQ] Closing the queues...'))
 
-  // 1. Đóng toàn bộ các Queue song song
-  await Promise.all(queues.map((q) => q.close()))
+  try {
+    // 1. Đóng toàn bộ các Queue song song
+    await Promise.all(queues.map((q) => q.close()))
 
-  // 2. Đóng FlowProducer
-  await transactionFlowProducer.close()
-
-  // 3. CHỐT CHẶN CUỐI CÙNG: Ngắt kết nối Redis của toàn bộ hệ thống BullMQ
-  await bullMQConnection.quit()
+    // 2. Đóng FlowProducer
+    await transactionFlowProducer.close()
+  } finally {
+    // 3. CHỐT CHẶN CUỐI CÙNG: Ngắt kết nối Redis của toàn bộ hệ thống BullMQ
+    // Ensure this runs even if queue/producer close fails
+    await bullMQConnection.quit()
+  }
 
   logger.info(
     logIcon(

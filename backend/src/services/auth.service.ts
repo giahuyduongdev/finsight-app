@@ -840,7 +840,7 @@ export const changePasswordRequestService = async (
   const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
 
   // 5. Lưu vào Redis - MÃ HÓA mật khẩu mới trước khi lưu
-  const encryptedPassword = encrypt(newPassword)
+  const encryptedPassword = await encrypt(newPassword)
 
   await redis
     .pipeline()
@@ -940,7 +940,22 @@ export const verifyChangePasswordOTPService = async (
     )
   }
 
-  const newPassword = decrypt(encryptedPassword)
+  let newPassword: string
+  try {
+    newPassword = await decrypt(encryptedPassword)
+  } catch {
+    // Decryption failed - clear session and force restart
+    await Promise.all([
+      redis.del(REDIS_KEYS.changePasswordOtp(email)),
+      redis.del(REDIS_KEYS.changePasswordPending(email)),
+      redis.del(REDIS_KEYS.changePasswordResend(email)),
+      redis.del(attemptsKey)
+    ])
+    throw new BadRequestException(
+      'Session data corrupted. Please start over.',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
 
   // 6. Cập nhật Database
   user.password = newPassword

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { asyncLocalStorage } from '../utils/asyncContext'
+import { getUserId } from '../utils/getUserId.util'
 
 /**
  * Request context middleware
@@ -15,7 +16,7 @@ export const requestContextMiddleware = (
   const context = {
     correlationId: req.correlationId,
     get userId() {
-      return req.user?.id
+      return getUserId(req)
     },
     method: req.method,
     path: req.path,

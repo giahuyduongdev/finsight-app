@@ -38,7 +38,27 @@ export const redactSensitiveFields = (
   }
 
   // Only recurse into plain objects, preserve special objects (Date, Error, etc.)
-  if (!isPlainObject(obj) || obj instanceof Date || obj instanceof Error) {
+  if (!isPlainObject(obj)) {
+    // Special handling for Error objects - redact own properties
+    if (obj instanceof Error) {
+      const redactedError: Record<string, unknown> = {
+        name: obj.name,
+        message: obj.message,
+        stack: obj.stack
+      }
+      // Redact any additional own properties on the Error object
+      for (const key of Object.getOwnPropertyNames(obj)) {
+        if (key !== 'name' && key !== 'message' && key !== 'stack') {
+          const value = (obj as unknown as Record<string, unknown>)[key]
+          if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
+            redactedError[key] = '[REDACTED]'
+          } else {
+            redactedError[key] = redactSensitiveFields(value, seen)
+          }
+        }
+      }
+      return redactedError
+    }
     return obj
   }
 
