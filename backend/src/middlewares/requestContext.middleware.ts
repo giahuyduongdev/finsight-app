@@ -14,7 +14,9 @@ export const requestContextMiddleware = (
   // Create context object with request metadata
   const context = {
     correlationId: req.correlationId,
-    userId: req.user?.id,
+    get userId() {
+      return req.user?.id
+    },
     method: req.method,
     path: req.path,
     startTime: Date.now()
@@ -22,12 +24,6 @@ export const requestContextMiddleware = (
 
   // Run the rest of the request handling within this context
   asyncLocalStorage.run(context, () => {
-    // Track response finish event to calculate duration
-    res.on('finish', () => {
-      // Duration is available for logging in other parts of the application
-      // const duration = Date.now() - context.startTime!
-    })
-
     next()
   })
 }

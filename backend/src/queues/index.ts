@@ -6,7 +6,6 @@ import { transactionQueue } from './transaction.queue'
 import { receiptQueue } from './receipt.queue'
 import { reportQueue } from './report.queue'
 import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
-// import { reportQueue } from './report.queue'
 
 const queues = [transactionQueue, receiptQueue, reportQueue]
 

@@ -78,9 +78,29 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
   // Sanitize CSS values to prevent injection
   const sanitizeColor = (color: string): string => {
-    // Only allow hex colors, rgb/rgba, hsl/hsla, and CSS color names
-    const colorRegex = /^(#[0-9A-Fa-f]{3,8}|rgb\(|rgba\(|hsl\(|hsla\(|[a-z]+)$/i
-    return colorRegex.test(color.trim()) ? color.trim() : 'transparent'
+    const trimmed = color.trim()
+    // Validate complete color values with anchored patterns
+    const hexRegex = /^#[0-9A-Fa-f]{3,8}$/
+    const rgbRegex = /^rgba?\(\s*[\d.%\s,/]+\s*\)$/
+    const hslRegex = /^hsla?\(\s*[\d.%\s,/deg]+\s*\)$/
+    const oklchRegex = /^oklch\(\s*[\d.%\s,/]+\s*\)$/
+    const namedColorRegex = /^[a-z]+$/i
+
+    if (
+      hexRegex.test(trimmed) ||
+      rgbRegex.test(trimmed) ||
+      hslRegex.test(trimmed) ||
+      oklchRegex.test(trimmed) ||
+      namedColorRegex.test(trimmed)
+    ) {
+      return trimmed
+    }
+    return 'transparent'
+  }
+
+  // Sanitize CSS variable names
+  const sanitizeKey = (key: string): string => {
+    return /^[a-zA-Z0-9-]+$/.test(key) ? key : 'invalid'
   }
 
   // Build CSS safely without dangerouslySetInnerHTML
@@ -93,7 +113,8 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
             itemConfig.color
           if (!color) return null
           const sanitizedColor = sanitizeColor(color)
-          return `  --color-${key}: ${sanitizedColor};`
+          const sanitizedKey = sanitizeKey(key)
+          return `  --color-${sanitizedKey}: ${sanitizedColor};`
         })
         .filter(Boolean)
         .join('\n')

@@ -29,8 +29,7 @@ export const protectedRoutePaths = [
     path: PROTECTED_ROUTES.SETTINGS,
     element: <Settings />,
     children: [
-      { index: true, element: <Account /> }, // Default route
-      { path: PROTECTED_ROUTES.SETTINGS, element: <Account /> },
+      { index: true, element: <Account /> },
       { path: PROTECTED_ROUTES.SETTINGS_APPEARANCE, element: <Appearance /> },
       { path: PROTECTED_ROUTES.SETTINGS_BILLING, element: <Billing /> },
       { path: PROTECTED_ROUTES.SETTINGS_SECURITY, element: <Security /> }

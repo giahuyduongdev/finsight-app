@@ -7,7 +7,12 @@ export const correlationIdMiddleware = (
   next: NextFunction
 ): void => {
   // Extract from header or generate new UUID
-  const correlationId = (req.headers['x-correlation-id'] as string) || uuidv4()
+  const rawHeader = req.headers['x-correlation-id']
+  const candidate = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader
+  const correlationId =
+    candidate && /^[A-Za-z0-9._-]{1,128}$/.test(candidate)
+      ? candidate
+      : uuidv4()
 
   // Attach to request for downstream use
   req.correlationId = correlationId

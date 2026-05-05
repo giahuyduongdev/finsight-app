@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
+import { logger } from '../config/logger.config'
 import {
   bulkDeleteTransactionSchema,
   bulkTransactionSchema,
@@ -295,9 +296,9 @@ export const scanReceiptController = asyncHandler(
       })
     } catch (error) {
       const err = error as Error
+      logger.error('Failed to process receipt image', { error: err })
       return res.status(HTTPSTATUS.INTERNAL_SERVER_ERROR).json({
-        message: 'Failed to process image',
-        error: err.message
+        message: 'Internal server error'
       })
     }
   }

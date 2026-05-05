@@ -49,14 +49,12 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const email = user.email
   const username = user.name || (email ? email.split('@')[0] : 'User')
 
-  let forceFailed = false
-
   // Validate email before proceeding
   if (!email) {
     logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] User email not found'), {
       userId
     })
-    forceFailed = true
+    throw new Error(`User email not found for userId: ${userId}`)
   }
 
   // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
@@ -93,16 +91,13 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const to = fromZonedTime(toInTz, timezone)
 
   // 1. Generate báo cáo
-  let report: Awaited<ReturnType<typeof generateReportService>> | null = null
-  if (!forceFailed) {
-    report = await generateReportService(
-      userId,
-      from,
-      to,
-      timezone,
-      preferredCurrency
-    )
-  }
+  const report = await generateReportService(
+    userId,
+    from,
+    to,
+    timezone,
+    preferredCurrency
+  )
 
   logger.debug('[Worker] Report data generated', {
     userId,
@@ -141,11 +136,8 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
         attemptsStarted: job.attemptsStarted
       })
 
-      const maxAttempts = job.opts?.attempts ?? 1
-      // Use attemptsStarted to avoid off-by-one error
-      if (job.attemptsStarted < maxAttempts) {
-        throw error // Re-throw to trigger BullMQ retry
-      }
+      // Always throw to mark job as failed
+      throw error
     }
   }
 
@@ -168,7 +160,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
                 `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
               status: isSuccess
                 ? ReportStatusEnum.SENT
-                : report || forceFailed
+                : report
                   ? ReportStatusEnum.FAILED
                   : ReportStatusEnum.NO_ACTIVITY,
               createdAt: now,

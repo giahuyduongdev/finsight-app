@@ -159,6 +159,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 
     await importBatchModel.findByIdAndUpdate(importBatchId, {
       status: 'COMPLETED',
+      terminalAt: new Date(), // Set terminal timestamp for TTL
       processedCount: totalProcessed,
       rejectedCount: rejectedCount,
       $unset: { transactions: 1 }
@@ -200,6 +201,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
   } catch (error) {
     await importBatchModel.findByIdAndUpdate(importBatchId, {
       status: 'FAILED',
+      terminalAt: new Date(), // Set terminal timestamp for TTL
       processedCount: totalProcessed,
       rejectedCount: rejectedCount
     })
@@ -363,9 +365,10 @@ export const transactionWorker = new Worker(
       case TRANSACTION_JOBS.RECURRING_SUMMARY:
         return await processRecurringSummaryJob(job as Job<RecurringJobData>)
       default:
-        logger.warn(
-          logIcon(LOG_ICONS.WARNING, `[Worker] Unknown job name: ${job.name}`)
+        logger.error(
+          logIcon(LOG_ICONS.ERROR, `[Worker] Unknown job name: ${job.name}`)
         )
+        throw new Error(`Unknown job name: ${job.name}`)
     }
   },
   {

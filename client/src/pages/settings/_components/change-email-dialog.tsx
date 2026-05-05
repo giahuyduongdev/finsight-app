@@ -122,7 +122,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
-          aria-label={`OTP digits ${i * 2 + 1} and ${i * 2 + 2} of 6`}
+          aria-label={`OTP digit ${i + 1} of 6`}
           className="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-input bg-background
             focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed

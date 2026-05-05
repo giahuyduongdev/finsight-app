@@ -5,6 +5,7 @@ export interface IImportBatch extends Document {
   userId: mongoose.Types.ObjectId
   transactions: Partial<TransactionDocument>[] // Lưu mảng các giao dịch vào đây
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  terminalAt?: Date // Timestamp when batch reached terminal state (COMPLETED/FAILED)
   totalItems: number
   processedCount: number
   rejectedCount: number
@@ -22,6 +23,7 @@ const ImportBatchSchema = new Schema<IImportBatch>(
       enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
       default: 'PENDING'
     },
+    terminalAt: { type: Date }, // Set when status becomes COMPLETED or FAILED
     totalItems: { type: Number, required: true },
     processedCount: { type: Number, default: 0, min: 0 },
     rejectedCount: { type: Number, default: 0, min: 0 }
@@ -33,12 +35,13 @@ const ImportBatchSchema = new Schema<IImportBatch>(
   }
 )
 
-// TTL: Tự xóa document sau 24 giờ CHỈ KHI đã hoàn thành hoặc thất bại
-// Partial filter đảm bảo không xóa batch đang PENDING hoặc PROCESSING
+// TTL: Tự xóa document sau 24 giờ KỂ TỪ KHI hoàn thành hoặc thất bại
+// Dùng terminalAt thay vì createdAt để đảm bảo batch xử lý lâu không bị xóa sớm
+// Partial filter đảm bảo chỉ xóa batch đã hoàn thành
 ImportBatchSchema.index(
-  { createdAt: 1 },
+  { terminalAt: 1 },
   {
-    expireAfterSeconds: 86400,
+    expireAfterSeconds: 86400, // 24 hours after terminal state
     partialFilterExpression: {
       status: { $in: ['COMPLETED', 'FAILED'] }
     }

@@ -741,12 +741,21 @@ export const oauthCallbackService = async (
     const profileController = new AbortController()
     const profileTimeout = setTimeout(() => profileController.abort(), 10000) // 10s timeout
 
-    const profile = (await fetch(`https://${Env.AUTH0_DOMAIN}/userinfo`, {
-      headers: { Authorization: `Bearer ${access_token}` },
-      signal: profileController.signal
-    }).then((r) => r.json())) as Auth0Profile
+    const profileResponse = await fetch(
+      `https://${Env.AUTH0_DOMAIN}/userinfo`,
+      {
+        headers: { Authorization: `Bearer ${access_token}` },
+        signal: profileController.signal
+      }
+    )
 
     clearTimeout(profileTimeout)
+
+    if (!profileResponse.ok) {
+      throw new BadRequestException('Failed to fetch user profile from Auth0')
+    }
+
+    const profile = (await profileResponse.json()) as Auth0Profile
 
     // 3. Tìm/Tạo/Liên kết user
     let user = await UserModel.findOne({ auth0Ids: profile.sub })

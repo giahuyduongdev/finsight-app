@@ -2,6 +2,14 @@ import { ReportType } from '../../@types/report.type'
 import { formatCurrency } from '../../utils/format-currency.util'
 import { capitalizeFirstLetter } from '../../utils/string.util'
 
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
 export const getReportEmailTemplate = (
   reportData: ReportType & { username: string },
   frequency: string
@@ -23,14 +31,14 @@ export const getReportEmailTemplate = (
   const categoryList = topSpendingCategories
     .map(
       (cat: { name: string; percent: number }) => `<li>
-      ${cat.name} - ${cat.percent}%
+      ${escapeHtml(cat.name)} - ${cat.percent}%
       </li>
     `
     )
     .join('')
 
   const insightsList = insights
-    .map((insight: string) => `<li>${insight}</li>`)
+    .map((insight: string) => `<li>${escapeHtml(insight)}</li>`)
     .join('')
 
   const currentYear = new Date().getFullYear()

@@ -34,8 +34,8 @@ export async function invalidateUserAnalyticsCache(
         draining = draining
           .then(async () => {
             if (keys.length > 0) {
-              // Non-blocking unlink for the current chunk (use array form)
-              await redis.unlink(keys)
+              // Non-blocking unlink for the current chunk (use spread operator)
+              await redis.unlink(...keys)
               totalDeleted += keys.length
             }
           })

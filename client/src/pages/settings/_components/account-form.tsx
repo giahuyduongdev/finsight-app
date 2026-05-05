@@ -152,7 +152,12 @@ export function AccountForm() {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="flex flex-col items-start space-y-4">
-          <FormLabel htmlFor={avatarInputId}>Profile Picture</FormLabel>
+          <label
+            htmlFor={avatarInputId}
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Profile Picture
+          </label>
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
               <AvatarImage
@@ -191,7 +196,9 @@ export function AccountForm() {
           )}
         />
         <div className="space-y-2">
-          <FormLabel>Email Address</FormLabel>
+          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            Email Address
+          </label>
           <Input
             value={user?.email || ''}
             disabled

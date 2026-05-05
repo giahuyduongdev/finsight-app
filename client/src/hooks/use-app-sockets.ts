@@ -127,12 +127,16 @@ export const useAppSockets = () => {
     socket.on('transaction:bulk-deleted', ({ ids }: { ids: string[] }) => {
       console.log('🗑️ [Sync] Bulk Deleted:', ids.length)
       updateAllTransactionQueries((draft) => {
-        const initialCount = draft.transactions.length
         draft.transactions = draft.transactions.filter(
           (t) => !ids.includes(t._id)
         )
-        const deletedCountProps = initialCount - draft.transactions.length
-        if (draft.pagination) draft.pagination.totalCount -= deletedCountProps
+        // Use actual deletion count (ids.length) instead of page-only count
+        if (draft.pagination) {
+          draft.pagination.totalCount = Math.max(
+            0,
+            (draft.pagination.totalCount ?? 0) - ids.length
+          )
+        }
       })
       dispatch(apiClient.util.invalidateTags(['analytics']))
     })

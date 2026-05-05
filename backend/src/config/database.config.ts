@@ -28,7 +28,7 @@ class Database {
 
     mongoose.connection.on('reconnected', () => {
       logger.info(
-        logIcon(LOG_ICONS.WARNING, '[MongoDB] Reconnected successfully!')
+        logIcon(LOG_ICONS.SUCCESS, '[MongoDB] Reconnected successfully!')
       )
     })
 
@@ -53,16 +53,6 @@ class Database {
         Number(Env.MONGO_SERVER_SELECTION_TIMEOUT) || 5000
       const socketTimeout = Number(Env.MONGO_SOCKET_TIMEOUT) || 45000
       const connectTimeout = Number(Env.MONGO_CONNECT_TIMEOUT) || 10000
-
-      // Validate that parsed values are valid numbers
-      if (
-        !Number.isFinite(maxPoolSize) ||
-        !Number.isFinite(serverSelectionTimeout) ||
-        !Number.isFinite(socketTimeout) ||
-        !Number.isFinite(connectTimeout)
-      ) {
-        throw new Error('Invalid MongoDB configuration values')
-      }
 
       await mongoose.connect(Env.MONGO_URI, {
         maxPoolSize,

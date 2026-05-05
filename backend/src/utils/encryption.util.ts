@@ -16,6 +16,9 @@ export const encrypt = (text: string): string => {
 
   // Derive key from secret using PBKDF2
   // OWASP recommends 600,000 iterations for PBKDF2-SHA256
+  // NOTE: Key derivation depends on JWT_SECRET. Encrypted data becomes
+  // unrecoverable if JWT_SECRET rotates. This is acceptable since this
+  // utility is only used for short-lived Redis storage (OTP flows).
   const key = crypto.pbkdf2Sync(
     Env.JWT_SECRET, // Use existing secret as base
     salt,

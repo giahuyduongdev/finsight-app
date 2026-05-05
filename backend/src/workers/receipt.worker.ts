@@ -117,24 +117,38 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       base64ForAI = fileBuffer
 
       // [OPTIMIZED] Upload to Cloudinary and process AI in parallel
-      const [uploadResult, geminiResult] = await Promise.all([
+      const [uploadResult, geminiResult] = await Promise.allSettled([
         uploadToCloudinary(imageBuffer), // ~600ms
         extractReceiptData(base64ForAI) // ~2000ms (bottleneck)
       ])
 
-      finalImageUrl = uploadResult.secure_url
+      // Persist upload result first, even if Gemini fails
+      if (uploadResult.status === 'fulfilled') {
+        finalImageUrl = uploadResult.value.secure_url
 
-      // [CLEANUP] Update job data: Replace base64 with URL to free Redis memory
-      await job.updateData({
-        userId,
-        imageUrl: uploadResult.secure_url,
-        fileBuffer: undefined, // Clear base64 from Redis
-        fileName,
-        fileSize
-      })
+        // [CLEANUP] Update job data: Replace base64 with URL to free Redis memory
+        await job.updateData({
+          userId,
+          imageUrl: uploadResult.value.secure_url,
+          fileBuffer: undefined, // Clear base64 from Redis
+          fileName,
+          fileSize
+        })
+      } else {
+        throw new Error(
+          `Cloudinary upload failed: ${uploadResult.reason?.message || 'Unknown error'}`
+        )
+      }
+
+      // Now validate Gemini response
+      if (geminiResult.status === 'rejected') {
+        throw new Error(
+          `Gemini extraction failed: ${geminiResult.reason?.message || 'Unknown error'}`
+        )
+      }
 
       // Process and validate Gemini response
-      const responseText = geminiResult.text
+      const responseText = geminiResult.value.text
       if (!responseText) {
         throw new Error('Could not read receipt content from Gemini')
       }
@@ -178,8 +192,13 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
         )
       )
 
-      // Fetch image from Cloudinary
-      const response = await fetch(imageUrl)
+      // Fetch image from Cloudinary with timeout
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000) // 10s timeout
+
+      const response = await fetch(imageUrl, { signal: controller.signal })
+      clearTimeout(timeout)
+
       if (!response.ok) {
         throw new Error(
           `Failed to fetch image from Cloudinary: ${response.statusText}`

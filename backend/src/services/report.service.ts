@@ -153,46 +153,43 @@ export const generateReportService = async (
     total: number
   }
 
-  // Convert từng currency về preferredCurrency - PARALLEL để tránh N+1 latency
-  const conversionPromises = summary.map(async (item: SummaryItem) => {
-    const fromCurrency = item._id || 'USD'
-    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
-    return {
-      income: item.totalIncome * rate,
-      expenses: item.totalExpenses * rate
-    }
+  // Collect unique currencies
+  const uniqueCurrencies = new Set<string>()
+  summary.forEach((item: SummaryItem) => {
+    uniqueCurrencies.add(item._id || 'USD')
+  })
+  categories.forEach((item: CategoryItem) => {
+    uniqueCurrencies.add(item._id.currency || 'USD')
   })
 
-  const conversions = await Promise.all(conversionPromises)
+  // Fetch rates once per unique currency
+  const ratePromises = Array.from(uniqueCurrencies).map(async (currency) => ({
+    currency,
+    rate: await getExchangeRate(currency, preferredCurrency)
+  }))
+  const rates = await Promise.all(ratePromises)
+  const rateMap = new Map(rates.map((r) => [r.currency, r.rate]))
 
+  // Convert summary using rate map
   let convertedIncome = 0
   let convertedExpenses = 0
 
-  conversions.forEach((conv) => {
-    convertedIncome += conv.income
-    convertedExpenses += conv.expenses
+  summary.forEach((item: SummaryItem) => {
+    const fromCurrency = item._id || 'USD'
+    const rate = rateMap.get(fromCurrency) || 1
+    convertedIncome += item.totalIncome * rate
+    convertedExpenses += item.totalExpenses * rate
   })
 
   if (convertedIncome === 0 && convertedExpenses === 0) return null
 
-  // Convert categories theo currency - PARALLEL
-  const categoryConversionPromises = categories.map(
-    async (item: CategoryItem) => {
-      const { category, currency } = item._id
-      const fromCurrency = currency || 'USD'
-      const rate = await getExchangeRate(fromCurrency, preferredCurrency)
-      return {
-        category,
-        convertedTotal: item.total * rate
-      }
-    }
-  )
-
-  const categoryConversions = await Promise.all(categoryConversionPromises)
-
-  // Aggregate categories
+  // Convert categories using rate map
   const categoryMap: Record<string, number> = {}
-  categoryConversions.forEach(({ category, convertedTotal }) => {
+  categories.forEach((item: CategoryItem) => {
+    const { category, currency } = item._id
+    const fromCurrency = currency || 'USD'
+    const rate = rateMap.get(fromCurrency) || 1
+    const convertedTotal = item.total * rate
     categoryMap[category] = (categoryMap[category] || 0) + convertedTotal
   })
 

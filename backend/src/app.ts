@@ -50,12 +50,12 @@ app.set('trust proxy', 1)
 app.use(rateLimiter)
 
 if (Env.NODE_ENV === 'development') {
-  // Protect Bull Board with JWT authentication
-  app.use('/admin/queues', passportAuthenticateJwt, setupBullBoard())
+  // Bull Board - No auth in development for easy access
+  app.use('/admin/queues', setupBullBoard())
   logger.info(
     logIcon(
       LOG_ICONS.TARGET,
-      `Bull Board: http://localhost:${Env.PORT}/admin/queues (Protected)`
+      `Bull Board: http://localhost:${Env.PORT}/admin/queues`
     )
   )
 }

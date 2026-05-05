@@ -4,7 +4,7 @@ import { Types } from 'mongoose'
 declare global {
   namespace Express {
     interface User extends UserDocument {
-      _id?: Types.ObjectId
+      _id?: Types.ObjectId | string
       timezone?: string
       preferredCurrency?: string
       role?: string

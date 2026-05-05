@@ -1,6 +1,7 @@
 import cron from 'node-cron'
 import { processRecurringTransactions } from './jobs/transaction.job'
 import { processReportJob } from './jobs/report.job'
+import { cleanupStaleImportBatches } from './jobs/import-batch.job'
 import RefreshTokenModel from '../models/refresh-token.model'
 import { logger } from '../config/logger.config'
 import { redis } from '../config/redis.config'
@@ -50,6 +51,13 @@ export const startJobs = () => {
         logIcon(LOG_ICONS.DELETE, '[Refresh Token] Cleaned up expired tokens')
       )
     }),
+
+    // Chạy 01:00 mỗi ngày - Cleanup stale import batches
+    scheduleJob(
+      'Cleanup Stale Import Batches',
+      '0 1 * * *',
+      cleanupStaleImportBatches
+    ),
 
     scheduleJob('Redis Cleanup', '0 3 * * *', async () => {
       // Xóa analytics cache mồ côi (không có TTL)

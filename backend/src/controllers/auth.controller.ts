@@ -258,8 +258,9 @@ export const oauthCallbackController = asyncHandler(
     const csrfTokenFromCookie = req.cookies?.oauth_csrf
     if (!csrfTokenFromCookie || csrfTokenFromCookie !== csrfTokenFromState) {
       logger.warn('CSRF token mismatch', {
-        cookie: csrfTokenFromCookie,
-        state: csrfTokenFromState
+        hasCookieToken: !!csrfTokenFromCookie,
+        hasStateToken: !!csrfTokenFromState,
+        tokensMatch: csrfTokenFromCookie === csrfTokenFromState
       })
       return res.redirect(
         `${Env.FRONTEND_ORIGIN}/?error=csrf_validation_failed`
