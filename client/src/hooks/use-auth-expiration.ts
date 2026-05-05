@@ -16,24 +16,37 @@ const REFRESH_LOCK_TIMEOUT = 5000 // 5 seconds
 // Helper to acquire refresh lock (only one tab can refresh at a time)
 const acquireRefreshLock = (): boolean => {
   const now = Date.now()
-  const lockData = localStorage.getItem(REFRESH_LOCK_KEY)
+  const tabId = `${Date.now()}-${Math.random()}`
 
-  if (lockData) {
-    try {
+  try {
+    const lockData = localStorage.getItem(REFRESH_LOCK_KEY)
+
+    if (lockData) {
       const { timestamp } = JSON.parse(lockData)
       // If lock is expired, we can acquire it
       if (now - timestamp < REFRESH_LOCK_TIMEOUT) {
         return false // Lock is held by another tab
       }
-    } catch {
-      // Corrupted lock data, clear it and proceed
-      localStorage.removeItem(REFRESH_LOCK_KEY)
     }
-  }
 
-  // Acquire lock
-  localStorage.setItem(REFRESH_LOCK_KEY, JSON.stringify({ timestamp: now }))
-  return true
+    // Acquire lock with ownership tracking
+    localStorage.setItem(
+      REFRESH_LOCK_KEY,
+      JSON.stringify({ timestamp: now, owner: tabId })
+    )
+
+    // Verify we actually got the lock (prevent TOCTOU)
+    const verifyLock = localStorage.getItem(REFRESH_LOCK_KEY)
+    if (verifyLock) {
+      const { owner } = JSON.parse(verifyLock)
+      return owner === tabId
+    }
+
+    return false
+  } catch {
+    // If localStorage fails, allow this tab to proceed
+    return true
+  }
 }
 
 // Helper to release refresh lock
@@ -42,8 +55,8 @@ const releaseRefreshLock = () => {
 }
 
 const useAuthExpiration = () => {
-  // 2. LẤY THÊM isInitialized TỪ REDUX
-  const { accessToken, expiresAt, isInitialized } = useTypedSelector(
+  // 2. LẤY THÊM isInitialized VÀ user TỪ REDUX
+  const { accessToken, expiresAt, isInitialized, user } = useTypedSelector(
     (state) => state.auth
   )
   const dispatch = useAppDispatch()
@@ -83,7 +96,8 @@ const useAuthExpiration = () => {
   // ----------------------------------------------------------------------
   useEffect(() => {
     // Trường hợp 1: Mất token (F5) và chưa thử lấy lại
-    if (!accessToken && !hasAttemptedRefresh.current) {
+    // QUAN TRỌNG: Chỉ refresh nếu có user data (đã đăng nhập trước đó)
+    if (!accessToken && !hasAttemptedRefresh.current && user) {
       hasAttemptedRefresh.current = true
 
       // Try to acquire lock before refreshing
@@ -128,11 +142,15 @@ const useAuthExpiration = () => {
     else if (accessToken && !isInitialized) {
       dispatch(setInitialized())
     }
-    // Trường hợp 3: Vô tình kẹt lại (Đã thử refresh, không có token, nhưng quên bật cờ)
+    // Trường hợp 3: Không có token và không có user → Chưa đăng nhập
+    else if (!accessToken && !user && !isInitialized) {
+      dispatch(setInitialized())
+    }
+    // Trường hợp 4: Vô tình kẹt lại (Đã thử refresh, không có token, nhưng quên bật cờ)
     else if (!accessToken && hasAttemptedRefresh.current && !isInitialized) {
       dispatch(setInitialized())
     }
-  }, [accessToken, isInitialized, dispatch, refreshToken]) // Nhớ thêm isInitialized vào dependency
+  }, [accessToken, isInitialized, user, dispatch, refreshToken]) // Thêm user vào dependency
 
   // ----------------------------------------------------------------------
   // EFFECT 2: PROACTIVE REFRESH (Làm mới token tự động trước khi hết hạn)
