@@ -3,7 +3,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { ScanText } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
-import { AIScanReceiptData } from '@/features/transaction/transationType'
+import { AIScanReceiptData } from '@/features/transaction/transactionType'
 import { toast } from 'sonner'
 import { useProgressLoader } from '@/hooks/use-progress-loader'
 import { useAiScanReceiptMutation } from '@/features/transaction/transactionAPI'
@@ -194,7 +194,8 @@ const ReceiptScanner = ({
     stopProgressSimulation()
     intervalRef.current = setInterval(() => {
       // Slow down as we get closer to 90
-      const increment = currentProgress < 70 ? 5 : currentProgress < 85 ? 1 : 0.5
+      const increment =
+        currentProgress < 70 ? 5 : currentProgress < 85 ? 1 : 0.5
       currentProgress = Math.min(currentProgress + increment, 90)
       updateProgress(Math.floor(currentProgress))
     }, 500) // Slightly slower interval to reduce rerenders
@@ -209,7 +210,9 @@ const ReceiptScanner = ({
           // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
           stopSafetyTimeout()
           timeoutRef.current = setTimeout(() => {
-            toast.error('Processing timed out. Please check your internet or try again.')
+            toast.error(
+              'Processing timed out. Please check your internet or try again.'
+            )
             resetState()
           }, 60000) // 60 seconds
         } else if (res.data) {

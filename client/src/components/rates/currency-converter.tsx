@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ArrowRightLeft, RefreshCw } from 'lucide-react'
 import CurrencyInput from 'react-currency-input-field'
-import { CurrencyEnum } from '@/constant/currency.enum'
+import { CurrencyEnum } from '@/shared/types/currency.enum'
 import { CURRENCY_SYMBOLS } from '@/constant'
 import {
   formatCurrency,

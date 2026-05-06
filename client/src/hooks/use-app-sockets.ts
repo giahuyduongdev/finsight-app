@@ -8,7 +8,7 @@ import {
   TransactionType,
   GetAllTransactionResponse,
   GetAllTransactionParams
-} from '@/features/transaction/transationType'
+} from '@/features/transaction/transactionType'
 import { AppDispatch, RootState } from '@/app/store'
 
 // --- Socket Payloads ---

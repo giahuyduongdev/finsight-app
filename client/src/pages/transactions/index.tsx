@@ -1,8 +1,8 @@
 import { Card, CardContent } from '@/components/ui/card'
 import PageLayout from '@/components/page-layout'
-import AddTransactionDrawer from '@/components/transaction/add-transaction-drawer'
-import TransactionTable from '@/components/transaction/transaction-table'
-import ImportTransactionModal from '@/components/transaction/import-transaction-modal'
+import AddTransactionDrawer from '@/features/transaction/components/add-transaction-drawer'
+import TransactionTable from '@/features/transaction/components/transaction-table'
+import ImportTransactionModal from '@/features/transaction/components/import-transaction-modal'
 
 export default function Transactions() {
   return (

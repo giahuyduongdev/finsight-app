@@ -8,7 +8,7 @@ import {
   GetChildTransactionsResponse,
   GetSingleTransactionResponse,
   UpdateTransactionPayload
-} from './transationType'
+} from './transactionType'
 
 export const transactionApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
@@ -120,7 +120,10 @@ export const transactionApi = apiClient.injectEndpoints({
       invalidatesTags: ['transactions', 'analytics']
     }),
 
-    getChildTransactions: builder.query<GetChildTransactionsResponse, { id: string; pageNumber: number; pageSize?: number }>({
+    getChildTransactions: builder.query<
+      GetChildTransactionsResponse,
+      { id: string; pageNumber: number; pageSize?: number }
+    >({
       query: ({ id, pageNumber, pageSize = 10 }) => ({
         url: `/transaction/${id}/children`,
         method: 'GET',

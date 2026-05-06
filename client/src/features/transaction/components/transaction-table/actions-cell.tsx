@@ -15,7 +15,7 @@ import {
   useDuplicateTransactionMutation
 } from '@/features/transaction/transactionAPI'
 import { toast } from 'sonner'
-import { TransactionType } from '@/features/transaction/transationType'
+import { TransactionType } from '@/features/transaction/transactionType'
 import { Row } from '@tanstack/react-table'
 
 // Định nghĩa kiểu mở rộng để tránh lỗi ESLint "any" cho các biến ảo/biến mới

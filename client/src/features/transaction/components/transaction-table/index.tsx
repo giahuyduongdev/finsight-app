@@ -25,7 +25,7 @@ import {
   Row,
   SortingFn // Import thêm type này
 } from '@tanstack/react-table'
-import { TransactionType } from '@/features/transaction/transationType'
+import { TransactionType } from '@/features/transaction/transactionType'
 
 type FilterType = {
   type?: _TransactionType | undefined
@@ -40,7 +40,7 @@ type FilterType = {
   timezone?: string | undefined
 }
 
-import { GetChildTransactionsResponse } from '@/features/transaction/transationType'
+import { GetChildTransactionsResponse } from '@/features/transaction/transactionType'
 
 type ChildrenMapType = Record<string, GetChildTransactionsResponse>
 

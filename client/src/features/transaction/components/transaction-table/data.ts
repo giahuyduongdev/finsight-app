@@ -5,7 +5,7 @@ import {
   _TRANSACTION_STATUS,
   CURRENCY_ENUM
 } from '@/constant'
-import { TransactionType } from '@/features/transaction/transationType'
+import { TransactionType } from '@/features/transaction/transactionType'
 
 export const TRANSACTION_DATA: TransactionType[] = [
   {

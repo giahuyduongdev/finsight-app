@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { ColumnDef } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { TransactionType } from '@/features/transaction/transationType'
+import { TransactionType } from '@/features/transaction/transactionType'
 import {
   _TRANSACTION_FREQUENCY,
   _TRANSACTION_TYPE,
@@ -172,7 +172,8 @@ export const createTransactionColumns = (
       </Button>
     ),
     cell: ({ row }) => {
-      if (row.original._rowType === 'load-more') return <div className="w-[85px]" />
+      if (row.original._rowType === 'load-more')
+        return <div className="w-[85px]" />
       return (
         <div className="w-[85px] capitalize truncate text-[13px]">
           {row.original.category}
@@ -193,7 +194,8 @@ export const createTransactionColumns = (
       </Button>
     ),
     cell: ({ row }) => {
-      if (row.original._rowType === 'load-more') return <div className="w-[70px]" />
+      if (row.original._rowType === 'load-more')
+        return <div className="w-[70px]" />
       return (
         <div className="w-[70px] capitalize">
           <span
@@ -218,7 +220,8 @@ export const createTransactionColumns = (
       </div>
     ),
     cell: ({ row }) => {
-      if (row.original._rowType === 'load-more') return <div className="min-w-[70px]" />
+      if (row.original._rowType === 'load-more')
+        return <div className="min-w-[70px]" />
       const amount = parseFloat(row.getValue('amount'))
       const type = row.getValue('type')
       const currency = (row.original.currency ??
@@ -252,7 +255,8 @@ export const createTransactionColumns = (
       </div>
     ),
     cell: ({ row }) => {
-      if (row.original._rowType === 'load-more') return <div className="w-[65px]" />
+      if (row.original._rowType === 'load-more')
+        return <div className="w-[65px]" />
       const currency = (row.original.currency ??
         CURRENCY_ENUM.USD) as CurrencyType
       const symbol =
@@ -278,7 +282,8 @@ export const createTransactionColumns = (
       </Button>
     ),
     cell: ({ row }) => {
-      if (row.original._rowType === 'load-more') return <div className="w-[80px]" />
+      if (row.original._rowType === 'load-more')
+        return <div className="w-[80px]" />
       return (
         <div className="w-[80px] whitespace-nowrap text-muted-foreground text-[13px]">
           {format(new Date(row.getValue('createdAt')), 'MMM dd, yyyy')}
@@ -292,7 +297,8 @@ export const createTransactionColumns = (
       <div className="text-[13px] font-semibold whitespace-nowrap">Payment</div>
     ),
     cell: ({ row }) => {
-      if (row.original._rowType === 'load-more') return <div className="w-[85px]" />
+      if (row.original._rowType === 'load-more')
+        return <div className="w-[85px]" />
       const paymentMethod = row.original.paymentMethod
       if (!paymentMethod) return <div className="w-[85px] text-[13px]">N/A</div>
       return (
@@ -420,7 +426,10 @@ export const createTransactionColumns = (
     enableHiding: false,
     cell: ({ row }) => {
       // Ẩn nút 3 chấm cho dòng upcoming
-      if (row.original._rowType === 'upcoming' || row.original._rowType === 'load-more')
+      if (
+        row.original._rowType === 'upcoming' ||
+        row.original._rowType === 'load-more'
+      )
         return <div className="w-[30px]" />
 
       return (
@@ -432,4 +441,8 @@ export const createTransactionColumns = (
   }
 ]
 
-export const transactionColumns = createTransactionColumns(new Set(), () => {}, () => {})
+export const transactionColumns = createTransactionColumns(
+  new Set(),
+  () => {},
+  () => {}
+)

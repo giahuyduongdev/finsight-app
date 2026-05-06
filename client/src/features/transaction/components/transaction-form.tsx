@@ -40,10 +40,10 @@ import {
   PAYMENT_METHODS,
   CurrencyType
 } from '@/constant'
-import { Switch } from '../ui/switch'
-import CurrencyInputField from '../ui/currency-input'
-import { SingleSelector } from '../ui/single-select'
-import { AIScanReceiptData } from '@/features/transaction/transationType'
+import { Switch } from '../../../components/ui/switch'
+import CurrencyInputField from '../../../components/ui/currency-input'
+import { SingleSelector } from '../../../components/ui/single-select'
+import { AIScanReceiptData } from '@/features/transaction/transactionType'
 import {
   useCreateTransactionMutation,
   useGetSingleTransactionQuery,

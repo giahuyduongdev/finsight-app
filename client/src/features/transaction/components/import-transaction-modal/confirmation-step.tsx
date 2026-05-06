@@ -25,7 +25,7 @@ import {
 } from '@/constant'
 import { toast } from 'sonner'
 import { useBulkImportTransactionMutation } from '@/features/transaction/transactionAPI'
-import { BulkTransactionType } from '@/features/transaction/transationType'
+import { BulkTransactionType } from '@/features/transaction/transactionType'
 import { useDispatch } from 'react-redux'
 import { apiClient } from '@/app/api-client'
 import { useVirtualizer } from '@tanstack/react-virtual'
