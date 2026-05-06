@@ -20,7 +20,8 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
     try {
       const token = socket.handshake.auth.token
 
-      if (!token) {
+      // Explicitly check for empty or missing token
+      if (!token || (typeof token === 'string' && token.trim() === '')) {
         return next(new Error('UNAUTHORIZED: No token provided'))
       }
 
@@ -37,6 +38,7 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error'
+
       logger.error(
         logIcon(LOG_ICONS.ERROR, `[Socket] Auth error: ${errorMessage}`)
       )

@@ -129,6 +129,7 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-[var(--bg-color)] dark:bg-background text-foreground;
   }
