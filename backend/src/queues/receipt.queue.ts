@@ -11,10 +11,18 @@ export const RECEIPT_JOBS = {
 
 export type ScanReceiptJobData = {
   userId: string
-  fileBuffer: string
   fileName: string
   fileSize: number
-}
+} & (
+  | {
+      fileBuffer: string // Base64 encoded image (compressed) - initial processing path
+      imageUrl?: string
+    }
+  | {
+      imageUrl: string // Cloudinary URL - retry/reprocess path
+      fileBuffer?: string
+    }
+)
 
 // ─── Queue ────────────────────────────────────────────────────────────────────
 

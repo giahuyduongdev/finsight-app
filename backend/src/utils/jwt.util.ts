@@ -1,4 +1,4 @@
-import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken'
+import jwt, { SignOptions } from 'jsonwebtoken'
 import { Env } from '../config/env.config'
 
 type TimeUnit = 's' | 'm' | 'h' | 'd' | 'w' | 'y'
@@ -31,7 +31,9 @@ export const signJwtToken = (
   payload: AccessTokenPayload,
   options?: SignOptsAndSecret
 ) => {
-  const isAccessToken = !options || options === accessTokenSignOptions
+  // Check if this is an access token by comparing the secret
+  const isAccessToken =
+    !options || options.secret === accessTokenSignOptions.secret
 
   const { secret, ...opts } = options || accessTokenSignOptions
 
@@ -41,7 +43,7 @@ export const signJwtToken = (
   })
 
   const decoded = jwt.decode(token)
-  
+
   if (isAccessToken) {
     if (!decoded || typeof decoded === 'string' || !decoded.exp) {
       throw new Error('Failed to sign token: missing expiration claim')

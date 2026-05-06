@@ -1,22 +1,28 @@
 import cron from 'node-cron'
 import { processRecurringTransactions } from './jobs/transaction.job'
 import { processReportJob } from './jobs/report.job'
+import { cleanupStaleImportBatches } from './jobs/import-batch.job'
 import RefreshTokenModel from '../models/refresh-token.model'
 import { logger } from '../config/logger.config'
 import { redis } from '../config/redis.config'
 import { CurrencyService } from '../services/currency.service'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
-const scheduleJob = (name: string, time: string, job: () => Promise<unknown> | unknown) => {
-  logger.info(`🗓️  [Scheduling] ${name} at ${time}`)
+const scheduleJob = (
+  name: string,
+  time: string,
+  job: () => Promise<unknown> | unknown
+) => {
+  logger.info(logIcon(LOG_ICONS.SCHEDULE, ` [Scheduling] ${name} at ${time}`))
 
   return cron.schedule(
     time,
     async () => {
       try {
         await job()
-        logger.info(`🏁 ${name} completed`)
+        logger.info(logIcon(LOG_ICONS.SUCCESS, `${name} completed`))
       } catch (error) {
-        logger.error(`${name} failed`, error)
+        logger.error(logIcon(LOG_ICONS.ERROR, `${name} failed`), error)
       }
     },
     {
@@ -29,7 +35,9 @@ const scheduleJob = (name: string, time: string, job: () => Promise<unknown> | u
 export const startJobs = () => {
   return [
     scheduleJob('Transaction', '* * * * *', processRecurringTransactions),
-    scheduleJob('Currency Update', '*/30 * * * *', () => CurrencyService.fetchAndBroadcastRates()),
+    scheduleJob('Currency Update', '*/30 * * * *', () =>
+      CurrencyService.fetchAndBroadcastRates()
+    ),
 
     //Run 2:30am every first of the month
     scheduleJob('Reports', '30 2 1 * *', processReportJob),
@@ -39,8 +47,17 @@ export const startJobs = () => {
       await RefreshTokenModel.deleteMany({
         $or: [{ isRevoked: true }, { expiresAt: { $lt: new Date() } }]
       })
-      logger.info('🧹 [Refresh Token] Cleaned up expired tokens')
+      logger.info(
+        logIcon(LOG_ICONS.DELETE, '[Refresh Token] Cleaned up expired tokens')
+      )
     }),
+
+    // Chạy 01:00 mỗi ngày - Cleanup stale import batches
+    scheduleJob(
+      'Cleanup Stale Import Batches',
+      '0 1 * * *',
+      cleanupStaleImportBatches
+    ),
 
     scheduleJob('Redis Cleanup', '0 3 * * *', async () => {
       // Xóa analytics cache mồ côi (không có TTL)
@@ -89,7 +106,10 @@ export const startJobs = () => {
             .then(() => {
               if (orphansCount > 0) {
                 logger.info(
-                  `🧹 [Redis] Cleanup completed: ${orphansCount} orphaned analytics keys unlinked`
+                  logIcon(
+                    LOG_ICONS.DELETE,
+                    `[Redis] Cleanup completed: ${orphansCount} orphaned analytics keys unlinked`
+                  )
                 )
               }
               resolve()

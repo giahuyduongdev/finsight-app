@@ -4,7 +4,7 @@ import { UnauthorizedException } from '../utils/errors/index'
 
 export const checkBlacklist = async (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ) => {
   try {

@@ -5,7 +5,7 @@ import {
   UpdateUserType
 } from '../validators/user.validator'
 import { redis } from '../config/redis.config'
-import { compareValue, hashValue } from '../utils/bcrypt.util'
+import { compareValue } from '../utils/bcrypt.util'
 import RefreshTokenModel from '../models/refresh-token.model'
 
 export const findByIdUserService = async (userId: string) => {

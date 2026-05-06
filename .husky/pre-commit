@@ -1,2 +1,8 @@
-cd client && npx lint-staged
-cd ../backend && npx lint-staged
+#!/bin/sh
+set -e
+
+cd client
+npx lint-staged
+
+cd ../backend
+npx lint-staged

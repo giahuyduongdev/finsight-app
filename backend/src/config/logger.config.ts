@@ -1,6 +1,8 @@
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import { Env } from './env.config'
+import { getRequestContext } from '../utils/asyncContext'
+import { redactSensitiveFields } from '../utils/redact.util'
 
 // ─── Custom Levels ────────────────────────────────────────────────────────────
 
@@ -24,8 +26,34 @@ winston.addColors(colors)
 
 // ─── Formats ──────────────────────────────────────────────────────────────────
 
+// Enhanced format: Inject request context from AsyncLocalStorage
+const enhancedFormat = winston.format((info) => {
+  const context = getRequestContext()
+
+  return {
+    ...info,
+    ...(context.correlationId && { correlationId: context.correlationId }),
+    ...(context.userId && { userId: context.userId }),
+    ...(context.method && { method: context.method }),
+    ...(context.path && { path: context.path })
+  }
+})
+
+// Redacted format: Remove sensitive fields from logs
+const redactedFormat = winston.format((info) => {
+  if (info.body) {
+    info.body = redactSensitiveFields(info.body)
+  }
+  if (info.meta) {
+    info.meta = redactSensitiveFields(info.meta)
+  }
+  return info
+})
+
 const devFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  enhancedFormat(),
+  redactedFormat(),
   winston.format.colorize({ all: true }),
   winston.format.printf(
     ({ timestamp, level, message, ...meta }) =>
@@ -38,6 +66,8 @@ const devFormat = winston.format.combine(
 const prodFormat = winston.format.combine(
   winston.format.timestamp(),
   winston.format.errors({ stack: true }),
+  enhancedFormat(),
+  redactedFormat(),
   winston.format.json()
 )
 

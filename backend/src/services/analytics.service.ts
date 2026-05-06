@@ -34,7 +34,6 @@ const resolveAnalyticsRange = (
   const range = getDateRange(dateRangePreset, customFrom, customTo, timezone)
   const { from, to, value: rangeValue } = range
 
-  const isCustomRange = rangeValue === DateRangeEnum.CUSTOM
   const fromKey = from ? from.getTime() : 'all'
   const toKey = to ? to.getTime() : 'all'
 
@@ -261,7 +260,7 @@ export const chartAnalyticsService = async (
   const cached = await redis.get(cacheKey)
   if (cached) return JSON.parse(cached)
 
-  const filter: any = {
+  const filter: Record<string, unknown> = {
     userId: new mongoose.Types.ObjectId(userId),
     status: TransactionStatusEnum.COMPLETED,
     ...((queryFrom || queryTo) && {
@@ -397,7 +396,7 @@ export const expensePieChartBreakdownService = async (
 
   const cacheKey = `analytics:pie:${userId}:${rangeValue}:${timezone}:${preferredCurrency}:${fromKey}:${toKey}`
 
-  const filter: any = {
+  const filter: Record<string, unknown> = {
     userId: new mongoose.Types.ObjectId(userId),
     type: TransactionTypeEnum.EXPENSE,
     status: TransactionStatusEnum.COMPLETED,
@@ -475,4 +474,3 @@ export const expensePieChartBreakdownService = async (
 
   return resultData
 }
-

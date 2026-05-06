@@ -10,7 +10,6 @@ import {
 import {
   ForgotPasswordSchemaType,
   LoginSchemaType,
-  RefreshTokenSchemaType,
   RegisterSchemaType,
   ResendOTPSchemaType,
   ResetPasswordSchemaType,
@@ -36,7 +35,6 @@ import {
   REDIS_TTL
 } from '../config/redis.config'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
-import { hashValue } from '../utils/bcrypt.util'
 import { generateSecureOTP } from '../utils/generate-otp.util'
 import {
   sendPasswordResetEmail,
@@ -46,6 +44,7 @@ import {
   sendChangeEmailNewOTP
 } from '../mailers/auth.mailer'
 import crypto from 'crypto'
+import { encrypt, decrypt } from '../utils/encryption.util'
 
 export const registerService = async (body: RegisterSchemaType) => {
   const { email } = body
@@ -135,7 +134,7 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'OTP sent to your email. Please verify within 5 minutes.'
+    message: 'OTP sent to your email. Please verify within 5 minutes'
   }
 }
 
@@ -289,7 +288,7 @@ export const resendRegisterVerifyOTPService = async (
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'New OTP sent to your email. Please verify within 5 minutes.'
+    message: 'New OTP sent to your email. Please verify within 5 minutes'
   }
 }
 
@@ -523,8 +522,6 @@ export const loginService = async (
   const user = await UserModel.findOne({ email })
   if (!user) throw new NotFoundException('Email/password not found')
 
-  if (!user) throw new NotFoundException('Email/password not found')
-
   const isValidPassword = await user.comparePassword(password)
   if (!isValidPassword) {
     throw new UnauthorizedException('Invalid email/password')
@@ -624,11 +621,14 @@ export const logoutService = async (
     throw new NotFoundException('Refresh token not found or already revoked')
   }
   // 2. Blacklist access token trong Redis
-  const decoded = jwt.decode(accessToken) as JwtPayload
-  const ttl = decoded.exp! - Math.floor(Date.now() / 1000) // giây còn lại
+  const decoded = jwt.decode(accessToken) as JwtPayload | null
 
-  if (ttl > 0) {
-    await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+  if (decoded && typeof decoded.exp === 'number') {
+    const ttl = decoded.exp - Math.floor(Date.now() / 1000) // giây còn lại
+
+    if (ttl > 0) {
+      await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+    }
   }
 
   return { message: 'Logged out successfully' }
@@ -642,11 +642,14 @@ export const logoutAllService = async (userId: string, accessToken: string) => {
   )
 
   // 2. Blacklist access token hiện tại
-  const decoded = jwt.decode(accessToken) as JwtPayload
-  const ttl = decoded.exp! - Math.floor(Date.now() / 1000)
+  const decoded = jwt.decode(accessToken) as JwtPayload | null
 
-  if (ttl > 0) {
-    await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+  if (decoded && typeof decoded.exp === 'number') {
+    const ttl = decoded.exp - Math.floor(Date.now() / 1000)
+
+    if (ttl > 0) {
+      await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+    }
   }
 
   return { message: 'Logged out from all devices successfully' }
@@ -695,79 +698,113 @@ export const oauthCallbackService = async (
   timezone: string = 'UTC'
 ) => {
   // 1. Đổi code → tokens từ Auth0
-  const tokenResponse = await fetch(`https://${Env.AUTH0_DOMAIN}/oauth/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'authorization_code',
-      client_id: Env.AUTH0_CLIENT_ID,
-      client_secret: Env.AUTH0_CLIENT_SECRET,
-      code,
-      redirect_uri: Env.AUTH0_CALLBACK_URL
-    })
-  })
+  const tokenController = new AbortController()
+  const tokenTimeout = setTimeout(() => tokenController.abort(), 10000) // 10s timeout
 
-  if (!tokenResponse.ok) {
-    throw new BadRequestException('Invalid Auth0 code or authorization failed')
-  }
-
-  const { access_token } = (await tokenResponse.json()) as {
-    access_token: string
-  }
-
-  // 2. Lấy profile từ Auth0
-  interface Auth0Profile {
-    email: string
-    name: string
-    picture: string
-    sub: string
-  }
-  const profile = (await fetch(`https://${Env.AUTH0_DOMAIN}/userinfo`, {
-    headers: { Authorization: `Bearer ${access_token}` }
-  }).then((r) => r.json())) as Auth0Profile
-
-  // 3. Tìm/Tạo/Liên kết user
-  let user = await UserModel.findOne({ auth0Ids: profile.sub })
-
-  if (!user) {
-    user = await UserModel.findOne({ email: profile.email })
-
-    if (user) {
-      let needsSave = false
-      if (!user.auth0Ids?.includes(profile.sub)) {
-        user.auth0Ids = [...(user.auth0Ids || []), profile.sub]
-        needsSave = true
+  try {
+    const tokenResponse = await fetch(
+      `https://${Env.AUTH0_DOMAIN}/oauth/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: Env.AUTH0_CLIENT_ID,
+          client_secret: Env.AUTH0_CLIENT_SECRET,
+          code,
+          redirect_uri: Env.AUTH0_CALLBACK_URL
+        }),
+        signal: tokenController.signal
       }
-      if (user.timezone === 'UTC' && timezone !== 'UTC') {
-        user.timezone = timezone
-        needsSave = true
+    )
+
+    clearTimeout(tokenTimeout)
+
+    if (!tokenResponse.ok) {
+      throw new BadRequestException(
+        'Invalid Auth0 code or authorization failed'
+      )
+    }
+
+    const { access_token } = (await tokenResponse.json()) as {
+      access_token: string
+    }
+
+    // 2. Lấy profile từ Auth0
+    interface Auth0Profile {
+      email: string
+      name: string
+      picture: string
+      sub: string
+    }
+
+    const profileController = new AbortController()
+    const profileTimeout = setTimeout(() => profileController.abort(), 10000) // 10s timeout
+
+    const profileResponse = await fetch(
+      `https://${Env.AUTH0_DOMAIN}/userinfo`,
+      {
+        headers: { Authorization: `Bearer ${access_token}` },
+        signal: profileController.signal
       }
-      if (needsSave) await user.save()
+    )
+
+    clearTimeout(profileTimeout)
+
+    if (!profileResponse.ok) {
+      throw new BadRequestException('Failed to fetch user profile from Auth0')
+    }
+
+    const profile = (await profileResponse.json()) as Auth0Profile
+
+    // 3. Tìm/Tạo/Liên kết user
+    let user = await UserModel.findOne({ auth0Ids: profile.sub })
+
+    if (!user) {
+      user = await UserModel.findOne({ email: profile.email })
+
+      if (user) {
+        let needsSave = false
+        if (!user.auth0Ids?.includes(profile.sub)) {
+          user.auth0Ids = [...(user.auth0Ids || []), profile.sub]
+          needsSave = true
+        }
+        if (user.timezone === 'UTC' && timezone !== 'UTC') {
+          user.timezone = timezone
+          needsSave = true
+        }
+        if (needsSave) await user.save()
+      } else {
+        user = await UserModel.create({
+          email: profile.email,
+          name: profile.name,
+          profilePicture: profile.picture,
+          password: crypto.randomUUID(),
+          timezone,
+          auth0Ids: [profile.sub]
+        })
+        await ReportSettingModel.create({ userId: user._id, isEnabled: false })
+      }
     } else {
-      user = await UserModel.create({
-        email: profile.email,
-        name: profile.name,
-        profilePicture: profile.picture,
-        password: crypto.randomUUID(),
-        timezone,
-        auth0Ids: [profile.sub]
-      })
-      await ReportSettingModel.create({ userId: user._id, isEnabled: false })
+      // User đã tồn tại qua auth0Ids → cập nhật timezone nếu cần
+      // Nếu múi giờ gửi lên khác với múi giờ đang lưu trong DB thì mới update
+      if (timezone && user.timezone !== timezone) {
+        user.timezone = timezone
+        await user.save()
+      }
     }
-  } else {
-    // User đã tồn tại qua auth0Ids → cập nhật timezone nếu cần
-    // Nếu múi giờ gửi lên khác với múi giờ đang lưu trong DB thì mới update
-    if (timezone && user.timezone !== timezone) {
-      user.timezone = timezone
-      await user.save()
+
+    // 4. Tạo JWT
+    const { token: accessToken, expiresAt } = signJwtToken({ userId: user.id })
+    const refreshToken = await createRefreshToken(user.id)
+
+    return { accessToken, expiresAt, refreshToken, user }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new BadRequestException('OAuth request timed out')
     }
+    throw error
   }
-
-  // 4. Tạo JWT
-  const { token: accessToken, expiresAt } = signJwtToken({ userId: user.id })
-  const refreshToken = await createRefreshToken(user.id)
-
-  return { accessToken, expiresAt, refreshToken, user }
 }
 
 export const changePasswordRequestService = async (
@@ -802,10 +839,9 @@ export const changePasswordRequestService = async (
   const otp = generateSecureOTP()
   const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
 
-  // 5. Lưu vào Redis
-  // - OTP để xác thực
-  // - Mật khẩu mới (plain text) để update sau khi xác thực OTP thành công
-  // Theo pattern của registerOTPService
+  // 5. Lưu vào Redis - MÃ HÓA mật khẩu mới trước khi lưu
+  const encryptedPassword = await encrypt(newPassword)
+
   await redis
     .pipeline()
     .setex(
@@ -816,7 +852,7 @@ export const changePasswordRequestService = async (
     .setex(
       REDIS_KEYS.changePasswordPending(user.email),
       REDIS_TTL.CHANGE_PASSWORD_OTP,
-      newPassword
+      encryptedPassword
     )
     .setex(
       REDIS_KEYS.changePasswordResend(user.email),
@@ -893,11 +929,30 @@ export const verifyChangePasswordOTPService = async (
     )
   }
 
-  // 5. Lấy mật khẩu mới từ Redis
-  const newPassword = await redis.get(REDIS_KEYS.changePasswordPending(email))
-  if (!newPassword) {
+  // 5. Lấy mật khẩu mới từ Redis và GIẢI MÃ
+  const encryptedPassword = await redis.get(
+    REDIS_KEYS.changePasswordPending(email)
+  )
+  if (!encryptedPassword) {
     throw new BadRequestException(
       'Change password session expired',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
+  let newPassword: string
+  try {
+    newPassword = await decrypt(encryptedPassword)
+  } catch {
+    // Decryption failed - clear session and force restart
+    await Promise.all([
+      redis.del(REDIS_KEYS.changePasswordOtp(email)),
+      redis.del(REDIS_KEYS.changePasswordPending(email)),
+      redis.del(REDIS_KEYS.changePasswordResend(email)),
+      redis.del(attemptsKey)
+    ])
+    throw new BadRequestException(
+      'Session data corrupted. Please start over.',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -930,7 +985,9 @@ export const resendChangePasswordOTPService = async (userId: string) => {
   // 2. Check cooldown
   const isBlocked = await redis.exists(REDIS_KEYS.changePasswordResend(email))
   if (isBlocked) {
-    const remainingTime = await redis.ttl(REDIS_KEYS.changePasswordResend(email))
+    const remainingTime = await redis.ttl(
+      REDIS_KEYS.changePasswordResend(email)
+    )
     throw new BadRequestException(
       'Please wait before requesting a new OTP',
       ErrorCodeEnum.AUTH_OTP_TOO_MANY_REQUESTS,
@@ -1106,8 +1163,14 @@ export const verifyChangeEmailOTPService = async (
   }
 
   // 4. So sánh OTPs
-  const hashedOld = crypto.createHash('sha256').update(oldEmailOtp).digest('hex')
-  const hashedNew = crypto.createHash('sha256').update(newEmailOtp).digest('hex')
+  const hashedOld = crypto
+    .createHash('sha256')
+    .update(oldEmailOtp)
+    .digest('hex')
+  const hashedNew = crypto
+    .createHash('sha256')
+    .update(newEmailOtp)
+    .digest('hex')
 
   const isOldValid = storedOtpOld === hashedOld
   const isNewValid = storedOtpNew === hashedNew
@@ -1115,11 +1178,13 @@ export const verifyChangeEmailOTPService = async (
   if (!isOldValid || !isNewValid) {
     await redis.incr(attemptsKey)
     const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
-    
+
     let errorMsg = 'Invalid verification codes.'
     if (!isOldValid && !isNewValid) errorMsg = 'Both codes are invalid.'
-    else if (!isOldValid) errorMsg = 'Authorization code for old email is invalid.'
-    else if (!isNewValid) errorMsg = 'Verification code for new email is invalid.'
+    else if (!isOldValid)
+      errorMsg = 'Authorization code for old email is invalid.'
+    else if (!isNewValid)
+      errorMsg = 'Verification code for new email is invalid.'
 
     throw new BadRequestException(
       `${errorMsg} You have ${remaining} attempts left.`,
@@ -1142,7 +1207,7 @@ export const verifyChangeEmailOTPService = async (
   await user.save()
 
   // 6.1. Thu hồi toàn bộ session cũ (vì email là định danh đăng nhập đã thay đổi)
-  await redis.del(`refresh_tokens:${userId}`)
+  await RefreshTokenModel.deleteMany({ userId: user._id })
 
   // 7. Dọn dẹp Redis OTP
   await Promise.all([
@@ -1225,6 +1290,7 @@ export const resendChangeEmailOTPService = async (userId: string) => {
   ])
 
   return {
-    message: 'New verification codes sent to both your old and new email addresses.'
+    message:
+      'New verification codes sent to both your old and new email addresses.'
   }
 }

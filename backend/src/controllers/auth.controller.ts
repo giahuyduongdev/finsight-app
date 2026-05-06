@@ -41,6 +41,8 @@ import ms from 'ms'
 import { UnauthorizedException } from '../utils/errors/index'
 import { sanitizeUser } from '../dtos/user.dtos'
 import { logger } from '../config/logger.config'
+import { getUserId } from '../utils/getUserId.util'
+import crypto from 'crypto'
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -175,14 +177,19 @@ export const logoutController = asyncHandler(
 
 export const logoutAllController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const accessToken = req.headers.authorization?.split(' ')[1]
     if (!accessToken)
       throw new UnauthorizedException('Access token is required')
 
     await logoutAllService(userId, accessToken)
 
-    res.clearCookie('refreshToken')
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    })
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Logged out from all devices successfully'
@@ -195,13 +202,27 @@ export const oauthRedirectController = asyncHandler(
     const { provider } = req.params
     const timezone = (req.query.tz as string) || 'UTC'
 
+    // Generate CSRF token
+    const csrfToken = crypto.randomBytes(32).toString('hex')
+
+    // Store CSRF token in secure, HttpOnly cookie
+    res.cookie('oauth_csrf', csrfToken, {
+      httpOnly: true,
+      secure: Env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+      path: '/'
+    })
+
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: Env.AUTH0_CLIENT_ID,
       redirect_uri: Env.AUTH0_CALLBACK_URL,
       scope: 'openid profile email',
       connection: provider === 'github' ? 'github' : 'google-oauth2',
-      state: Buffer.from(JSON.stringify({ timezone })).toString('base64') // ← encode timezone vào state
+      state: Buffer.from(JSON.stringify({ timezone, csrfToken })).toString(
+        'base64'
+      )
     })
 
     const url = `https://${Env.AUTH0_DOMAIN}/authorize?${params}`
@@ -219,16 +240,50 @@ export const oauthCallbackController = asyncHandler(
       return res.redirect(`${Env.FRONTEND_ORIGIN}/?error=auth_failed`)
     }
 
-    // Decode timezone từ state
+    // Decode timezone và csrfToken từ state
     let timezone = 'UTC'
+    let csrfTokenFromState = ''
     try {
       const decoded = JSON.parse(
         Buffer.from(state as string, 'base64').toString()
       )
       timezone = decoded.timezone || 'UTC'
+      csrfTokenFromState = decoded.csrfToken || ''
+
+      // Validate timezone against IANA database
+      if (timezone !== 'UTC') {
+        try {
+          Intl.DateTimeFormat(undefined, { timeZone: timezone })
+        } catch {
+          logger.warn('Invalid timezone received:', { timezone })
+          timezone = 'UTC'
+        }
+      }
     } catch (e) {
-      logger.warn('Timezone decoding from state failed:', e)
+      logger.warn('State decoding failed:', e)
+      return res.redirect(`${Env.FRONTEND_ORIGIN}/?error=invalid_state`)
     }
+
+    // Validate CSRF token
+    const csrfTokenFromCookie = req.cookies?.oauth_csrf
+    if (!csrfTokenFromCookie || csrfTokenFromCookie !== csrfTokenFromState) {
+      logger.warn('CSRF token mismatch', {
+        hasCookieToken: !!csrfTokenFromCookie,
+        hasStateToken: !!csrfTokenFromState,
+        tokensMatch: csrfTokenFromCookie === csrfTokenFromState
+      })
+      return res.redirect(
+        `${Env.FRONTEND_ORIGIN}/?error=csrf_validation_failed`
+      )
+    }
+
+    // Clear CSRF cookie after validation
+    res.clearCookie('oauth_csrf', {
+      httpOnly: true,
+      secure: Env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    })
 
     const result = await oauthCallbackService(code as string, timezone) // ← truyền timezone
 
@@ -254,7 +309,7 @@ export const oauthCallbackController = asyncHandler(
 
 export const changePasswordRequestController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = changePasswordRequestSchema.parse(req.body)
     const result = await changePasswordRequestService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -263,7 +318,7 @@ export const changePasswordRequestController = asyncHandler(
 
 export const verifyChangePasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = verifyChangePasswordOTPSchema.parse(req.body)
     const result = await verifyChangePasswordOTPService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -272,7 +327,7 @@ export const verifyChangePasswordOTPController = asyncHandler(
 
 export const resendChangePasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const result = await resendChangePasswordOTPService(userId)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -280,7 +335,7 @@ export const resendChangePasswordOTPController = asyncHandler(
 
 export const changeEmailRequestController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = changeEmailRequestSchema.parse(req.body)
     const result = await changeEmailRequestService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -289,7 +344,7 @@ export const changeEmailRequestController = asyncHandler(
 
 export const verifyChangeEmailOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const body = verifyChangeEmailOTPSchema.parse(req.body)
     const result = await verifyChangeEmailOTPService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
@@ -298,7 +353,7 @@ export const verifyChangeEmailOTPController = asyncHandler(
 
 export const resendChangeEmailOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const result = await resendChangeEmailOTPService(userId)
     return res.status(HTTPSTATUS.OK).json(result)
   }

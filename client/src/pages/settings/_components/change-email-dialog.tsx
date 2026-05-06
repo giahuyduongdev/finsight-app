@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogTrigger
 } from '@/components/ui/dialog'
 import {
   Form,
@@ -20,14 +20,14 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
+  FormMessage
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
   useChangeEmailRequestMutation,
   useVerifyChangeEmailOTPMutation,
   useResendChangeEmailOTPMutation,
-  useLogoutMutation,
+  useLogoutMutation
 } from '@/features/auth/authAPI'
 import { useAppDispatch } from '@/app/hook'
 import { logout } from '@/features/auth/authSlice'
@@ -35,7 +35,7 @@ import { logout } from '@/features/auth/authSlice'
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const changeEmailRequestSchema = z.object({
-  newEmail: z.string().email('Invalid email address'),
+  newEmail: z.string().email('Invalid email address')
 })
 
 const otpSchema = z.object({
@@ -46,7 +46,7 @@ const otpSchema = z.object({
   newEmailOtp: z
     .string()
     .length(6, 'New email OTP must be 6 digits')
-    .regex(/^\d+$/, 'OTP must contain only numbers'),
+    .regex(/^\d+$/, 'OTP must contain only numbers')
 })
 
 type ChangeEmailRequestValues = z.infer<typeof changeEmailRequestSchema>
@@ -88,13 +88,18 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
         onChange(newDigits.join(''))
       }
     }
-    if (e.key === 'ArrowLeft' && index > 0) inputsRef.current[index - 1]?.focus()
-    if (e.key === 'ArrowRight' && index < 5) inputsRef.current[index + 1]?.focus()
+    if (e.key === 'ArrowLeft' && index > 0)
+      inputsRef.current[index - 1]?.focus()
+    if (e.key === 'ArrowRight' && index < 5)
+      inputsRef.current[index + 1]?.focus()
   }
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault()
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    const pasted = e.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6)
     onChange(pasted)
     const focusIndex = Math.min(pasted.length, 5)
     inputsRef.current[focusIndex]?.focus()
@@ -117,6 +122,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
+          aria-label={`OTP digit ${i + 1} of 6`}
           className="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-input bg-background
             focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed
@@ -135,9 +141,12 @@ export function ChangeEmailDialog() {
   const [step, setStep] = useState<'form' | 'otp'>('form')
   const [pendingEmail, setPendingEmail] = useState('')
 
-  const [requestChange, { isLoading: isRequesting }] = useChangeEmailRequestMutation()
-  const [verifyOTP, { isLoading: isVerifying }] = useVerifyChangeEmailOTPMutation()
-  const [resendOTP, { isLoading: isResending }] = useResendChangeEmailOTPMutation()
+  const [requestChange, { isLoading: isRequesting }] =
+    useChangeEmailRequestMutation()
+  const [verifyOTP, { isLoading: isVerifying }] =
+    useVerifyChangeEmailOTPMutation()
+  const [resendOTP, { isLoading: isResending }] =
+    useResendChangeEmailOTPMutation()
   const [logoutServer] = useLogoutMutation()
 
   const [seconds, setSeconds] = useState(60)
@@ -156,13 +165,13 @@ export function ChangeEmailDialog() {
   const requestForm = useForm<ChangeEmailRequestValues>({
     resolver: zodResolver(changeEmailRequestSchema),
     defaultValues: {
-      newEmail: '',
-    },
+      newEmail: ''
+    }
   })
 
   const otpForm = useForm<OtpValues>({
     resolver: zodResolver(otpSchema),
-    defaultValues: { oldEmailOtp: '', newEmailOtp: '' },
+    defaultValues: { oldEmailOtp: '', newEmailOtp: '' }
   })
 
   const onRequestSubmit = async (values: ChangeEmailRequestValues) => {
@@ -184,7 +193,7 @@ export function ChangeEmailDialog() {
       await verifyOTP(values).unwrap()
       toast.success('Email updated successfully. Please login again')
       setOpen(false)
-      
+
       // Logout server-side to clear cookies
       await logoutServer(undefined).unwrap()
       // Logout client-side state
@@ -234,11 +243,15 @@ export function ChangeEmailDialog() {
             <DialogHeader>
               <DialogTitle>Change Email Address</DialogTitle>
               <DialogDescription>
-                We'll send two separate codes to both your current and new email addresses to verify this change.
+                We'll send two separate codes to both your current and new email
+                addresses to verify this change.
               </DialogDescription>
             </DialogHeader>
             <Form {...requestForm}>
-              <form onSubmit={requestForm.handleSubmit(onRequestSubmit)} className="space-y-4 pt-4">
+              <form
+                onSubmit={requestForm.handleSubmit(onRequestSubmit)}
+                className="space-y-4 pt-4"
+              >
                 <FormField
                   control={requestForm.control}
                   name="newEmail"
@@ -254,7 +267,9 @@ export function ChangeEmailDialog() {
                 />
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={isRequesting}>
-                    {isRequesting && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+                    {isRequesting && (
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Send verification codes
                   </Button>
                 </div>
@@ -266,9 +281,9 @@ export function ChangeEmailDialog() {
             <DialogHeader>
               <DialogTitle className="flex justify-between items-center">
                 Double Verification Required
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-6 w-6 rounded-full"
                   onClick={() => setStep('form')}
                 >
@@ -281,7 +296,10 @@ export function ChangeEmailDialog() {
             </DialogHeader>
             <div className="flex flex-col gap-6 py-4">
               <Form {...otpForm}>
-                <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} className="space-y-8">
+                <form
+                  onSubmit={otpForm.handleSubmit(onOtpSubmit)}
+                  className="space-y-8"
+                >
                   <div className="space-y-4">
                     <FormField
                       control={otpForm.control}
@@ -325,13 +343,19 @@ export function ChangeEmailDialog() {
                       )}
                     />
                   </div>
-                  
+
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={isVerifying || otpForm.watch('oldEmailOtp').length < 6 || otpForm.watch('newEmailOtp').length < 6}
+                    disabled={
+                      isVerifying ||
+                      otpForm.watch('oldEmailOtp').length < 6 ||
+                      otpForm.watch('newEmailOtp').length < 6
+                    }
                   >
-                    {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+                    {isVerifying && (
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    )}
                     Confirm & Update Email
                   </Button>
                 </form>

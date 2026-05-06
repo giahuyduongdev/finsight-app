@@ -1,7 +1,7 @@
 import * as z from 'zod'
 import { useState } from 'react'
 import { Calendar, Loader } from 'lucide-react'
-import { useForm, Resolver } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import {
@@ -63,13 +63,23 @@ const countMissedOccurrences = (date?: Date, interval?: string): number => {
   }
   const next = intervalMap[interval]
   if (!next) return 0
+
+  // Safety limit to prevent infinite loops
+  const MAX_ITERATIONS = 10000
   let count = 0
   let cursor = new Date(date)
   const now = new Date()
-  while (cursor <= now) {
+
+  while (cursor <= now && count < MAX_ITERATIONS) {
     count++
     cursor = next(cursor)
   }
+
+  // If we hit the limit, log a warning
+  if (count >= MAX_ITERATIONS) {
+    console.warn('countMissedOccurrences hit MAX_ITERATIONS limit')
+  }
+
   return count
 }
 
@@ -104,6 +114,8 @@ const formSchema = z.object({
 })
 
 type FormValues = z.infer<typeof formSchema>
+type FormInput = z.input<typeof formSchema>
+type FormOutput = z.output<typeof formSchema>
 
 const TransactionForm = (props: {
   isEdit?: boolean
@@ -131,8 +143,8 @@ const TransactionForm = (props: {
   const [updateTransaction, { isLoading: isUpdating }] =
     useUpdateTransactionMutation()
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema) as unknown as Resolver<FormValues>,
+  const form = useForm<FormInput, unknown, FormOutput>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
       amount: '',
@@ -219,7 +231,7 @@ const TransactionForm = (props: {
           toast.success('Transaction updated successfully')
         })
         .catch((error) => {
-          toast.error(error.data.message || 'Failed to update transaction')
+          toast.error(error?.data?.message || 'Failed to update transaction')
         })
       return
     }
@@ -231,7 +243,7 @@ const TransactionForm = (props: {
         toast.success('Transaction created successfully')
       })
       .catch((error) => {
-        toast.error(error.data.message || 'Failed to create transaction')
+        toast.error(error?.data?.message || 'Failed to create transaction')
       })
   }
 

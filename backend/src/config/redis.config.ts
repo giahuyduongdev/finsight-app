@@ -3,6 +3,7 @@ import { Env } from './env.config'
 import rateLimit from 'express-rate-limit'
 import RedisStore, { RedisReply } from 'rate-limit-redis'
 import { logger } from './logger.config'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,8 @@ export const REDIS_KEYS = {
   // ─── CHANGE PASSWORD FLOW ───────────────────────────────────
   changePasswordOtp: (email: string) => `otp:change-password:${email}`,
   changePasswordResend: (email: string) => `resend:change-password:${email}`,
-  changePasswordAttempts: (email: string) => `attempts:change-password:${email}`,
+  changePasswordAttempts: (email: string) =>
+    `attempts:change-password:${email}`,
   changePasswordPending: (email: string) => `pending:change-password:${email}`,
 
   // ─── CHANGE EMAIL FLOW ──────────────────────────────────
@@ -81,23 +83,25 @@ class RedisClient {
 
   private setupEventListeners(): void {
     this.client.on('connect', async () => {
-      logger.info('🟢 [Redis] Connected successfully!')
-
-      if (Env.NODE_ENV === 'production') {
-        await this.client.config('SET', 'maxmemory', '256mb')
-        await this.client.config('SET', 'maxmemory-policy', 'allkeys-lru')
-        logger.info('⚙️ [Redis] Memory policy configured')
-      }
+      logger.info(logIcon(LOG_ICONS.SUCCESS, '[Redis] Connected successfully!'))
     })
 
     this.client.on('error', (err: Error) =>
-      logger.error('❌ [Redis] Connection error:', err.message)
+      logger.error(
+        logIcon(LOG_ICONS.ERROR, '[Redis] Connection error:'),
+        err.message
+      )
     )
     this.client.on('end', () =>
-      logger.warn('🔴 [Redis] Connection closed.')
+      logger.warn(logIcon(LOG_ICONS.STOP, '[Redis] Connection closed.'))
     )
     this.client.on('reconnecting', () =>
-      logger.info('🟡 [Redis] Connection lost. Attempting to reconnect...')
+      logger.info(
+        logIcon(
+          LOG_ICONS.WARNING,
+          '[Redis] Connection lost. Attempting to reconnect...'
+        )
+      )
     )
   }
 

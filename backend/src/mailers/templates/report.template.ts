@@ -2,6 +2,14 @@ import { ReportType } from '../../@types/report.type'
 import { formatCurrency } from '../../utils/format-currency.util'
 import { capitalizeFirstLetter } from '../../utils/string.util'
 
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
 export const getReportEmailTemplate = (
   reportData: ReportType & { username: string },
   frequency: string
@@ -22,15 +30,15 @@ export const getReportEmailTemplate = (
 
   const categoryList = topSpendingCategories
     .map(
-      (cat: any) => `<li>
-      ${cat.name} - ${formatCurrency(cat.amount, currency)} (${cat.percent}%)
+      (cat: { name: string; percent: number }) => `<li>
+      ${escapeHtml(cat.name)} - ${cat.percent}%
       </li>
     `
     )
     .join('')
 
   const insightsList = insights
-    .map((insight: string) => `<li>${insight}</li>`)
+    .map((insight: string) => `<li>${escapeHtml(insight)}</li>`)
     .join('')
 
   const currentYear = new Date().getFullYear()
@@ -54,7 +62,7 @@ export const getReportEmailTemplate = (
              </tr>
              <tr>
                <td style="padding: 20px 30px;">
-                 <p style="margin: 0 0 10px; font-size: 16px;">Hi <strong>${username}</strong>,</p>
+                 <p style="margin: 0 0 10px; font-size: 16px;">Hi <strong>${escapeHtml(username)}</strong>,</p>
                  <p style="margin: 0 0 20px; font-size: 16px;">Here's your financial summary for <strong>${period}</strong>.</p>
  
                  <table width="100%" style="border-collapse: collapse;">

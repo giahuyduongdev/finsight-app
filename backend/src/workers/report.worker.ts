@@ -27,6 +27,7 @@ import ReportSettingModel from '../models/report-setting.model'
 import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // ─── Job Processing ───────────────────────────────────────────────────────────
 
@@ -47,6 +48,14 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
   const email = user.email
   const username = user.name || (email ? email.split('@')[0] : 'User')
+
+  // Validate email before proceeding
+  if (!email) {
+    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] User email not found'), {
+      userId
+    })
+    throw new Error(`User email not found for userId: ${userId}`)
+  }
 
   // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
   const dueInUserTz = toZonedTime(scheduledDate, timezone)
@@ -81,23 +90,14 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const from = fromZonedTime(fromInTz, timezone)
   const to = fromZonedTime(toInTz, timezone)
 
-  let forceFailed = false
-  if (!user.email) {
-    logger.error('❌ [Worker] User email not found', { userId })
-    forceFailed = true
-  }
-
   // 1. Generate báo cáo
-  let report: any = null
-  if (!forceFailed) {
-    report = await generateReportService(
-      userId,
-      from,
-      to,
-      timezone,
-      preferredCurrency
-    )
-  }
+  const report = await generateReportService(
+    userId,
+    from,
+    to,
+    timezone,
+    preferredCurrency
+  )
 
   logger.debug('[Worker] Report data generated', {
     userId,
@@ -106,7 +106,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
   // 2. Gửi email
   let emailSent = false
-  if (report) {
+  if (report && email) {
     try {
       await sendReportEmail({
         email,
@@ -124,18 +124,47 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
         frequency
       })
       emailSent = true
-      logger.info('📧 [Worker] Email sent successfully', { userId })
+      logger.info(
+        logIcon(LOG_ICONS.EMAIL, '[Worker] Email sent successfully'),
+        { userId }
+      )
     } catch (error) {
-      logger.error('❌ [Worker] Email failed', {
+      logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] Email failed'), {
         userId,
         error: (error as Error).message,
-        attemptsMade: job.attemptsMade
+        attemptsMade: job.attemptsMade,
+        attemptsStarted: job.attemptsStarted
       })
 
-      const maxAttempts = job.opts?.attempts ?? 1
-      if (job.attemptsMade < maxAttempts) {
-        throw error // Re-throw to trigger BullMQ retry
+      // Persist FAILED report before throwing (for audit trail)
+      const session = await mongoose.startSession()
+      try {
+        await session.withTransaction(
+          async () => {
+            await ReportModel.create(
+              [
+                {
+                  userId,
+                  sentDate: now,
+                  period:
+                    report?.period ||
+                    `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
+                  status: ReportStatusEnum.FAILED,
+                  createdAt: now,
+                  updatedAt: now
+                }
+              ],
+              { session }
+            )
+          },
+          { maxCommitTimeMS: 10000 }
+        )
+      } finally {
+        await session.endSession()
       }
+
+      // Always throw to mark job as failed
+      throw error
     }
   }
 
@@ -158,7 +187,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
                 `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
               status: isSuccess
                 ? ReportStatusEnum.SENT
-                : report || forceFailed
+                : report
                   ? ReportStatusEnum.FAILED
                   : ReportStatusEnum.NO_ACTIVITY,
               createdAt: now,
@@ -198,7 +227,7 @@ export const reportWorker = new Worker(
     if (job.name === REPORT_JOBS.PROCESS_REPORT) {
       return await processReportJob(job as Job<ProcessReportJobData>)
     }
-    logger.error('❌ [Worker] Unknown job name', {
+    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] Unknown job name'), {
       jobId: job.id,
       jobName: job.name
     })
@@ -214,15 +243,18 @@ export const reportWorker = new Worker(
 
 reportWorker.on('completed', (job) => {
   logger.info(
-    `✅ [Worker] Report completed: ${job.id} for user ${job.data.userId}`
+    logIcon(
+      LOG_ICONS.SUCCESS,
+      `[Worker] Report completed: ${job.id} for user ${job.data.userId}`
+    )
   )
 })
 
 reportWorker.on('failed', (job, err) => {
-  logger.error(`❌ [Worker] Report failed: ${job?.id}`, {
+  logger.error(logIcon(LOG_ICONS.ERROR, `[Worker] Report failed: ${job?.id}`), {
     error: err.message,
     userId: job?.data.userId,
     attemptsMade: job?.attemptsMade,
-    maxAttempts: job?.opts.attempts
+    maxAttempts: job?.opts?.attempts
   })
 })

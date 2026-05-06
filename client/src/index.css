@@ -1,12 +1,12 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 body {
   pointer-events: fill !important;
-  font-family: "Onest", sans-serif !important;
+  font-family: 'Onest', sans-serif !important;
 }
 
-.recurring-control button span{
+.recurring-control button span {
   text-transform: capitalize !important;
 }
 
@@ -129,15 +129,14 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-[var(--bg-color)] dark:bg-background text-foreground;
   }
 }
-
 
 /* --chart-1: oklch(0.37 0.14 146.5);
 --chart-2: oklch(0.65 0.16 147.2);
 --chart-3: oklch(0.48 0.19 148.6);
 --chart-4: oklch(0.28 0.11 145.8);
 --chart-5: oklch(0.18 0.08 147.0); */
-

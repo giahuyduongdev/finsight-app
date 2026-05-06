@@ -20,6 +20,9 @@ const baseQuery = fetchBaseQuery({
   }
 })
 
+// Shared promise to prevent multiple simultaneous refresh requests
+let refreshPromise: Promise<unknown> | null = null
+
 const baseQueryWithReauth: BaseQueryFn<
   string | FetchArgs,
   unknown,
@@ -39,18 +42,34 @@ const baseQueryWithReauth: BaseQueryFn<
 
     if (url.includes('/auth/refresh-token')) {
       api.dispatch(logout())
+      refreshPromise = null // Reset on logout
       return result
     }
 
     // Chỉ thử refresh nếu trong store vẫn còn dấu hiệu đang đăng nhập (có accessToken)
     if (accessToken) {
-      const refreshResult = await baseQuery(
-        { url: '/auth/refresh-token', method: 'POST' },
-        api,
-        extraOptions
-      )
+      // Use shared promise to prevent race condition
+      if (!refreshPromise) {
+        refreshPromise = Promise.resolve(
+          baseQuery(
+            { url: '/auth/refresh-token', method: 'POST' },
+            api,
+            extraOptions
+          )
+        ).finally(() => {
+          // Clear the promise after completion (success or failure)
+          refreshPromise = null
+        })
+      }
 
-      if (refreshResult.data) {
+      const refreshResult = await refreshPromise
+
+      if (
+        refreshResult &&
+        typeof refreshResult === 'object' &&
+        'data' in refreshResult &&
+        refreshResult.data
+      ) {
         const { accessToken, expiresAt } = refreshResult.data as {
           accessToken: string
           expiresAt: number

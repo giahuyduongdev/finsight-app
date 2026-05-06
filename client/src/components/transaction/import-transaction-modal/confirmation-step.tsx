@@ -1,6 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { z } from 'zod'
-import { ChevronLeft, FileCheck, AlertCircle, CheckCircle2, Trash2, Edit2 } from 'lucide-react'
+import {
+  ChevronLeft,
+  FileCheck,
+  AlertCircle,
+  CheckCircle2,
+  Trash2,
+  Edit2
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/format-currency'
 import {
@@ -8,7 +15,14 @@ import {
   DialogTitle,
   DialogDescription
 } from '@/components/ui/dialog'
-import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM, CURRENCY_ENUM, MAX_IMPORT_LIMIT, CurrencyType, _TransactionType } from '@/constant'
+import {
+  _TRANSACTION_TYPE,
+  PAYMENT_METHODS_ENUM,
+  CURRENCY_ENUM,
+  MAX_IMPORT_LIMIT,
+  CurrencyType,
+  _TransactionType
+} from '@/constant'
 import { toast } from 'sonner'
 import { useBulkImportTransactionMutation } from '@/features/transaction/transactionAPI'
 import { BulkTransactionType } from '@/features/transaction/transationType'
@@ -28,7 +42,12 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { parseAmount } from '@/lib/amount-parser'
 import { EditForm } from './edit-form'
-import { ParsedTransaction, ParsedRow, CsvRowWrapper, ConfirmationStepProps } from './types'
+import {
+  ParsedTransaction,
+  ParsedRow,
+  CsvRowWrapper,
+  ConfirmationStepProps
+} from './types'
 
 // Types are now imported from ./types.ts
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -95,9 +114,15 @@ const transactionSchema = z.object({
     ])
     .transform((val) => (val === '' ? undefined : val))
     .optional(),
-  currency: z.string().refine((val) => Object.values(CURRENCY_ENUM).includes(val as CurrencyType), {
-    message: `Invalid currency. Supported: ${Object.values(CURRENCY_ENUM).join(', ')}`
-  }).optional()
+  currency: z
+    .string()
+    .refine(
+      (val) => Object.values(CURRENCY_ENUM).includes(val as CurrencyType),
+      {
+        message: `Invalid currency. Supported: ${Object.values(CURRENCY_ENUM).join(', ')}`
+      }
+    )
+    .optional()
 })
 
 // ParsedRow is now imported from ./types.ts
@@ -115,10 +140,15 @@ const ConfirmationStep = ({
   onBack
 }: ConfirmationStepProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [localCsvData, setLocalCsvData] = useState<CsvRowWrapper[]>(() => 
-    initialCsvData.map((data) => ({ id: crypto.randomUUID(), data: data as Record<string, string> }))
+  const [localCsvData, setLocalCsvData] = useState<CsvRowWrapper[]>(() =>
+    initialCsvData.map((data) => ({
+      id: crypto.randomUUID(),
+      data: data as Record<string, string>
+    }))
   )
-  const [overrides, setOverrides] = useState<Record<string, Partial<ParsedTransaction>>>({})
+  const [overrides, setOverrides] = useState<
+    Record<string, Partial<ParsedTransaction>>
+  >({})
   const [editingRow, setEditingRow] = useState<ParsedRow | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
@@ -142,32 +172,44 @@ const ConfirmationStep = ({
     localCsvData.forEach((rowWrapper) => {
       const rowId = rowWrapper.id
       const rowData = rowWrapper.data
-      
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const draft: any = {}
 
       // Pass 1: Map non-amount fields (to get currency context first)
       Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
         const value = rowData[csvColumn]
-        if (transactionField === 'Skip' || transactionField === 'amount' || value === undefined) return
+        if (
+          transactionField === 'Skip' ||
+          transactionField === 'amount' ||
+          value === undefined
+        )
+          return
 
         if (transactionField === 'date') {
           const rawValue = String(value).trim()
           // Handle YYYY-MM-DD in local time to avoid UTC day-shift
           const dateMatch = rawValue.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
           if (dateMatch) {
-          const y = parseInt(dateMatch[1])
-          const m = parseInt(dateMatch[2])
-          const d = parseInt(dateMatch[3])
-          // Use Date.UTC to avoid day-shift when converting to ISOString
-          draft.date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toISOString()
-        } else if (!isNaN(Date.parse(rawValue))) {
+            const y = parseInt(dateMatch[1])
+            const m = parseInt(dateMatch[2])
+            const d = parseInt(dateMatch[3])
+            // Use Date.UTC to avoid day-shift when converting to ISOString
+            draft.date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toISOString()
+          } else if (!isNaN(Date.parse(rawValue))) {
             draft.date = new Date(rawValue).toISOString()
           }
         } else if (transactionField === 'type') {
           const val = String(value).toUpperCase().trim()
-          draft[transactionField] = val.includes('INC') ? 'INCOME' : val.includes('EXP') ? 'EXPENSE' : val
-        } else if (transactionField === 'currency' || transactionField === 'status') {
+          draft[transactionField] = val.includes('INC')
+            ? 'INCOME'
+            : val.includes('EXP')
+              ? 'EXPENSE'
+              : val
+        } else if (
+          transactionField === 'currency' ||
+          transactionField === 'status'
+        ) {
           draft[transactionField] = String(value).trim().toUpperCase()
         } else {
           draft[transactionField] = value
@@ -175,7 +217,9 @@ const ConfirmationStep = ({
       })
 
       // Pass 2: Map and parse amount with currency context
-      const amountMapping = Object.entries(mappings).find(([, field]) => field === 'amount')
+      const amountMapping = Object.entries(mappings).find(
+        ([, field]) => field === 'amount'
+      )
       if (amountMapping) {
         const [csvColumn] = amountMapping
         const value = rowData[csvColumn]
@@ -215,28 +259,28 @@ const ConfirmationStep = ({
       } catch (error) {
         errorCount++
         const message =
-            error instanceof z.ZodError
-                ? error.errors
-                    .map((e) => {
-                      if (e.path[0] === 'type')
-                        return 'Type: INCOME or EXPENSE'
-                      if (e.path[0] === 'paymentMethod')
-                        return (
-                            'Payment: ' +
-                            Object.values(PAYMENT_METHODS_ENUM).join(', ')
-                        )
-                      if (e.path[0] === 'status')
-                        return 'Status: COMPLETED, PENDING, or FAILED'
-                      return `${e.path[0]}: ${e.message}`
-                    })
-                    .join(' | ')
-                : 'Invalid data'
+          error instanceof z.ZodError
+            ? error.errors
+                .map((e) => {
+                  if (e.path[0] === 'type') return 'Type: INCOME or EXPENSE'
+                  if (e.path[0] === 'paymentMethod')
+                    return (
+                      'Payment: ' +
+                      Object.values(PAYMENT_METHODS_ENUM).join(', ')
+                    )
+                  if (e.path[0] === 'status')
+                    return 'Status: COMPLETED, PENDING, or FAILED'
+                  return `${e.path[0]}: ${e.message}`
+                })
+                .join(' | ')
+            : 'Invalid data'
 
         // Create a fallback data for editing even if invalid
         const fallbackData = {
           title: String(draft.title || ''),
           amount: Number(draft.amount || 0),
-          date: (typeof draft.date === 'string' && !isNaN(Date.parse(draft.date)))
+          date:
+            typeof draft.date === 'string' && !isNaN(Date.parse(draft.date))
               ? new Date(draft.date).toISOString()
               : '', // Don't default to today, keep it empty to force a fix
           type: (draft.type as _TransactionType) || 'EXPENSE',
@@ -247,11 +291,20 @@ const ConfirmationStep = ({
           description: String(draft.description || '')
         }
 
-        rows.push({ id: rowId, data: fallbackData, error: message, isValid: false })
+        rows.push({
+          id: rowId,
+          data: fallbackData,
+          error: message,
+          isValid: false
+        })
       }
     })
 
-    return { processedRows: rows, validTransactions: valid, totalErrors: errorCount }
+    return {
+      processedRows: rows,
+      validTransactions: valid,
+      totalErrors: errorCount
+    }
   }, [localCsvData, mappings, overrides])
 
   const rowVirtualizer = useVirtualizer({
@@ -273,6 +326,7 @@ const ConfirmationStep = ({
     }
 
     setIsSubmitting(true)
+    let importCompleted = false // Flag to prevent race condition
 
     try {
       const payload = {
@@ -280,6 +334,9 @@ const ConfirmationStep = ({
       }
 
       await bulkImportTransaction(payload).unwrap()
+
+      // Mark as completed before closing modal
+      importCompleted = true
 
       // Close modal immediately and let background handle it
       onComplete()
@@ -290,8 +347,11 @@ const ConfirmationStep = ({
       })
 
       // Safety net: Invalidate tags after a longer delay (5s) for large imports
+      // Only if import was completed successfully
       timerRef.current = setTimeout(() => {
-        dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
+        if (importCompleted) {
+          dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
+        }
       }, 5000)
     } catch (error: unknown) {
       const err = error as { data?: { message?: string } }
@@ -302,8 +362,8 @@ const ConfirmationStep = ({
   }
 
   const handleDeleteRow = (rowId: string) => {
-    setLocalCsvData(prev => prev.filter((r) => r.id !== rowId))
-    setOverrides(prev => {
+    setLocalCsvData((prev) => prev.filter((r) => r.id !== rowId))
+    setOverrides((prev) => {
       const next = { ...prev }
       delete next[rowId]
       return next
@@ -311,8 +371,11 @@ const ConfirmationStep = ({
     toast.success('Transaction row deleted')
   }
 
-  const handleUpdateRow = (rowId: string, updatedTransaction: ParsedTransaction) => {
-    setOverrides(prev => ({
+  const handleUpdateRow = (
+    rowId: string,
+    updatedTransaction: ParsedTransaction
+  ) => {
+    setOverrides((prev) => ({
       ...prev,
       [rowId]: updatedTransaction
     }))
@@ -340,157 +403,276 @@ const ConfirmationStep = ({
             <span className="text-muted-foreground">Total Rows:</span>
             <span className="font-bold">{localCsvData.length}</span>
             <span className="text-muted-foreground">Ready:</span>
-            <span className="text-green-600 font-bold">{validTransactions.length}</span>
+            <span className="text-green-600 font-bold">
+              {validTransactions.length}
+            </span>
           </div>
         </div>
 
         <div className="border rounded-lg p-3 text-xs bg-muted/20 min-w-[180px] shadow-sm">
           <h4 className="flex items-center gap-1.5 font-semibold mb-1.5 text-slate-900 dark:text-slate-100">
-            {totalErrors > 0 ? <AlertCircle className="w-3.5 h-3.5 text-orange-500" /> : <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
+            {totalErrors > 0 ? (
+              <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
+            ) : (
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+            )}
             Validation Status
           </h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
             <span className="text-muted-foreground">Errors:</span>
-            <span className={cn("font-bold", totalErrors > 0 && "text-destructive")}>{totalErrors}</span>
+            <span
+              className={cn('font-bold', totalErrors > 0 && 'text-destructive')}
+            >
+              {totalErrors}
+            </span>
             <span className="text-muted-foreground">Action:</span>
-            <span className="font-bold">{totalErrors === 0 ? "Validated" : "Issues Found"}</span>
+            <span className="font-bold">
+              {totalErrors === 0 ? 'Validated' : 'Issues Found'}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="flex-1 min-h-0 border rounded-xl overflow-hidden shadow-sm bg-background">
-        <div 
+        <div
           ref={parentRef}
           className="h-[450px] overflow-auto scrollbar-thin scrollbar-thumb-gray-200"
         >
           <Table className="table-fixed w-full border-collapse" role="grid">
-            <TableHeader className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b" role="rowgroup">
-              <TableRow className="hover:bg-transparent flex w-full h-10 px-4" role="row">
-                <TableHead className="w-10 shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">#</TableHead>
-                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Date</TableHead>
-                <TableHead className="flex-1 shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider px-2" role="columnheader">Title</TableHead>
-                <TableHead className="w-[120px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider pr-4" role="columnheader">Amount</TableHead>
-                <TableHead className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Category</TableHead>
-                <TableHead className="w-[80px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Type</TableHead>
-                <TableHead className="w-[110px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Status</TableHead>
-                <TableHead className="w-[80px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider" role="columnheader">Actions</TableHead>
+            <TableHeader
+              className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b"
+              role="rowgroup"
+            >
+              <TableRow
+                className="hover:bg-transparent flex w-full h-10 px-4"
+                role="row"
+              >
+                <TableHead
+                  className="w-10 shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider"
+                  role="columnheader"
+                >
+                  #
+                </TableHead>
+                <TableHead
+                  className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider"
+                  role="columnheader"
+                >
+                  Date
+                </TableHead>
+                <TableHead
+                  className="flex-1 shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider px-2"
+                  role="columnheader"
+                >
+                  Title
+                </TableHead>
+                <TableHead
+                  className="w-[120px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider pr-4"
+                  role="columnheader"
+                >
+                  Amount
+                </TableHead>
+                <TableHead
+                  className="w-[130px] shrink-0 flex items-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider"
+                  role="columnheader"
+                >
+                  Category
+                </TableHead>
+                <TableHead
+                  className="w-[80px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider"
+                  role="columnheader"
+                >
+                  Type
+                </TableHead>
+                <TableHead
+                  className="w-[110px] shrink-0 flex items-center justify-center text-[11px] font-bold uppercase text-muted-foreground tracking-wider"
+                  role="columnheader"
+                >
+                  Status
+                </TableHead>
+                <TableHead
+                  className="w-[80px] shrink-0 flex items-center justify-end text-[11px] font-bold uppercase text-muted-foreground tracking-wider"
+                  role="columnheader"
+                >
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }} role="rowgroup">
+            <TableBody
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                position: 'relative'
+              }}
+              role="rowgroup"
+            >
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const row = processedRows[virtualRow.index]
                 if (!row) return null
-                
+
                 return (
                   <TableRow
                     key={virtualRow.key}
                     data-index={virtualRow.index}
                     role="row"
                     className={cn(
-                      "absolute top-0 left-0 w-full transition-colors border-b last:border-0 flex h-12 items-center px-4",
-                      !row.isValid && "bg-red-50/30 hover:bg-red-100/30"
+                      'absolute top-0 left-0 w-full transition-colors border-b last:border-0 flex h-12 items-center px-4',
+                      !row.isValid && 'bg-red-50/30 hover:bg-red-100/30'
                     )}
                     style={{
                       height: `${virtualRow.size}px`,
                       transform: `translateY(${virtualRow.start}px)`
                     }}
                   >
-                    <TableCell className="w-10 shrink-0 flex items-center justify-center px-0" role="gridcell">
-                      <span className="text-[10px] font-bold text-slate-400 tabular-nums">{virtualRow.index + 1}</span>
+                    <TableCell
+                      className="w-10 shrink-0 flex items-center justify-center px-0"
+                      role="gridcell"
+                    >
+                      <span className="text-[10px] font-bold text-slate-400 tabular-nums">
+                        {virtualRow.index + 1}
+                      </span>
                     </TableCell>
-                    <TableCell className="w-[130px] shrink-0 flex items-center" role="gridcell">
+                    <TableCell
+                      className="w-[130px] shrink-0 flex items-center"
+                      role="gridcell"
+                    >
                       <span className="text-xs text-slate-500 tabular-nums truncate">
-                        {row.data?.date && !isNaN(new Date(row.data.date).getTime()) 
-                          ? format(new Date(row.data.date), 'dd MMM, yyyy') 
+                        {row.data?.date &&
+                        !isNaN(new Date(row.data.date).getTime())
+                          ? format(new Date(row.data.date), 'dd MMM, yyyy')
                           : '-'}
                       </span>
                     </TableCell>
-                    <TableCell className="flex-1 shrink-0 flex items-center overflow-hidden px-2" role="gridcell">
-                      <span className="text-sm font-medium truncate text-slate-700 dark:text-slate-200" title={row.data?.title}>
+                    <TableCell
+                      className="flex-1 shrink-0 flex items-center overflow-hidden px-2"
+                      role="gridcell"
+                    >
+                      <span
+                        className="text-sm font-medium truncate text-slate-700 dark:text-slate-200"
+                        title={row.data?.title}
+                      >
                         {row.data?.title || '-'}
                       </span>
                     </TableCell>
-                    <TableCell className={cn(
-                      "w-[120px] shrink-0 flex items-center justify-end pr-4 font-bold tabular-nums text-[13px]",
-                      row.data?.type === 'INCOME' ? "text-emerald-600" : "text-rose-600"
-                    )} role="gridcell">
+                    <TableCell
+                      className={cn(
+                        'w-[120px] shrink-0 flex items-center justify-end pr-4 font-bold tabular-nums text-[13px]',
+                        row.data?.type === 'INCOME'
+                          ? 'text-emerald-600'
+                          : 'text-rose-600'
+                      )}
+                      role="gridcell"
+                    >
                       <span className="truncate">
                         {row.data && (row.data.type === 'INCOME' ? '+ ' : '- ')}
-                        {row.data && formatCurrency(row.data.amount, { 
-                          currency: (row.data.currency as CurrencyType) || CURRENCY_ENUM.USD,
-                          showSign: false 
-                        })}
+                        {row.data &&
+                          formatCurrency(row.data.amount, {
+                            currency:
+                              (row.data.currency as CurrencyType) ||
+                              CURRENCY_ENUM.USD,
+                            showSign: false
+                          })}
                       </span>
                     </TableCell>
-                    <TableCell className="w-[130px] shrink-0 flex items-center pr-2" role="gridcell">
-                       <Badge variant="secondary" className="text-[10px] font-medium px-2 py-0 truncate max-w-full">
-                         {row.data?.category}
-                       </Badge>
+                    <TableCell
+                      className="w-[130px] shrink-0 flex items-center pr-2"
+                      role="gridcell"
+                    >
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] font-medium px-2 py-0 truncate max-w-full"
+                      >
+                        {row.data?.category}
+                      </Badge>
                     </TableCell>
-                    <TableCell className="w-[80px] shrink-0 flex items-center justify-center" role="gridcell">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight uppercase",
-                        row.data?.type === 'INCOME' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                      )}>
+                    <TableCell
+                      className="w-[80px] shrink-0 flex items-center justify-center"
+                      role="gridcell"
+                    >
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight uppercase',
+                          row.data?.type === 'INCOME'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'
+                        )}
+                      >
                         {row.data?.type}
                       </span>
                     </TableCell>
-                    <TableCell className="w-[110px] shrink-0 flex items-center justify-center px-1" role="gridcell">
+                    <TableCell
+                      className="w-[110px] shrink-0 flex items-center justify-center px-1"
+                      role="gridcell"
+                    >
                       {!row.isValid ? (
-                          <div className="group relative inline-block focus-within:z-50">
-                            <Badge 
-                             variant="destructive" 
-                             className="h-6 text-[10px] cursor-help px-2 animate-pulse focus:ring-2 focus:ring-red-500 outline-none"
-                             tabIndex={0}
-                             aria-describedby={`err-${row.id}`}
-                            >
-                              Error
-                            </Badge>
-                            <div 
-                              id={`err-${row.id}`}
-                              role="tooltip"
-                              className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-[100] pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
-                            >
-                               <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
-                                 <AlertCircle className="w-4 h-4" aria-hidden="true" />
-                                 Validation Error
-                               </div>
-                               <p className="text-[11px] leading-relaxed text-gray-600 dark:text-gray-300">
-                                 {row.error}
-                               </p>
+                        <div className="group relative inline-block focus-within:z-50">
+                          <Badge
+                            variant="destructive"
+                            className="h-6 text-[10px] cursor-help px-2 animate-pulse focus:ring-2 focus:ring-red-500 outline-none"
+                            tabIndex={0}
+                            aria-describedby={`err-${row.id}`}
+                          >
+                            Error
+                          </Badge>
+                          <div
+                            id={`err-${row.id}`}
+                            role="tooltip"
+                            className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-white dark:bg-gray-900 border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all z-[100] pointer-events-none group-hover:pointer-events-auto scale-95 group-hover:scale-100 border-red-200"
+                          >
+                            <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-xs">
+                              <AlertCircle
+                                className="w-4 h-4"
+                                aria-hidden="true"
+                              />
+                              Validation Error
                             </div>
+                            <p className="text-[11px] leading-relaxed text-gray-600 dark:text-gray-300">
+                              {row.error}
+                            </p>
                           </div>
+                        </div>
                       ) : (
-                        <span className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-white shadow-sm whitespace-nowrap",
-                          row.data?.status === 'COMPLETED' ? "bg-green-500" : row.data?.status === 'FAILED' ? "bg-red-500" : "bg-orange-400"
-                        )}>
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-white shadow-sm whitespace-nowrap',
+                            row.data?.status === 'COMPLETED'
+                              ? 'bg-green-500'
+                              : row.data?.status === 'FAILED'
+                                ? 'bg-red-500'
+                                : 'bg-orange-400'
+                          )}
+                        >
                           <span className="h-1.5 w-1.5 rounded-full bg-white opacity-90" />
-                          {row.data?.status === 'COMPLETED' ? 'Completed' : row.data?.status === 'FAILED' ? 'Failed' : 'Pending'}
+                          {row.data?.status === 'COMPLETED'
+                            ? 'Completed'
+                            : row.data?.status === 'FAILED'
+                              ? 'Failed'
+                              : 'Pending'}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="w-[80px] shrink-0 flex items-center justify-end gap-1 px-0" role="gridcell">
-                        {row.data && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50/50"
-                            onClick={() => setEditingRow(row)}
-                            aria-label={`Edit transaction ${virtualRow.index + 1}: ${row.data?.title || 'Untitled'}`}
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </Button>
-                       )}
-                       <Button 
-                         variant="ghost" 
-                         size="icon" 
-                         className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50/50"
-                         onClick={() => handleDeleteRow(row.id)}
-                         aria-label={`Delete transaction ${virtualRow.index + 1}: ${row.data?.title || 'Untitled'}`}
-                       >
-                         <Trash2 className="w-3.5 h-3.5" />
-                       </Button>
+                    <TableCell
+                      className="w-[80px] shrink-0 flex items-center justify-end gap-1 px-0"
+                      role="gridcell"
+                    >
+                      {row.data && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50/50"
+                          onClick={() => setEditingRow(row)}
+                          aria-label={`Edit transaction ${virtualRow.index + 1}: ${row.data?.title || 'Untitled'}`}
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50/50"
+                        onClick={() => handleDeleteRow(row.id)}
+                        aria-label={`Delete transaction ${virtualRow.index + 1}: ${row.data?.title || 'Untitled'}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 )
@@ -505,20 +687,20 @@ const ConfirmationStep = ({
           <ChevronLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        <Button 
-          onClick={handleImport} 
+        <Button
+          onClick={handleImport}
           disabled={isSubmitting || totalErrors > 0}
-          className={cn(totalErrors > 0 && "opacity-50 cursor-not-allowed")}
+          className={cn(totalErrors > 0 && 'opacity-50 cursor-not-allowed')}
         >
           {isSubmitting ? 'Submitting...' : 'Confirm Import'}
         </Button>
       </div>
 
       {editingRow && editingRow.data && (
-        <EditForm 
-          transaction={editingRow.data} 
-          index={editingRow.id} 
-          onUpdate={handleUpdateRow} 
+        <EditForm
+          transaction={editingRow.data}
+          index={editingRow.id}
+          onUpdate={handleUpdateRow}
           onClose={() => setEditingRow(null)}
           open={true}
         />

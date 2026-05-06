@@ -18,6 +18,7 @@ const Settings = () => {
     { title: 'Security', href: PROTECTED_ROUTES.SETTINGS_SECURITY },
     { title: 'Billings', href: PROTECTED_ROUTES.SETTINGS_BILLING }
   ]
+
   return (
     <PageLayout
       title="Settings"

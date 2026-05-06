@@ -11,10 +11,11 @@ import {
   updateUserSchema
 } from '../validators/user.validator'
 import { sanitizeUser } from '../dtos/user.dtos'
+import { getUserId } from '../utils/getUserId.util'
 
 export const getCurrentUserController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id
+    const userId = getUserId(req)
 
     const user = await findByIdUserService(userId)
 
@@ -34,7 +35,7 @@ export const getCurrentUserController = asyncHandler(
 export const updateUserController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = updateUserSchema.parse(req.body)
-    const userId = req.user?._id
+    const userId = getUserId(req)
     const profilePic = req.file
 
     const user = await updateUserService(userId, body, profilePic)
@@ -49,7 +50,7 @@ export const updateUserController = asyncHandler(
 export const changeUserPasswordController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = changePasswordSchema.parse(req.body)
-    const userId = req.user?._id // ← lấy từ passport
+    const userId = getUserId(req) // ← lấy từ passport
     const result = await changeUserPasswordService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
   }

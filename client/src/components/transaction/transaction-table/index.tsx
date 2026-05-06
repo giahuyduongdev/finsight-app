@@ -34,6 +34,10 @@ type FilterType = {
   status?: 'COMPLETED' | 'PENDING' | 'FAILED' | undefined
   pageNumber?: number
   pageSize?: number
+  dateRangePreset?: DateRangePreset | undefined
+  from?: string | undefined
+  to?: string | undefined
+  timezone?: string | undefined
 }
 
 import { GetChildTransactionsResponse } from '@/features/transaction/transationType'
@@ -47,10 +51,12 @@ const TransactionTable = (props: {
   dateRange?: DateRangeType
   setDateRange?: (range: DateRangeType) => void
 }) => {
-  const [internalDateRange, setInternalDateRange] = useState<DateRangeType>(null)
+  const [internalDateRange, setInternalDateRange] =
+    useState<DateRangeType>(null)
 
   // Use external state if provided, otherwise use internal state
-  const dateRange = props.dateRange !== undefined ? props.dateRange : internalDateRange
+  const dateRange =
+    props.dateRange !== undefined ? props.dateRange : internalDateRange
   const setDateRange = props.setDateRange || setInternalDateRange
   const isSyncMode = props.dateRange !== undefined
 
@@ -125,7 +131,10 @@ const TransactionTable = (props: {
 
       if (!childrenMap[transactionId]) {
         try {
-          const result = await fetchChildren({ id: transactionId, pageNumber: 1 }).unwrap()
+          const result = await fetchChildren({
+            id: transactionId,
+            pageNumber: 1
+          }).unwrap()
           setChildrenMap((prev: ChildrenMapType) => ({
             ...prev,
             [transactionId]: result
@@ -146,6 +155,7 @@ const TransactionTable = (props: {
   )
 
   const loadingParentsRef = useRef<Set<string>>(new Set())
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
 
   const handleLoadMoreChilds = useCallback(
     async (parentId: string) => {
@@ -154,16 +164,23 @@ const TransactionTable = (props: {
 
       const cached = childrenMap[parentId]
       if (!cached || !cached.pagination) return
-      
+
       const { pageNumber, totalPages } = cached.pagination
       if (pageNumber >= totalPages) return
 
       loadingParentsRef.current.add(parentId)
 
+      // Create AbortController for this request
+      const controller = new AbortController()
+      abortControllersRef.current.set(parentId, controller)
+
       const nextPage = pageNumber + 1
       try {
-        const result = await fetchChildren({ id: parentId, pageNumber: nextPage }).unwrap()
-        
+        const result = await fetchChildren({
+          id: parentId,
+          pageNumber: nextPage
+        }).unwrap()
+
         setChildrenMap((prev) => {
           const oldCache = prev[parentId]
           return {
@@ -175,10 +192,15 @@ const TransactionTable = (props: {
           }
         })
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('Request cancelled for parent:', parentId)
+          return
+        }
         console.error('Failed to load more child transactions:', error)
         toast.error('Failed to load more child transactions')
       } finally {
         loadingParentsRef.current.delete(parentId)
+        abortControllersRef.current.delete(parentId)
       }
     },
     [childrenMap, fetchChildren]
@@ -220,7 +242,10 @@ const TransactionTable = (props: {
           } as DisplayTransaction)
         }
 
-        if (cached.pagination && cached.children.length < cached.pagination.totalCount) {
+        if (
+          cached.pagination &&
+          cached.children.length < cached.pagination.totalCount
+        ) {
           parentTx.subRows.push({
             ...tx,
             _id: `load-more-${tx._id}`,
@@ -242,7 +267,11 @@ const TransactionTable = (props: {
     const expandedSet = new Set(
       typeof expanded === 'object' ? Object.keys(expanded) : []
     )
-    const baseCols = createTransactionColumns(expandedSet, handleExpandRow, handleLoadMoreChilds)
+    const baseCols = createTransactionColumns(
+      expandedSet,
+      handleExpandRow,
+      handleLoadMoreChilds
+    )
 
     // 2. KHAI BÁO TYPE CHUẨN ĐỂ FIX ESLINT "any"
     const enhancedCols = baseCols.map((col) => {
@@ -325,6 +354,21 @@ const TransactionTable = (props: {
   })
 
   const previousFetching = useRef(isFetching)
+  const childrenMapRef = useRef(childrenMap)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    childrenMapRef.current = childrenMap
+  }, [childrenMap])
+
+  // Cleanup: Cancel all pending requests when component unmounts
+  useEffect(() => {
+    const controllers = abortControllersRef.current
+    return () => {
+      controllers.forEach((controller) => controller.abort())
+      controllers.clear()
+    }
+  }, [])
 
   useEffect(() => {
     if (previousFetching.current && !isFetching) {
@@ -337,19 +381,26 @@ const TransactionTable = (props: {
           // Chỉ fetch lại nếu dòng cha đó vẫn nằm trong danh sách đang hiển thị
           if (transactions.some((tx) => tx._id === id)) {
             // Lấy số lượng đã load hiện tại để refresh đúng bấy nhiêu
-            const currentCount = childrenMap[id]?.children?.length || 10
-            
+            const currentCount =
+              childrenMapRef.current[id]?.children?.length || 10
+
             // Backend giới hạn 50, nếu xem nhiều hơn thì phải fetch nhiều trang
             const CHUNK_SIZE = 50
             const pagesToFetch = Math.ceil(currentCount / CHUNK_SIZE)
 
             Promise.all(
               Array.from({ length: pagesToFetch }, (_, idx) =>
-                fetchChildren({ id, pageNumber: idx + 1, pageSize: CHUNK_SIZE }).unwrap()
+                fetchChildren({
+                  id,
+                  pageNumber: idx + 1,
+                  pageSize: CHUNK_SIZE
+                }).unwrap()
               )
             )
               .then((results) => {
-                const mergedChildren = results.flatMap((r) => r.children).slice(0, currentCount)
+                const mergedChildren = results
+                  .flatMap((r) => r.children)
+                  .slice(0, currentCount)
                 const latest = results[results.length - 1]
                 setChildrenMap((prev: ChildrenMapType) => ({
                   ...prev,
@@ -365,14 +416,17 @@ const TransactionTable = (props: {
                 }))
               })
               .catch((error) => {
-                console.error(`Failed to refresh children for transaction ${id}:`, error)
+                console.error(
+                  `Failed to refresh children for transaction ${id}:`,
+                  error
+                )
               })
           }
         })
       }
     }
     previousFetching.current = isFetching
-  }, [isFetching, expanded, fetchChildren, transactions, childrenMap])
+  }, [isFetching, expanded, fetchChildren, transactions])
 
   useEffect(() => {
     if (!isFetching && data) {
@@ -386,7 +440,11 @@ const TransactionTable = (props: {
           currency: filter.currency,
           status: filter.status,
           pageNumber: currentPage + 1,
-          pageSize: filter.pageSize
+          pageSize: filter.pageSize,
+          dateRangePreset: filter.dateRangePreset,
+          from: filter.from,
+          to: filter.to,
+          timezone: filter.timezone
         })
       }
     }

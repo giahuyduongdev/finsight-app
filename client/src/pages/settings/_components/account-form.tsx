@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -39,7 +39,7 @@ const accountFormSchema = z.object({
       message: 'Name must be at least 2 characters.'
     })
     .optional(),
-  profilePicture: z.string(),
+  profilePicture: z.string().optional(), // Make optional to match file state
   timezone: z.string().optional(),
   preferredCurrency: z.string().optional()
 })
@@ -112,7 +112,7 @@ export function AccountForm() {
         // 🚀 KẾT THÚC PREFETCH 🚀
       })
       .catch((error) => {
-        toast.error(error.data.message || 'Failed to update account')
+        toast.error(error?.data?.message || 'Failed to update account')
       })
   }
 
@@ -126,20 +126,38 @@ export function AccountForm() {
       toast.error('Please select an image file')
       return
     }
+    // Add file size validation (max 5MB)
+    const MAX_SIZE = 5 * 1024 * 1024 // 5MB in bytes
+    if (file.size > MAX_SIZE) {
+      toast.error('Image size must be less than 5MB')
+      return
+    }
     setFile(file)
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
       setAvatarUrl(result)
     }
+    reader.onerror = () => {
+      toast.error('Failed to read image file')
+      setFile(null)
+      setAvatarUrl(null)
+    }
     reader.readAsDataURL(file)
   }
+
+  const avatarInputId = useId()
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="flex flex-col items-start space-y-4">
-          <FormLabel>Profile Picture</FormLabel>
+          <label
+            htmlFor={avatarInputId}
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Profile Picture
+          </label>
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
               <AvatarImage
@@ -152,6 +170,7 @@ export function AccountForm() {
             </Avatar>
             <div className="flex flex-col gap-2">
               <Input
+                id={avatarInputId}
                 type="file"
                 accept="image/*"
                 onChange={handleAvatarChange}
@@ -177,10 +196,16 @@ export function AccountForm() {
           )}
         />
         <div className="space-y-2">
-          <FormLabel>Email Address</FormLabel>
-          <Input 
-            value={user?.email || ''} 
-            disabled 
+          <label
+            htmlFor="email-input"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Email Address
+          </label>
+          <Input
+            id="email-input"
+            value={user?.email || ''}
+            disabled
             className="bg-muted/50 cursor-not-allowed"
           />
           <p className="text-[0.8rem] text-muted-foreground">

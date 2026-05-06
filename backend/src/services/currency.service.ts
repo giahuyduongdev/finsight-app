@@ -3,6 +3,7 @@ import { redis } from '../config/redis.config'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 import { CurrencyEnum } from '../enums/currency.enum'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 const CACHE_KEY_PREFIX = 'rate:'
 const BROADCAST_EVENT = 'currency:rates_updated'
@@ -14,12 +15,20 @@ export class CurrencyService {
    */
   static async fetchAndBroadcastRates() {
     try {
-      logger.info('🔄 [Currency] Fetching latest exchange rates...')
-      
+      logger.info(
+        logIcon(
+          LOG_ICONS.REFRESH,
+          '[Currency] Fetching latest exchange rates...'
+        )
+      )
+
       // Lấy VND làm gốc để dễ tính toán cho người dùng VN
       const baseCurrency = CurrencyEnum.VND
       const response = await axios.get(
-        `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`
+        `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`,
+        {
+          timeout: 10000 // 10 second timeout
+        }
       )
 
       const rates = response.data.rates
@@ -41,13 +50,34 @@ export class CurrencyService {
 
           if (rateFromVNDtoA && rateFromVNDtoB) {
             const crossRate = rateFromVNDtoB / rateFromVNDtoA
-            pipeline.set(`${CACHE_KEY_PREFIX}${from}:${to}`, crossRate.toString(), 'EX', 86400) // Cache 24h as fallback
+            pipeline.set(
+              `${CACHE_KEY_PREFIX}${from}:${to}`,
+              crossRate.toString(),
+              'EX',
+              86400
+            ) // Cache 24h as fallback
           }
         }
       }
 
-      await pipeline.exec()
-      logger.info('✅ [Currency] Cache updated in Redis')
+      const results = await pipeline.exec()
+
+      // Check for partial failures in pipeline execution
+      if (results) {
+        const failures = results.filter(([err]) => err !== null)
+        if (failures.length > 0) {
+          logger.warn(
+            logIcon(
+              LOG_ICONS.WARNING,
+              `[Currency] ${failures.length} cache operations failed`
+            )
+          )
+        }
+      }
+
+      logger.info(
+        logIcon(LOG_ICONS.SUCCESS, '[Currency] Cache updated in Redis')
+      )
 
       // Phát sóng qua WebSocket
       const io = getIO()
@@ -56,11 +86,21 @@ export class CurrencyService {
         rates,
         updatedAt: new Date().toISOString()
       })
-      
-      logger.info(`📡 [Currency] Broadcasted rates to all clients`)
+
+      logger.info(
+        logIcon(
+          LOG_ICONS.CURRENCY,
+          '[Currency] Broadcasted rates to all clients'
+        )
+      )
       return rates
     } catch (error) {
-      logger.error(`❌ [Currency] Error updating rates: ${(error as Error).message}`)
+      logger.error(
+        logIcon(
+          LOG_ICONS.ERROR,
+          `[Currency] Error updating rates: ${(error as Error).message}`
+        )
+      )
       // Không ném lỗi ra ngoài để tránh làm hỏng cron job
       return null
     }
@@ -75,25 +115,48 @@ export class CurrencyService {
       const baseCurrency = CurrencyEnum.VND
       const rates: Record<string, number> = {}
 
-      // Lấy tỉ giá so với VND từ cache
+      // Lấy tỉ giá so với VND từ cache - Optimized with mget
       let hasData = false
+
+      // Build keys array for mget
+      const keys: string[] = []
+      const keyToCurrency: Record<string, string> = {}
+
       for (const code of currencies) {
         if (code === baseCurrency) {
           rates[code] = 1
           continue
         }
-        const val = await redis.get(`${CACHE_KEY_PREFIX}${baseCurrency}:${code}`)
-        if (val) {
-          rates[code] = parseFloat(val)
-          hasData = true
-        } else {
-          rates[code] = 0
+        const key = `${CACHE_KEY_PREFIX}${baseCurrency}:${code}`
+        keys.push(key)
+        keyToCurrency[key] = code
+      }
+
+      // Single mget call instead of N redis.get calls
+      if (keys.length > 0) {
+        const values = await redis.mget(...keys)
+
+        for (let i = 0; i < keys.length; i++) {
+          const code = keyToCurrency[keys[i]]
+          const val = values[i]
+
+          if (val) {
+            rates[code] = parseFloat(val)
+            hasData = true
+          } else {
+            rates[code] = 0
+          }
         }
       }
 
       // Nếu không có dữ liệu trong cache, thử kích hoạt fetch ngay lập tức
       if (!hasData) {
-        logger.warn('⚠️ [Currency] Cache is empty, triggering manual fetch...')
+        logger.warn(
+          logIcon(
+            LOG_ICONS.WARNING,
+            '[Currency] Cache is empty, triggering manual fetch...'
+          )
+        )
         const fetchedRates = await CurrencyService.fetchAndBroadcastRates()
         if (fetchedRates) {
           return {
@@ -111,8 +174,11 @@ export class CurrencyService {
         updatedAt: new Date().toISOString()
       }
     } catch (error) {
-      logger.error('❌ [Currency] Error getting rates from cache:', (error as Error).message)
-      
+      logger.error(
+        logIcon(LOG_ICONS.ERROR, '[Currency] Error getting rates from cache:'),
+        (error as Error).message
+      )
+
       // Fallback cứng nếu Redis trống hoàn toàn (cho lần đầu chạy hoặc lỗi nặng)
       return {
         base: CurrencyEnum.VND,

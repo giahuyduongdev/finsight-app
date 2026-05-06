@@ -15,12 +15,14 @@ import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { sendReportEmail } from '../mailers/report.mailer'
 import UserModel from '../models/user.model'
+import { logger } from '../config/logger.config'
+import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 export const getAllReportsService = async (
   userId: string,
   pagination: { pageSize: number; pageNumber: number }
 ) => {
-  const query: Record<string, any> = { userId }
+  const query: Record<string, unknown> = { userId }
 
   const { pageSize, pageNumber } = pagination
   const skip = (pageNumber - 1) * pageSize
@@ -139,28 +141,57 @@ export const generateReportService = async (
 
   if (!summary.length) return null
 
-  // Convert từng currency về preferredCurrency
+  // Types for aggregation results
+  type SummaryItem = {
+    _id: string
+    totalIncome: number
+    totalExpenses: number
+  }
+
+  type CategoryItem = {
+    _id: { category: string; currency: string }
+    total: number
+  }
+
+  // Collect unique currencies
+  const uniqueCurrencies = new Set<string>()
+  summary.forEach((item: SummaryItem) => {
+    uniqueCurrencies.add(item._id || 'USD')
+  })
+  categories.forEach((item: CategoryItem) => {
+    uniqueCurrencies.add(item._id.currency || 'USD')
+  })
+
+  // Fetch rates once per unique currency
+  const ratePromises = Array.from(uniqueCurrencies).map(async (currency) => ({
+    currency,
+    rate: await getExchangeRate(currency, preferredCurrency)
+  }))
+  const rates = await Promise.all(ratePromises)
+  const rateMap = new Map(rates.map((r) => [r.currency, r.rate]))
+
+  // Convert summary using rate map
   let convertedIncome = 0
   let convertedExpenses = 0
 
-  for (const item of summary) {
+  summary.forEach((item: SummaryItem) => {
     const fromCurrency = item._id || 'USD'
-    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
+    const rate = rateMap.get(fromCurrency) || 1
     convertedIncome += item.totalIncome * rate
     convertedExpenses += item.totalExpenses * rate
-  }
+  })
 
   if (convertedIncome === 0 && convertedExpenses === 0) return null
 
-  // Convert categories theo currency
+  // Convert categories using rate map
   const categoryMap: Record<string, number> = {}
-  for (const item of categories) {
+  categories.forEach((item: CategoryItem) => {
     const { category, currency } = item._id
     const fromCurrency = currency || 'USD'
-    const rate = await getExchangeRate(fromCurrency, preferredCurrency)
+    const rate = rateMap.get(fromCurrency) || 1
     const convertedTotal = item.total * rate
     categoryMap[category] = (categoryMap[category] || 0) + convertedTotal
-  }
+  })
 
   // Sort và limit top 5
   const top5Categories = Object.entries(categoryMap)
@@ -255,6 +286,10 @@ async function generateInsightsAI({
     const data = JSON.parse(cleanedText)
     return data
   } catch (error) {
+    logger.error(
+      logIcon(LOG_ICONS.ERROR, '[Report] Failed to generate AI insights'),
+      { error: error instanceof Error ? error.message : String(error) }
+    )
     return []
   }
 }
@@ -309,10 +344,15 @@ export const resendReportService = async (userId: string, reportId: string) => {
     throw new NotFoundException('No activity found for this period')
   }
 
-  // 6. Gửi email
+  // 6. Validate user data before sending email
+  if (!user.email || !user.name) {
+    throw new NotFoundException('User email or name not found')
+  }
+
+  // 7. Gửi email
   await sendReportEmail({
-    email: user.email!,
-    username: user.name!,
+    email: user.email,
+    username: user.name,
     report: {
       period: reportData.period,
       totalIncome: reportData.summary.income,

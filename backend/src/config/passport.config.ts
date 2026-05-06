@@ -47,8 +47,8 @@ passport.use(
   })
 )
 
-passport.serializeUser((user: any, done) => done(null, user))
-passport.deserializeUser((user: any, done) => done(null, user))
+passport.serializeUser((user: Express.User, done) => done(null, user))
+passport.deserializeUser((user: Express.User, done) => done(null, user))
 
 export const passportAuthenticateJwt = passport.authenticate('jwt', {
   session: false

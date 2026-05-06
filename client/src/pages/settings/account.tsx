@@ -1,6 +1,6 @@
-import { Separator } from "@/components/ui/separator"
-import { AccountForm } from "./_components/account-form"
-import { ChangeEmailDialog } from "./_components/change-email-dialog"
+import { Separator } from '@/components/ui/separator'
+import { AccountForm } from './_components/account-form'
+import { ChangeEmailDialog } from './_components/change-email-dialog'
 
 const Account = () => {
   return (

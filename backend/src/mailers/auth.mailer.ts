@@ -41,11 +41,13 @@ export const sendVerificationEmail = async (params: SendAuthEmailParams) => {
 export const sendPasswordResetEmail = async (params: SendAuthEmailParams) => {
   const { email, username, otpCode } = params
 
+  const expiresInMinutes = REDIS_TTL.FORGOT_OTP / 60 // Tự động tính từ REDIS_TTL
+
   // 1. Get HTML template
-  const html = getResetPasswordTemplate(username, otpCode, 2)
+  const html = getResetPasswordTemplate(username, otpCode, expiresInMinutes)
 
   // 2. Prepare text fallback with security warning
-  const text = `Hi ${username || 'there'}, your Finsight password reset code is: ${otpCode}. This code is valid for 2 minutes. If you did not request this, please ignore this email.`
+  const text = `Hi ${username || 'there'}, your Finsight password reset code is: ${otpCode}. This code is valid for ${expiresInMinutes} minutes. If you did not request this, please ignore this email.`
 
   // 3. Execute sending
   return sendEmail({

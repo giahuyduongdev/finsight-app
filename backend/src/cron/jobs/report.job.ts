@@ -2,11 +2,17 @@ import ReportSettingModel from '../../models/report-setting.model'
 import { UserDocument } from '../../models/user.model'
 import { reportQueue, REPORT_JOBS } from '../../queues/report.queue'
 import { logger } from '../../config/logger.config'
+import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
 
 export const processReportJob = async () => {
   const now = new Date()
 
-  logger.info('🔄 [Cron] Fetching report settings due for processing...')
+  logger.info(
+    logIcon(
+      LOG_ICONS.QUEUE,
+      '[Cron] Fetching report settings due for processing...'
+    )
+  )
 
   try {
     const settings = await ReportSettingModel.find({
@@ -15,23 +21,35 @@ export const processReportJob = async () => {
     }).populate<{ userId: UserDocument }>('userId')
 
     if (!settings.length) {
-      logger.info('📭 [Cron] No reports due at this time')
+      logger.info(logIcon(LOG_ICONS.INFO, '[Cron] No reports due at this time'))
       return
     }
 
-    logger.info(`📋 [Cron] Found ${settings.length} report(s) to enqueue`)
+    logger.info(
+      logIcon(
+        LOG_ICONS.QUEUE,
+        `[Cron] Found ${settings.length} report(s) to enqueue`
+      )
+    )
 
     const jobs = settings
       .filter((setting) => {
         const user = setting.userId as UserDocument
         if (!user) {
-          logger.warn(`⚠️ [Cron] User not found for setting: ${setting._id}`)
+          logger.warn(
+            logIcon(
+              LOG_ICONS.WARNING,
+              `[Cron] User not found for setting: ${setting._id}`
+            )
+          )
           return false
         }
         return true
       })
       .map((setting) => {
         const user = setting.userId as UserDocument
+        // Validate frequency before using
+        const frequency = setting.frequency || 'MONTHLY'
         return {
           name: REPORT_JOBS.PROCESS_REPORT,
           data: {
@@ -39,7 +57,7 @@ export const processReportJob = async () => {
             settingId: setting._id.toString(),
             timezone: user.timezone || 'UTC',
             preferredCurrency: user.preferredCurrency,
-            frequency: setting.frequency!,
+            frequency,
             dueDate: setting.nextReportDate?.toISOString() || now.toISOString()
           },
           opts: {
@@ -52,11 +70,17 @@ export const processReportJob = async () => {
     await reportQueue.addBulk(jobs)
 
     logger.info(
-      `📥 [Cron] Enqueued ${jobs.length} report job(s) into REPORT_QUEUE`
+      logIcon(
+        LOG_ICONS.QUEUE,
+        `[Cron] Enqueued ${jobs.length} report job(s) into REPORT_QUEUE`
+      )
     )
   } catch (error) {
-    logger.error('❌ [Cron] Failed to enqueue report jobs', {
-      error: (error as Error).message
-    })
+    logger.error(
+      logIcon(LOG_ICONS.ERROR, '[Cron] Failed to enqueue report jobs'),
+      {
+        error: (error as Error).message
+      }
+    )
   }
 }

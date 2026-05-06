@@ -37,7 +37,10 @@ const registerSchema = z.object({
     .min(6, 'Password must be at least 6 characters')
     .regex(/^[A-Z]/, 'Password must start with an uppercase letter')
     .regex(/\d/, 'Password must contain at least one number')
-    .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character'),
+    .regex(
+      /[!@#$%^&*(),.?":{}|<>]/,
+      'Password must contain at least one special character'
+    ),
   timezone: z.string().optional()
 })
 
@@ -56,7 +59,7 @@ type OtpValues = z.infer<typeof otpSchema>
 const handleOAuth = (provider: 'github' | 'google') => {
   const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone
   const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-  window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${currentTz}`
+  window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
 }
 
 // ─── OTP Input Component ──────────────────────────────────────────────────────
@@ -130,6 +133,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
+          aria-label={`OTP digit ${i + 1} of 6`}
           className="w-11 h-12 text-center text-lg font-semibold rounded-lg border border-input bg-background
             focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
             disabled:opacity-50 disabled:cursor-not-allowed
@@ -256,7 +260,7 @@ const SignUpForm = () => {
       await resendOTP({ email: pendingEmail }).unwrap()
       otpForm.reset()
       resetCountdown()
-      toast.success('New OTP sent to your email.')
+      toast.success('New OTP sent to your email')
     } catch (error: unknown) {
       const err = error as {
         data?: { data?: { remainingTime?: number }; message?: string }
@@ -356,7 +360,7 @@ const SignUpForm = () => {
               setStep('form')
               otpForm.reset()
             }}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-3 w-3" />
             Back to sign up
@@ -429,7 +433,7 @@ const SignUpForm = () => {
           </Button>
 
           <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
-            <span className="relative z-10 bg-[var(--bg-color)] dark:bg-background px-2 text-muted-foreground">
+            <span className="relative z-10 bg-white dark:bg-zinc-950 px-2 text-muted-foreground">
               Or continue with
             </span>
           </div>
