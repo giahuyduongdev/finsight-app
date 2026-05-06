@@ -1,8 +1,9 @@
-@import url('tailwindcss');
+@import 'tailwindcss';
 @import 'tw-animate-css';
 
 body {
-  font-family: Onest, sans-serif !important;
+  pointer-events: fill !important;
+  font-family: 'Onest', sans-serif !important;
 }
 
 .recurring-control button span {
@@ -129,7 +130,7 @@ body {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-(--bg-color) dark:bg-background text-foreground;
+    @apply bg-[var(--bg-color)] dark:bg-background text-foreground;
   }
 }
 

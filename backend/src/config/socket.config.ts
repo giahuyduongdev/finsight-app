@@ -56,20 +56,20 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
     logger.info(
       logIcon(
         LOG_ICONS.SOCKET,
-        ` [Socket] User ${userId} connected: ${socket.id}`
+        `[Socket] User ${userId} connected: ${socket.id}`
       )
     )
 
     socket.join(userId) // tự join room, FE không cần gửi userId
     logger.info(
-      logIcon(LOG_ICONS.INFO, `[Socket] User ${userId} joined room: ${userId}`)
+      logIcon(LOG_ICONS.INFO, ` [Socket] User ${userId} joined room: ${userId}`)
     )
 
     socket.on('disconnect', () => {
       logger.info(
         logIcon(
           LOG_ICONS.SOCKET,
-          ` [Socket] User ${userId} disconnected: ${socket.id}`
+          `[Socket] User ${userId} disconnected: ${socket.id}`
         )
       )
     })
