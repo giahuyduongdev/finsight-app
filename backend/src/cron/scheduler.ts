@@ -6,23 +6,22 @@ import RefreshTokenModel from '../models/refresh-token.model'
 import { logger } from '../config/logger.config'
 import { redis } from '../config/redis.config'
 import { CurrencyService } from '../services/currency.service'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 const scheduleJob = (
   name: string,
   time: string,
   job: () => Promise<unknown> | unknown
 ) => {
-  logger.info(logIcon(LOG_ICONS.SCHEDULE, ` [Scheduling] ${name} at ${time}`))
+  logger.info(`[JOB:Cron] Scheduling ${name} at ${time}`)
 
   return cron.schedule(
     time,
     async () => {
       try {
         await job()
-        logger.info(logIcon(LOG_ICONS.SUCCESS, `${name} completed`))
+        logger.info(`[JOB:Cron] ${name} completed`)
       } catch (error) {
-        logger.error(logIcon(LOG_ICONS.ERROR, `${name} failed`), error)
+        logger.error(`[JOB:Cron] ${name} failed`, error)
       }
     },
     {
@@ -47,9 +46,7 @@ export const startJobs = () => {
       await RefreshTokenModel.deleteMany({
         $or: [{ isRevoked: true }, { expiresAt: { $lt: new Date() } }]
       })
-      logger.info(
-        logIcon(LOG_ICONS.DELETE, '[Refresh Token] Cleaned up expired tokens')
-      )
+      logger.info('[JOB:Cron] Refresh Token - Cleaned up expired tokens')
     }),
 
     // Chạy 01:00 mỗi ngày - Cleanup stale import batches
@@ -106,10 +103,7 @@ export const startJobs = () => {
             .then(() => {
               if (orphansCount > 0) {
                 logger.info(
-                  logIcon(
-                    LOG_ICONS.DELETE,
-                    `[Redis] Cleanup completed: ${orphansCount} orphaned analytics keys unlinked`
-                  )
+                  `[JOB:Cron] Redis Cleanup completed: ${orphansCount} orphaned analytics keys unlinked`
                 )
               }
               resolve()

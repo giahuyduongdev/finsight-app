@@ -104,13 +104,13 @@ export const errorHandler: ErrorRequestHandler = (
 
   if (statusCode < 500) {
     // Lỗi Client (400, 401, 403, 404...): Chỉ đánh log cảnh báo (warn), KHÔNG in stack trace
-    logger.warn(logMessage, {
+    logger.warn(`[APP:Server] ${logMessage}`, {
       error: error?.message
     })
   } else {
     // Lỗi Server (500): Đánh log lỗi nghiêm trọng (error), CÓ in stack trace và payload để debug
     // Redact sensitive fields from request body before logging
-    logger.error(logMessage, {
+    logger.error(`[APP:Server] ${logMessage}`, {
       message: error?.message,
       stack: error?.stack,
       body: redactSensitiveFields(req.body)

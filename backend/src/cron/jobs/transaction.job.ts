@@ -1,7 +1,6 @@
 import { transactionFlowProducer, TRANSACTION_JOBS } from '../../queues'
 import { logger } from '../../config/logger.config'
 import { Types } from 'mongoose'
-import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
 import { container } from '../../container'
 
 interface TransactionGroup {
@@ -11,9 +10,7 @@ interface TransactionGroup {
 
 export const processRecurringTransactions = async () => {
   const now = new Date()
-  logger.info(
-    logIcon(LOG_ICONS.QUEUE, 'Enqueuing recurring transactions flows...')
-  )
+  logger.info('[JOB:Cron] Enqueuing recurring transactions flows...')
 
   try {
     // Get TransactionRepository from DI container
@@ -23,10 +20,7 @@ export const processRecurringTransactions = async () => {
     const transactions = await transactionRepository.findRecurringDue(now)
 
     logger.info(
-      logIcon(
-        LOG_ICONS.INFO,
-        ` Found ${transactions.length} due transactions across all users`
-      )
+      `[JOB:Cron] Found ${transactions.length} due transactions across all users`
     )
 
     // 2. Nhóm theo UserId để tạo Flow cho từng người
@@ -38,9 +32,7 @@ export const processRecurringTransactions = async () => {
     })
 
     Object.entries(userGroups).forEach(([uId, txs]) => {
-      logger.info(
-        logIcon(LOG_ICONS.INFO, `User ${uId}: ${txs.length} transactions due`)
-      )
+      logger.info(`[JOB:Cron] User ${uId}: ${txs.length} transactions due`)
     })
 
     const timeId = now.getTime()
@@ -79,26 +71,17 @@ export const processRecurringTransactions = async () => {
           })
 
           logger.info(
-            logIcon(
-              LOG_ICONS.SUCCESS,
-              `Enqueued flow for user ${userId} (${userTxs.length} txs)`
-            )
+            `[JOB:Cron] Enqueued flow for user ${userId} (${userTxs.length} txs)`
           )
         } catch (error: unknown) {
           // Xử lý lỗi PER-USER - không để 1 user fail làm dừng toàn bộ
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error'
-          logger.error(
-            logIcon(
-              LOG_ICONS.ERROR,
-              `Failed to enqueue flow for user ${userId}`
-            ),
-            {
-              error: errorMessage,
-              userId,
-              transactionCount: userTxs.length
-            }
-          )
+          logger.error(`[JOB:Cron] Failed to enqueue flow for user ${userId}`, {
+            error: errorMessage,
+            userId,
+            transactionCount: userTxs.length
+          })
           // Không throw - tiếp tục xử lý user khác
         }
       }
@@ -108,10 +91,7 @@ export const processRecurringTransactions = async () => {
     await Promise.allSettled(flowPromises)
 
     logger.info(
-      logIcon(
-        LOG_ICONS.QUEUE,
-        `Enqueued recurring flows for ${Object.keys(userGroups).length} users (${transactions.length} txs, grouped in ${CHUNK_SIZE} per child)`
-      )
+      `[JOB:Cron] Enqueued recurring flows for ${Object.keys(userGroups).length} users (${transactions.length} txs, grouped in ${CHUNK_SIZE} per child)`
     )
   } catch (error: unknown) {
     // 3. Gom hết rủi ro vào đây để Server không bao giờ bị Crash
@@ -119,12 +99,9 @@ export const processRecurringTransactions = async () => {
       error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
 
-    logger.error(
-      logIcon(LOG_ICONS.ERROR, 'Failed to enqueue recurring transactions'),
-      {
-        error: errorMessage,
-        stack: errorStack
-      }
-    )
+    logger.error('[JOB:Cron] Failed to enqueue recurring transactions', {
+      error: errorMessage,
+      stack: errorStack
+    })
   }
 }

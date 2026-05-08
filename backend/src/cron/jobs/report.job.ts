@@ -1,18 +1,12 @@
 import { UserDocument } from '../../models/user.model'
 import { reportQueue, REPORT_JOBS } from '../../queues/report.queue'
 import { logger } from '../../config/logger.config'
-import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
 import { container } from '../../container'
 
 export const processReportJob = async () => {
   const now = new Date()
 
-  logger.info(
-    logIcon(
-      LOG_ICONS.QUEUE,
-      '[Cron] Fetching report settings due for processing...'
-    )
-  )
+  logger.info('[JOB:Cron] Fetching report settings due for processing...')
 
   try {
     // Get ReportSettingRepository from DI container
@@ -21,27 +15,17 @@ export const processReportJob = async () => {
     const settings = await reportSettingRepository.findEnabledDue(now)
 
     if (!settings.length) {
-      logger.info(logIcon(LOG_ICONS.INFO, '[Cron] No reports due at this time'))
+      logger.info('[JOB:Cron] No reports due at this time')
       return
     }
 
-    logger.info(
-      logIcon(
-        LOG_ICONS.QUEUE,
-        `[Cron] Found ${settings.length} report(s) to enqueue`
-      )
-    )
+    logger.info(`[JOB:Cron] Found ${settings.length} report(s) to enqueue`)
 
     const jobs = settings
       .filter((setting) => {
         const user = setting.userId as unknown as UserDocument
         if (!user || !user.id) {
-          logger.warn(
-            logIcon(
-              LOG_ICONS.WARNING,
-              `[Cron] User not found for setting: ${setting._id}`
-            )
-          )
+          logger.warn(`[JOB:Cron] User not found for setting: ${setting._id}`)
           return false
         }
         return true
@@ -70,17 +54,11 @@ export const processReportJob = async () => {
     await reportQueue.addBulk(jobs)
 
     logger.info(
-      logIcon(
-        LOG_ICONS.QUEUE,
-        `[Cron] Enqueued ${jobs.length} report job(s) into REPORT_QUEUE`
-      )
+      `[JOB:Cron] Enqueued ${jobs.length} report job(s) into REPORT_QUEUE`
     )
   } catch (error) {
-    logger.error(
-      logIcon(LOG_ICONS.ERROR, '[Cron] Failed to enqueue report jobs'),
-      {
-        error: (error as Error).message
-      }
-    )
+    logger.error('[JOB:Cron] Failed to enqueue report jobs', {
+      error: (error as Error).message
+    })
   }
 }

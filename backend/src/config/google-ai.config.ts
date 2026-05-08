@@ -6,7 +6,6 @@ import {
 } from '@google/genai'
 import { Env } from './env.config'
 import { logger } from './logger.config'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 const apiKeys = Env.GEMINI_API_KEY.split(',')
   .map((key) => key.trim())
@@ -74,12 +73,7 @@ export const generateWithFallback = async (
     for (const { instance, keyIndex } of aiPool) {
       try {
         attemptCount++
-        logger.info(
-          logIcon(
-            LOG_ICONS.INFO,
-            `[AI] Attempting: ${modelName} | Key ${keyIndex}`
-          )
-        )
+        logger.info(`[APP:AI] Attempting: ${modelName} | Key ${keyIndex}`)
 
         const response = await instance.models.generateContent({
           model: modelName,
@@ -90,30 +84,20 @@ export const generateWithFallback = async (
           }
         })
 
-        logger.info(
-          logIcon(
-            LOG_ICONS.SUCCESS,
-            `[AI] Success: ${modelName} | Key ${keyIndex}`
-          )
-        )
+        logger.info(`[APP:AI] Success: ${modelName} | Key ${keyIndex}`)
         return response
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err))
         const msg = lastError.message
 
         if (isFatalError(msg)) {
-          logger.error(
-            logIcon(LOG_ICONS.ERROR, `[AI] Fatal error on ${modelName}: ${msg}`)
-          )
+          logger.error(`[APP:AI] Fatal error on ${modelName}: ${msg}`)
           throw lastError
         }
 
         if (isRetryableError(msg)) {
           logger.warn(
-            logIcon(
-              LOG_ICONS.WARNING,
-              `[AI] Retry: ${modelName} | Key ${keyIndex}: ${msg.slice(0, 80)}`
-            )
+            `[APP:AI] Retry: ${modelName} | Key ${keyIndex}: ${msg.slice(0, 80)}`
           )
 
           // Exponential backoff for rate limits (429)
@@ -138,16 +122,12 @@ export const generateWithFallback = async (
           continue
         }
 
-        logger.error(
-          logIcon(LOG_ICONS.ERROR, `[AI] Unknown error on ${modelName}: ${msg}`)
-        )
+        logger.error(`[APP:AI] Unknown error on ${modelName}: ${msg}`)
         throw lastError
       }
     }
   }
 
-  logger.error(
-    logIcon(LOG_ICONS.ERROR, '[AI] All models and API keys exhausted')
-  )
+  logger.error('[APP:AI] All models and API keys exhausted')
   throw lastError ?? new Error('All AI models and API keys exhausted')
 }

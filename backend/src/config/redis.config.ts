@@ -3,7 +3,6 @@ import { Env } from './env.config'
 import rateLimit from 'express-rate-limit'
 import RedisStore, { RedisReply } from 'rate-limit-redis'
 import { logger } from './logger.config'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -83,25 +82,15 @@ class RedisClient {
 
   private setupEventListeners(): void {
     this.client.on('connect', async () => {
-      logger.info(logIcon(LOG_ICONS.SUCCESS, '[Redis] Connected successfully!'))
+      logger.info('[SYS:Redis] Connected successfully!')
     })
 
     this.client.on('error', (err: Error) =>
-      logger.error(
-        logIcon(LOG_ICONS.ERROR, '[Redis] Connection error:'),
-        err.message
-      )
+      logger.error('[SYS:Redis] Connection error:', err.message)
     )
-    this.client.on('end', () =>
-      logger.warn(logIcon(LOG_ICONS.STOP, '[Redis] Connection closed'))
-    )
+    this.client.on('end', () => logger.warn('[SYS:Redis] Connection closed'))
     this.client.on('reconnecting', () =>
-      logger.info(
-        logIcon(
-          LOG_ICONS.WARNING,
-          '[Redis] Connection lost. Attempting to reconnect...'
-        )
-      )
+      logger.info('[SYS:Redis] Connection lost. Attempting to reconnect...')
     )
   }
 

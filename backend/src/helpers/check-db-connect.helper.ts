@@ -2,7 +2,6 @@ import mongoose from 'mongoose'
 import os from 'os'
 import { Env } from '../config/env.config'
 import { logger } from '../config/logger.config'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // Chuẩn hóa tên hằng số (viết hoa toàn bộ cho hằng số global)
 const MONITOR_INTERVAL_MS = 5000
@@ -16,12 +15,7 @@ export const countConnect = (): number => {
 
   // Chỉ in log thông tin khi đang ở môi trường code (development)
   if (Env.NODE_ENV === 'development') {
-    logger.info(
-      logIcon(
-        LOG_ICONS.DB,
-        ` [DB Monitor] Number of connections: ${numConnection}`
-      )
-    )
+    logger.info(`[SYS:MongoDB] Number of connections: ${numConnection}`)
   }
 
   return numConnection
@@ -48,30 +42,21 @@ export const checkOverload = () => {
     // THÔNG TIN ĐỊNH KỲ: Chỉ in ra khi đang code (dev) để tránh rác log trên Server thật
     if (Env.NODE_ENV === 'development') {
       logger.info(
-        logIcon(
-          LOG_ICONS.MONITOR,
-          ` [DB Monitor] Connections: ${numConnection}/${maxConnections} | RAM: ${memoryUsageMB.toFixed(2)}/${memoryThresholdMB} MB`
-        )
+        `[SYS:MongoDB] Connections: ${numConnection}/${maxConnections} | RAM: ${memoryUsageMB.toFixed(2)}/${memoryThresholdMB} MB`
       )
     }
 
     // CẢNH BÁO QUAN TRỌNG: Luôn in ra ở mọi môi trường nếu hệ thống chạm ngưỡng
     if (numConnection > maxConnections) {
       logger.warn(
-        logIcon(
-          LOG_ICONS.WARNING,
-          ` [WARNING] Connection overload detected! Active: ${numConnection}, Max: ${maxConnections}`
-        )
+        ` [WARNING] Connection overload detected! Active: ${numConnection}, Max: ${maxConnections}`
       )
       // Ở hệ thống lớn, người ta thường gọi thêm 1 API bắn tin nhắn về Telegram/Slack cho team Dev ở dòng này
     }
 
     if (memoryUsageMB > memoryThresholdMB) {
       logger.warn(
-        logIcon(
-          LOG_ICONS.WARNING,
-          ` [WARNING] Memory overload detected! Usage: ${memoryUsageMB.toFixed(2)} MB, Limit: ${memoryThresholdMB} MB`
-        )
+        ` [WARNING] Memory overload detected! Usage: ${memoryUsageMB.toFixed(2)} MB, Limit: ${memoryThresholdMB} MB`
       )
     }
   }, MONITOR_INTERVAL_MS)
@@ -81,6 +66,6 @@ export const stopOverload = () => {
   if (monitorInterval) {
     clearInterval(monitorInterval)
     monitorInterval = null
-    logger.info(logIcon(LOG_ICONS.SUCCESS, 'DB Monitor stopped'))
+    logger.info('[SYS:MongoDB] DB Monitor stopped')
   }
 }

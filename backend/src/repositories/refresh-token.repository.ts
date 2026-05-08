@@ -18,13 +18,16 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
   ): Promise<RefreshTokenDocument> {
     try {
       const token = await RefreshTokenModel.create(tokenData)
-      logger.info('Refresh token created', {
+      logger.info('[APP:Auth] Refresh token created', {
         tokenId: token._id,
         userId: token.userId
       })
       return token
     } catch (error) {
-      logger.error('Error creating refresh token', { error, tokenData })
+      logger.error('[APP:Auth] Error creating refresh token', {
+        error,
+        tokenData
+      })
       throw error
     }
   }
@@ -36,7 +39,10 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
     try {
       return await RefreshTokenModel.findOne({ token }).exec()
     } catch (error) {
-      logger.error('Error finding refresh token by token', { error, token })
+      logger.error('[APP:Auth] Error finding refresh token by token', {
+        error,
+        token
+      })
       throw error
     }
   }
@@ -50,7 +56,10 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
         .sort({ createdAt: -1 })
         .exec()
     } catch (error) {
-      logger.error('Error finding refresh tokens by userId', { error, userId })
+      logger.error('[APP:Auth] Error finding refresh tokens by userId', {
+        error,
+        userId
+      })
       throw error
     }
   }
@@ -67,11 +76,11 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
 
       const revoked = result.modifiedCount > 0
       if (revoked) {
-        logger.info('Refresh token revoked', { token })
+        logger.info('[APP:Auth] Refresh token revoked', { token })
       }
       return revoked
     } catch (error) {
-      logger.error('Error revoking refresh token', { error, token })
+      logger.error('[APP:Auth] Error revoking refresh token', { error, token })
       throw error
     }
   }
@@ -82,7 +91,7 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
   async deleteByUserId(userId: string): Promise<DeleteResult> {
     try {
       const result = await RefreshTokenModel.deleteMany({ userId }).exec()
-      logger.info('Refresh tokens deleted by userId', {
+      logger.info('[APP:Auth] Refresh tokens deleted by userId', {
         userId,
         deletedCount: result.deletedCount
       })
@@ -90,7 +99,7 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
         deletedCount: result.deletedCount || 0
       }
     } catch (error) {
-      logger.error('Error deleting refresh tokens by userId', {
+      logger.error('[APP:Auth] Error deleting refresh tokens by userId', {
         error,
         userId
       })
@@ -107,7 +116,7 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
         expiresAt: { $lt: currentDate }
       }).exec()
 
-      logger.info('Expired refresh tokens deleted', {
+      logger.info('[APP:Auth] Expired refresh tokens deleted', {
         deletedCount: result.deletedCount,
         currentDate
       })
@@ -116,7 +125,7 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
         deletedCount: result.deletedCount || 0
       }
     } catch (error) {
-      logger.error('Error deleting expired refresh tokens', {
+      logger.error('[APP:Auth] Error deleting expired refresh tokens', {
         error,
         currentDate
       })

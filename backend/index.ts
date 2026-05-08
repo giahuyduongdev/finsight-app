@@ -15,7 +15,6 @@ import { initializeWorkers, stopWorkers } from './src/workers'
 import { closeQueues } from './src/queues'
 import { initializeSocket, getIO } from './src/config/socket.config'
 import { CurrencyService } from './src/services/currency.service'
-import { logIcon, LOG_ICONS } from './src/utils/logger-icon.util'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24,12 +23,12 @@ const SHUTDOWN_TIMEOUT_MS = 10_000
 // ─── Global error handlers ────────────────────────────────────────────────────
 
 process.on('uncaughtException', (err: Error) => {
-  logger.error(logIcon(LOG_ICONS.ERROR, 'Uncaught Exception:'), err)
+  logger.error('[APP:Server] Uncaught Exception:', err)
   process.exit(1)
 })
 
 process.on('unhandledRejection', (reason: unknown) => {
-  logger.error(logIcon(LOG_ICONS.ERROR, 'Unhandled Rejection:'), reason)
+  logger.error('[APP:Server] Unhandled Rejection:', reason)
   process.exit(1)
 })
 
@@ -49,10 +48,10 @@ const closeGracefully = (
 ): Promise<void> =>
   fn()
     .then(() => {
-      logger.info(logIcon(LOG_ICONS.SUCCESS, `${label} closed`))
+      logger.info(`[APP:Server] ${label} closed`)
     })
     .catch((err) => {
-      logger.error(logIcon(LOG_ICONS.ERROR, `${label} error:`), err)
+      logger.error(`[APP:Server] ${label} error:`, err)
     })
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
@@ -69,10 +68,7 @@ const startServer = async (): Promise<void> => {
   try {
     await CurrencyService.fetchAndBroadcastRates()
   } catch (error) {
-    logger.error(
-      logIcon(LOG_ICONS.ERROR, 'Failed to fetch initial rates:'),
-      error
-    )
+    logger.error('[APP:Server] Failed to fetch initial rates:', error)
   }
 
   if (Env.NODE_ENV === 'development') {
@@ -83,12 +79,7 @@ const startServer = async (): Promise<void> => {
   initializeWorkers()
 
   server.listen(Env.PORT, () => {
-    logger.info(
-      logIcon(
-        LOG_ICONS.SERVER,
-        ` [Server] running on port ${Env.PORT} [${Env.NODE_ENV}]`
-      )
-    )
+    logger.info(`[APP:Server] running on port ${Env.PORT} [${Env.NODE_ENV}]`)
   })
 
   // ─── Graceful Shutdown ──────────────────────────────────────────────────────
@@ -100,16 +91,11 @@ const startServer = async (): Promise<void> => {
     isShuttingDown = true
 
     logger.info(
-      logIcon(
-        LOG_ICONS.WARNING,
-        `\n${signal} received. Starting graceful shutdown...`
-      )
+      `[APP:Server] ${signal} received. Starting graceful shutdown...`
     )
 
     const forceExitTimer = setTimeout(() => {
-      logger.error(
-        logIcon(LOG_ICONS.ERROR, 'Shutdown timed out. Forcing exit.')
-      )
+      logger.error('[APP:Server] Shutdown timed out. Forcing exit.')
       process.exit(1)
     }, SHUTDOWN_TIMEOUT_MS)
     forceExitTimer.unref()
@@ -148,10 +134,10 @@ const startServer = async (): Promise<void> => {
       ])
 
       clearTimeout(forceExitTimer)
-      logger.info(logIcon(LOG_ICONS.GOODBYE, 'Shutdown complete. Goodbye!'))
+      logger.info('[APP:Server] Shutdown complete. Goodbye!')
       process.exit(0)
     } catch (err) {
-      logger.error(logIcon(LOG_ICONS.ERROR, 'Shutdown error:'), err)
+      logger.error('[APP:Server] Shutdown error:', err)
       process.exit(1)
     }
   }
@@ -163,6 +149,6 @@ const startServer = async (): Promise<void> => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 startServer().catch((err) => {
-  logger.error(logIcon(LOG_ICONS.ERROR, 'Failed to start server:'), err)
+  logger.error('[APP:Server] Failed to start server:', err)
   process.exit(1)
 })

@@ -1,6 +1,5 @@
 import { redis } from '../config/redis.config'
 import { logger } from '../config/logger.config'
-import { logIcon, LOG_ICONS } from './logger-icon.util'
 
 /**
  * Centralized helper to invalidate all analytics cache for a specific user.
@@ -45,10 +44,7 @@ export async function invalidateUserAnalyticsCache(
           })
           .catch((err) => {
             logger.error(
-              logIcon(
-                LOG_ICONS.ERROR,
-                `[Cache] Chunk invalidation failed for user ${id}`
-              ),
+              `[APP:Cache] Chunk invalidation failed for user ${id}`,
               err
             )
             stream.resume() // Resume even on error
@@ -61,20 +57,14 @@ export async function invalidateUserAnalyticsCache(
           .then(() => {
             if (totalDeleted > 0) {
               logger.info(
-                logIcon(
-                  LOG_ICONS.DELETE,
-                  `[Cache] Invalidated ${totalDeleted} analytics keys for user ${id}`
-                )
+                `[APP:Cache] Invalidated ${totalDeleted} analytics keys for user ${id}`
               )
             }
             resolve()
           })
           .catch((err) => {
             logger.error(
-              logIcon(
-                LOG_ICONS.ERROR,
-                `[Cache] Final cache cleanup failed for user ${id}`
-              ),
+              `[APP:Cache] Final cache cleanup failed for user ${id}`,
               err
             )
             resolve() // Still resolve to avoid crashing the caller
@@ -82,17 +72,11 @@ export async function invalidateUserAnalyticsCache(
       })
 
       stream.on('error', (err) => {
-        logger.error(
-          logIcon(LOG_ICONS.ERROR, `[Cache] Redis scan error for user ${id}`),
-          err
-        )
+        logger.error(`[APP:Cache] Redis scan error for user ${id}`, err)
         resolve() // Resolve to avoid crashing the caller
       })
     })
   } catch (err) {
-    logger.error(
-      logIcon(LOG_ICONS.ERROR, '[Cache] Unexpected error during invalidation'),
-      err
-    )
+    logger.error('[APP:Cache] Unexpected error during invalidation', err)
   }
 }

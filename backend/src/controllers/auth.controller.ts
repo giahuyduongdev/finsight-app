@@ -236,7 +236,7 @@ export const oauthCallbackController = asyncHandler(
 
     // Kiểm tra nếu user từ chối đăng nhập hoặc lỗi từ Auth0
     if (error || !code) {
-      logger.warn('Auth0 Error:', error)
+      logger.warn('[APP:Auth] Auth0 Error:', error)
       return res.redirect(`${Env.FRONTEND_ORIGIN}/?error=auth_failed`)
     }
 
@@ -255,19 +255,19 @@ export const oauthCallbackController = asyncHandler(
         try {
           Intl.DateTimeFormat(undefined, { timeZone: timezone })
         } catch {
-          logger.warn('Invalid timezone received:', { timezone })
+          logger.warn('[APP:Auth] Invalid timezone received:', { timezone })
           timezone = 'UTC'
         }
       }
     } catch (e) {
-      logger.warn('State decoding failed:', e)
+      logger.warn('[APP:Auth] State decoding failed:', e)
       return res.redirect(`${Env.FRONTEND_ORIGIN}/?error=invalid_state`)
     }
 
     // Validate CSRF token
     const csrfTokenFromCookie = req.cookies?.oauth_csrf
     if (!csrfTokenFromCookie || csrfTokenFromCookie !== csrfTokenFromState) {
-      logger.warn('CSRF token mismatch', {
+      logger.warn('[APP:Auth] CSRF token mismatch', {
         hasCookieToken: !!csrfTokenFromCookie,
         hasStateToken: !!csrfTokenFromState,
         tokensMatch: csrfTokenFromCookie === csrfTokenFromState
