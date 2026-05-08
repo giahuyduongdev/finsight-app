@@ -41,7 +41,8 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   const { dateRange } = props
 
   const preferredCurrency =
-    useSelector((state: RootState) => state.auth?.user?.preferredCurrency) || 'USD'
+    useSelector((state: RootState) => state.auth?.user?.preferredCurrency) ||
+    'USD'
 
   const { data, isLoading } = useExpensePieChartBreakdownQuery({
     preset: dateRange?.value,

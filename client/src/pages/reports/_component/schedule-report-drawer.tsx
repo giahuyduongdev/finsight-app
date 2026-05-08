@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button'
 import {
   Drawer,
   DrawerClose,
@@ -6,17 +6,17 @@ import {
   DrawerDescription,
   DrawerHeader,
   DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { CalendarIcon, XIcon } from "lucide-react";
-import { useState } from "react";
-import ScheduleReportForm from "./schedule-report-form";
+  DrawerTrigger
+} from '@/components/ui/drawer'
+import { CalendarIcon, XIcon } from 'lucide-react'
+import { useState } from 'react'
+import ScheduleReportForm from './schedule-report-form'
 
 const ScheduleReportDrawer = () => {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false)
   const onCloseDrawer = () => {
-    setOpen(false);
-  };
+    setOpen(false)
+  }
   return (
     <Drawer direction="right" open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
@@ -40,10 +40,10 @@ const ScheduleReportDrawer = () => {
           </DrawerClose>
         </DrawerHeader>
 
-        <ScheduleReportForm  {...{onCloseDrawer}} />
+        <ScheduleReportForm {...{ onCloseDrawer }} />
       </DrawerContent>
     </Drawer>
-  );
-};
+  )
+}
 
-export default ScheduleReportDrawer;
+export default ScheduleReportDrawer

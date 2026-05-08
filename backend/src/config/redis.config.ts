@@ -93,7 +93,7 @@ class RedisClient {
       )
     )
     this.client.on('end', () =>
-      logger.warn(logIcon(LOG_ICONS.STOP, '[Redis] Connection closed.'))
+      logger.warn(logIcon(LOG_ICONS.STOP, '[Redis] Connection closed'))
     )
     this.client.on('reconnecting', () =>
       logger.info(

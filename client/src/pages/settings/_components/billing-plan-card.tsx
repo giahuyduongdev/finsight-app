@@ -1,8 +1,5 @@
-
 const BillingPlanCard = () => {
-  return (
-    <div>BillingPlanCard</div>
-  )
+  return <div>BillingPlanCard</div>
 }
 
 export default BillingPlanCard

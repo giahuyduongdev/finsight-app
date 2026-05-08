@@ -68,9 +68,9 @@ export const formatCurrency = (
  */
 export const formatRate = (rate: number, toCurrency: string): string => {
   if (ZERO_DECIMAL_CURRENCIES.includes(toCurrency)) {
-    return new Intl.NumberFormat(DEFAULT_LOCALE, { maximumFractionDigits: 0 }).format(
-      Math.round(rate)
-    )
+    return new Intl.NumberFormat(DEFAULT_LOCALE, {
+      maximumFractionDigits: 0
+    }).format(Math.round(rate))
   }
   if (rate >= 100)
     return new Intl.NumberFormat(DEFAULT_LOCALE, {

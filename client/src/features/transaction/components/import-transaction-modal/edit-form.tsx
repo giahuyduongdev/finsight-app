@@ -41,8 +41,12 @@ export const EditForm = ({
   onClose,
   open
 }: EditFormProps) => {
-  const [formData, setFormData] = useState<ParsedTransaction>({ ...transaction })
-  const [displayAmount, setDisplayAmount] = useState<string>(String(transaction.amount))
+  const [formData, setFormData] = useState<ParsedTransaction>({
+    ...transaction
+  })
+  const [displayAmount, setDisplayAmount] = useState<string>(
+    String(transaction.amount)
+  )
   const [dateStr, setDateStr] = useState(() => {
     const d = new Date(transaction.date)
     if (isNaN(d.getTime())) return ''
@@ -69,14 +73,15 @@ export const EditForm = ({
       dateObj = new Date(y, m - 1, d)
 
       // Strict validation: Check if normalization happened (e.g. Feb 31 -> Mar 3)
-      const isSameCalendarDate = 
-        dateObj.getFullYear() === y && 
-        dateObj.getMonth() === m - 1 && 
+      const isSameCalendarDate =
+        dateObj.getFullYear() === y &&
+        dateObj.getMonth() === m - 1 &&
         dateObj.getDate() === d
 
       if (!isSameCalendarDate) {
         toast.error('Invalid calendar date', {
-          description: 'Please enter a valid date (e.g., February only has 28 or 29 days).'
+          description:
+            'Please enter a valid date (e.g., February only has 28 or 29 days).'
         })
         return
       }
@@ -145,9 +150,13 @@ export const EditForm = ({
                 id={`amount-${rowId}`}
                 name={`amount-edit-${rowId}`}
                 value={displayAmount}
-                prefix={CURRENCY_SYMBOLS[formData.currency as CurrencyType] || '$'}
+                prefix={
+                  CURRENCY_SYMBOLS[formData.currency as CurrencyType] || '$'
+                }
                 decimalsLimit={
-                  ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD') ? 0 : 2
+                  ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD')
+                    ? 0
+                    : 2
                 }
                 allowDecimals={
                   !ZERO_DECIMAL_CURRENCIES.includes(formData.currency || 'USD')
@@ -170,11 +179,15 @@ export const EditForm = ({
               <Select
                 value={formData.currency || CURRENCY_ENUM.USD}
                 onValueChange={(val) => {
-                  const isZeroDecimal = ZERO_DECIMAL_CURRENCIES.includes(val || 'USD')
+                  const isZeroDecimal = ZERO_DECIMAL_CURRENCIES.includes(
+                    val || 'USD'
+                  )
                   setFormData((prev) => ({
                     ...prev,
                     currency: val,
-                    amount: isZeroDecimal ? Math.round(prev.amount) : prev.amount
+                    amount: isZeroDecimal
+                      ? Math.round(prev.amount)
+                      : prev.amount
                   }))
                   if (isZeroDecimal) {
                     setDisplayAmount((prev) =>
@@ -191,7 +204,11 @@ export const EditForm = ({
                 </SelectTrigger>
                 <SelectContent className="max-h-[250px] z-[300]">
                   {CURRENCY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                    <SelectItem
+                      key={opt.value}
+                      value={opt.value}
+                      className="text-xs"
+                    >
                       <span className="font-bold">{opt.value}</span> -{' '}
                       {opt.label.split(' - ')[1]}
                     </SelectItem>
@@ -223,10 +240,16 @@ export const EditForm = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-[300]">
-                  <SelectItem value="INCOME" className="text-emerald-600 font-bold">
+                  <SelectItem
+                    value="INCOME"
+                    className="text-emerald-600 font-bold"
+                  >
                     INCOME
                   </SelectItem>
-                  <SelectItem value="EXPENSE" className="text-rose-600 font-bold">
+                  <SelectItem
+                    value="EXPENSE"
+                    className="text-rose-600 font-bold"
+                  >
                     EXPENSE
                   </SelectItem>
                 </SelectContent>
@@ -258,10 +281,16 @@ export const EditForm = ({
                   >
                     Completed
                   </SelectItem>
-                  <SelectItem value="PENDING" className="text-orange-500 font-medium">
+                  <SelectItem
+                    value="PENDING"
+                    className="text-orange-500 font-medium"
+                  >
                     Pending
                   </SelectItem>
-                  <SelectItem value="FAILED" className="text-rose-600 font-medium">
+                  <SelectItem
+                    value="FAILED"
+                    className="text-rose-600 font-medium"
+                  >
                     Failed
                   </SelectItem>
                 </SelectContent>

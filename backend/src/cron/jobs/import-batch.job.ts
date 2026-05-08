@@ -1,6 +1,6 @@
-import ImportBatchModel from '../../models/import-batch.model'
 import { logger } from '../../config/logger.config'
 import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
+import { container } from '../../container'
 
 /**
  * Cleanup stale import batches that are stuck in PENDING or PROCESSING state
@@ -12,26 +12,28 @@ export const cleanupStaleImportBatches = async () => {
       logIcon(LOG_ICONS.INFO, '[Cron] Cleaning up stale import batches...')
     )
 
+    // Get ImportBatchRepository from DI container
+    const importBatchRepository = container.getImportBatchRepository()
+
     // Mark batches older than 7 days as FAILED
     // Use updatedAt to detect stale batches (no progress for 7 days)
     const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 7 days ago
 
-    const result = await ImportBatchModel.updateMany(
-      {
-        status: { $in: ['PENDING', 'PROCESSING'] },
-        updatedAt: { $lt: threshold }
-      },
-      {
-        status: 'FAILED',
-        terminalAt: new Date() // Set terminalAt so TTL index will delete after 24h
-      }
-    )
+    // Find stale batches
+    const staleBatches = await importBatchRepository.findStale(threshold)
 
-    if (result.modifiedCount > 0) {
+    if (staleBatches.length > 0) {
+      // Update each stale batch to FAILED status
+      await Promise.all(
+        staleBatches.map((batch) =>
+          importBatchRepository.updateStatus(batch._id.toString(), 'FAILED')
+        )
+      )
+
       logger.info(
         logIcon(
           LOG_ICONS.SUCCESS,
-          `[Cron] Marked ${result.modifiedCount} stale import batches as FAILED`
+          `[Cron] Marked ${staleBatches.length} stale import batches as FAILED`
         )
       )
     } else {

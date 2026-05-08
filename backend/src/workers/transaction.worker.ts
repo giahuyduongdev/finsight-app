@@ -10,12 +10,13 @@ import {
 import { getIO } from '../config/socket.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 
-import importBatchModel from '../models/import-batch.model'
 import TransactionModel, {
-  TransactionStatusEnum
+  TransactionStatusEnum,
+  TransactionDocument
 } from '../models/transaction.model'
 import { calculateNextOccurrence } from '../utils/dates/index'
 import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
+import { container } from '../container'
 
 function isBulkWriteError(
   error: unknown
@@ -39,10 +40,13 @@ function isBulkWriteError(
 const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
   const { userId, importBatchId } = job.data
 
-  const batchDoc = await importBatchModel.findByIdAndUpdate(
+  // Get repositories from DI container
+  const importBatchRepository = container.getImportBatchRepository()
+  const transactionRepository = container.getTransactionRepository()
+
+  const batchDoc = await importBatchRepository.updateStatus(
     importBatchId,
-    { status: 'PROCESSING' },
-    { new: true }
+    'PROCESSING'
   )
 
   if (!batchDoc) {
@@ -88,28 +92,24 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
             typeof userId === 'string' &&
             mongoose.Types.ObjectId.isValid(userId)
               ? new mongoose.Types.ObjectId(userId)
-              : userId
+              : (userId as unknown as mongoose.Types.ObjectId)
 
           return {
             ...tx,
             userId: cleanUserId,
             date: parsedDate,
             status: tx.status || TransactionStatusEnum.COMPLETED, // Tôn trọng status người dùng đã sửa, mặc định là COMPLETED
-            recurringSourceId: null
+            recurringSourceId: undefined
           }
         })
-        .filter((tx) => tx !== null)
+        .filter((tx) => tx !== null) as Partial<TransactionDocument>[]
 
       let insertedInThisBatch = 0
       if (transactionsToInsert.length > 0) {
         try {
-          const result = await TransactionModel.insertMany(
-            transactionsToInsert,
-            {
-              ordered: false
-            }
-          )
-          insertedInThisBatch = result.length
+          const result =
+            await transactionRepository.bulkCreate(transactionsToInsert)
+          insertedInThisBatch = result.insertedCount
         } catch (error: unknown) {
           if (isBulkWriteError(error)) {
             insertedInThisBatch =
@@ -157,13 +157,8 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
       )
     }
 
-    await importBatchModel.findByIdAndUpdate(importBatchId, {
-      status: 'COMPLETED',
-      terminalAt: new Date(), // Set terminal timestamp for TTL
-      processedCount: totalProcessed,
-      rejectedCount: rejectedCount,
-      $unset: { transactions: 1 }
-    })
+    await importBatchRepository.updateStatus(importBatchId, 'COMPLETED')
+    await importBatchRepository.removeTransactionsArray(importBatchId)
     logger.info(
       logIcon(
         LOG_ICONS.DELETE,
@@ -199,12 +194,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 
     return { insertedCount: totalInserted, rejectedCount, success: true }
   } catch (error) {
-    await importBatchModel.findByIdAndUpdate(importBatchId, {
-      status: 'FAILED',
-      terminalAt: new Date(), // Set terminal timestamp for TTL
-      processedCount: totalProcessed,
-      rejectedCount: rejectedCount
-    })
+    await importBatchRepository.updateStatus(importBatchId, 'FAILED')
 
     // Emit failed
     try {
@@ -242,12 +232,16 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
     return
   }
 
+  // Get TransactionRepository from DI container
+  const transactionRepository = container.getTransactionRepository()
+
   // Tìm nạp toàn bộ TX trong mẻ này
-  const transactions = await TransactionModel.find({
-    _id: { $in: transactionIds },
-    isRecurring: true,
-    nextRecurringDate: { $lte: now }
-  })
+  const allDueTransactions = await transactionRepository.findRecurringDue(now)
+
+  // Filter by transactionIds
+  const transactions = allDueTransactions.filter((tx) =>
+    transactionIds.includes(tx._id.toString())
+  )
 
   if (!transactions.length) {
     logger.warn(
@@ -270,31 +264,28 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
       )
 
       // 1. Tạo giao dịch mới
-      await TransactionModel.create(
-        [
-          {
-            userId: tx.userId,
-            title: tx.title,
-            amount: tx.amount,
-            type: tx.type,
-            category: tx.category,
-            description: tx.description,
-            date: tx.nextRecurringDate,
-            currency: tx.currency,
-            paymentMethod: tx.paymentMethod,
-            status: tx.status || TransactionStatusEnum.COMPLETED,
-            isRecurring: false,
-            recurringSourceId: tx._id // Fix: dùng đúng trường recurringSourceId thay vì parentId
-          }
-        ],
-        { session }
-      )
+      await transactionRepository.create({
+        userId: tx.userId,
+        title: tx.title,
+        amount: tx.amount,
+        type: tx.type,
+        category: tx.category,
+        description: tx.description,
+        date: tx.nextRecurringDate!,
+        currency: tx.currency,
+        paymentMethod: tx.paymentMethod,
+        status: tx.status || TransactionStatusEnum.COMPLETED,
+        isRecurring: false,
+        recurringSourceId: tx._id // Fix: dùng đúng trường recurringSourceId thay vì parentId
+      })
 
       // 2. Cập nhật ngày tiếp theo cho bản mẫu
-      await TransactionModel.findByIdAndUpdate(
-        tx._id,
-        { nextRecurringDate: nextDate },
-        { session }
+      await transactionRepository.update(
+        tx._id.toString(),
+        tx.userId.toString(),
+        {
+          nextRecurringDate: nextDate
+        }
       )
     }
 
@@ -413,6 +404,8 @@ transactionWorker.on('failed', async (job, err) => {
     job.data.transactionIds
   ) {
     try {
+      // NOTE: Using TransactionModel directly for bulk update (poison pill edge case)
+      // Repository pattern doesn't have updateMany method yet
       // Tạm dừng toàn bộ mẻ này nếu đã thử lại nhiều lần mà vẫn fail
       await TransactionModel.updateMany(
         { _id: { $in: job.data.transactionIds } },

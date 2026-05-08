@@ -1,8 +1,8 @@
-import TransactionModel from '../../models/transaction.model'
 import { transactionFlowProducer, TRANSACTION_JOBS } from '../../queues'
 import { logger } from '../../config/logger.config'
 import { Types } from 'mongoose'
 import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
+import { container } from '../../container'
 
 interface TransactionGroup {
   _id: Types.ObjectId
@@ -16,13 +16,11 @@ export const processRecurringTransactions = async () => {
   )
 
   try {
+    // Get TransactionRepository from DI container
+    const transactionRepository = container.getTransactionRepository()
+
     // 1. Lấy tất cả giao dịch đến hạn - CHỈ LẤY _id và userId để tiết kiệm memory
-    const transactions = await TransactionModel.find({
-      isRecurring: true,
-      nextRecurringDate: { $lte: now }
-    })
-      .select('_id userId')
-      .lean() // Sử dụng lean() để giảm memory footprint
+    const transactions = await transactionRepository.findRecurringDue(now)
 
     logger.info(
       logIcon(

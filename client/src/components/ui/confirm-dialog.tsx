@@ -4,10 +4,10 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -25,12 +25,12 @@ export function ConfirmDialog({
   isOpen,
   onClose,
   onConfirm,
-  title = "Are you absolutely sure?",
-  description = "This action cannot be undone.",
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  title = 'Are you absolutely sure?',
+  description = 'This action cannot be undone.',
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
   isDestructive = true,
-  isLoading = false,
+  isLoading = false
 }: ConfirmDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -50,7 +50,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             type="button"
-            variant={isDestructive ? "destructive" : "default"}
+            variant={isDestructive ? 'destructive' : 'default'}
             onClick={onConfirm}
             disabled={isLoading}
           >

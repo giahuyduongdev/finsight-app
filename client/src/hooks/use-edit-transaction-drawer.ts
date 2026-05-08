@@ -1,30 +1,30 @@
-import { parseAsBoolean, parseAsString, useQueryState } from "nuqs";
+import { parseAsBoolean, parseAsString, useQueryState } from 'nuqs'
 
 const useEditTransactionDrawer = () => {
   const [open, setOpen] = useQueryState(
-    "edit",
+    'edit',
     parseAsBoolean.withDefault(false)
-  );
+  )
   const [transactionId, setTransactionId] = useQueryState(
-    "transactionId",
-    parseAsString.withDefault("")
-  );
+    'transactionId',
+    parseAsString.withDefault('')
+  )
   const onOpenDrawer = (transactionId: string) => {
-    setTransactionId(transactionId);
-    setOpen(true);
-  };
+    setTransactionId(transactionId)
+    setOpen(true)
+  }
 
   const onCloseDrawer = () => {
-    setTransactionId("");
-    setOpen(false);
-  };
+    setTransactionId('')
+    setOpen(false)
+  }
 
   return {
     open,
     transactionId,
     onOpenDrawer,
-    onCloseDrawer,
-  };
-};
+    onCloseDrawer
+  }
+}
 
-export default useEditTransactionDrawer;
+export default useEditTransactionDrawer

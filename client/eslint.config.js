@@ -3,6 +3,8 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
+import prettierPlugin from 'eslint-plugin-prettier'
+import prettierConfig from 'eslint-config-prettier'
 
 export default tseslint.config(
   { ignores: ['dist'] },
@@ -11,25 +13,28 @@ export default tseslint.config(
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      globals: globals.browser
     },
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      prettier: prettierPlugin
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      ...prettierConfig.rules,
       'react-refresh/only-export-components': [
         'warn',
-        { allowConstantExport: true },
+        { allowConstantExport: true }
       ],
-    },
+      'prettier/prettier': 'error'
+    }
   },
   // Disable react-refresh warnings for shadcn/ui components
   {
     files: ['**/components/ui/**/*.{ts,tsx}'],
     rules: {
-      'react-refresh/only-export-components': 'off',
-    },
-  },
+      'react-refresh/only-export-components': 'off'
+    }
+  }
 )

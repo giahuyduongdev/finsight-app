@@ -1,5 +1,5 @@
-import { Separator } from "@/components/ui/separator"
-import { ChangePasswordDialog } from "./_components/change-password-dialog"
+import { Separator } from '@/components/ui/separator'
+import { ChangePasswordDialog } from './_components/change-password-dialog'
 
 const Security = () => {
   return (

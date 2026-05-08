@@ -25,19 +25,19 @@ const CurrencyInputField = forwardRef<
   CurrencyInputFieldProps
 >(
   (
-      {
-        id,
-        name,
-        value,
-        onValueChange,
-        placeholder,
-        className,
-        prefix = '$',
-        disabled,
-        decimalsLimit = 2,
-        allowDecimals = true,
-        autoFocus
-      },
+    {
+      id,
+      name,
+      value,
+      onValueChange,
+      placeholder,
+      className,
+      prefix = '$',
+      disabled,
+      decimalsLimit = 2,
+      allowDecimals = true,
+      autoFocus
+    },
     ref
   ) => {
     const generatedId = useId()

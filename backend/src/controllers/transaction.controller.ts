@@ -9,16 +9,6 @@ import {
   transactionIdSchema,
   updateTransactionSchema
 } from '../validators/transaction.validator'
-import {
-  bulkDeleteTransactionService,
-  createTransactionService,
-  deleteTransactionService,
-  duplicateTransactionService,
-  getAllTransactionService,
-  getChildTransactionsService,
-  getTransactionByIdService,
-  updateTransactionService
-} from '../services/transaction.service'
 import { TransactionTypeEnum } from '../models/transaction.model'
 import { CurrencyType } from '../enums/currency.enum'
 import { transactionQueue, receiptQueue } from '../queues'
@@ -27,13 +17,17 @@ import { RECEIPT_JOBS } from '../queues/receipt.queue'
 import importBatchModel from '../models/import-batch.model'
 import { getIO } from '../config/socket.config'
 import { getUserId } from '../utils/getUserId.util'
+import { container } from '../container'
+
+// Get TransactionService instance from DI container
+const transactionService = container.getTransactionService()
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = createTransactionSchema.parse(req.body)
     const userId = getUserId(req)
 
-    const transaction = await createTransactionService(body, userId)
+    const transaction = await transactionService.create(body, userId)
 
     const io = getIO()
     io.to(userId).emit('transaction:created', transaction)
@@ -82,10 +76,15 @@ export const getAllTransactionController = asyncHandler(
       pageNumber: parseInt(req.query.pageNumber as string) || 1
     }
 
-    const result = await getAllTransactionService(userId, filters, pagination)
+    const result = await transactionService.findByUserId(
+      userId,
+      filters,
+      pagination
+    )
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction fetched successfully',
-      ...(result as object)
+      transactions: result.data,
+      pagination: result.pagination
     })
   }
 )
@@ -95,7 +94,7 @@ export const getTransactionByIdController = asyncHandler(
     const userId = getUserId(req)
     const transactionId = transactionIdSchema.parse(req.params.id)
 
-    const transaction = await getTransactionByIdService(userId, transactionId)
+    const transaction = await transactionService.findById(userId, transactionId)
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction fetched successfully',
@@ -118,7 +117,7 @@ export const getChildTransactionsController = asyncHandler(
       Math.max(1, parseInt(req.query.pageSize as string) || 10)
     )
 
-    const result = await getChildTransactionsService(
+    const result = await transactionService.findChildTransactions(
       userId,
       parentId,
       pageNumber,
@@ -127,7 +126,7 @@ export const getChildTransactionsController = asyncHandler(
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Child transactions fetched successfully',
-      children: result.children,
+      children: result.data,
       pagination: result.pagination
     })
   }
@@ -138,7 +137,10 @@ export const duplicateTransactionController = asyncHandler(
     const userId = getUserId(req)
     const transactionId = transactionIdSchema.parse(req.params.id)
 
-    const transaction = await duplicateTransactionService(userId, transactionId)
+    const transaction = await transactionService.duplicate(
+      userId,
+      transactionId
+    )
 
     const io = getIO()
     io.to(userId).emit('transaction:created', transaction)
@@ -156,7 +158,7 @@ export const updateTransactionController = asyncHandler(
     const transactionId = transactionIdSchema.parse(req.params.id)
     const body = updateTransactionSchema.parse(req.body)
 
-    const updatedTransaction = await updateTransactionService(
+    const updatedTransaction = await transactionService.update(
       userId,
       transactionId,
       body
@@ -177,7 +179,7 @@ export const deleteTransactionController = asyncHandler(
     const userId = getUserId(req)
     const transactionId = transactionIdSchema.parse(req.params.id)
 
-    await deleteTransactionService(userId, transactionId)
+    await transactionService.deleteById(userId, transactionId)
 
     const io = getIO()
     io.to(userId).emit('transaction:deleted', { _id: transactionId })
@@ -193,7 +195,7 @@ export const bulkDeleteTransactionController = asyncHandler(
     const userId = getUserId(req)
     const { transactionIds } = bulkDeleteTransactionSchema.parse(req.body)
 
-    const result = await bulkDeleteTransactionService(userId, transactionIds)
+    const result = await transactionService.bulkDelete(userId, transactionIds)
 
     const io = getIO()
     io.to(userId).emit('transaction:bulk-deleted', { ids: transactionIds })

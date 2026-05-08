@@ -27,7 +27,7 @@ export const closeQueues = async () => {
   logger.info(
     logIcon(
       LOG_ICONS.SUCCESS,
-      '[BullMQ] The Redis queue and connection have been safely terminated.'
+      '[BullMQ] The Redis queue and connection have been safely terminated'
     )
   )
 }

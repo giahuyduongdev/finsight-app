@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Outlet } from 'react-router-dom'
 
 const BaseLayout = () => {
   return (
@@ -9,7 +9,7 @@ const BaseLayout = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default BaseLayout;
+export default BaseLayout

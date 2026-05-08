@@ -1,5 +1,4 @@
 import { generateWithFallback } from '../config/google-ai.config'
-import ReportSettingModel from '../models/report-setting.model'
 import ReportModel, { ReportStatusEnum } from '../models/report.model'
 import { NotFoundException } from '../utils/errors/index'
 
@@ -17,67 +16,199 @@ import { sendReportEmail } from '../mailers/report.mailer'
 import UserModel from '../models/user.model'
 import { logger } from '../config/logger.config'
 import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
+import { IReportRepository } from '../repositories/interfaces/report-repository.interface'
+import { IReportSettingRepository } from '../repositories/interfaces/report-setting-repository.interface'
 
-export const getAllReportsService = async (
-  userId: string,
-  pagination: { pageSize: number; pageNumber: number }
-) => {
-  const query: Record<string, unknown> = { userId }
+// ─── ReportService Class (New - DI-based) ────────────────────────────────────
 
-  const { pageSize, pageNumber } = pagination
-  const skip = (pageNumber - 1) * pageSize
+/**
+ * ReportService Class
+ * Handles report-related business logic with dependency injection
+ */
+export class ReportService {
+  constructor(
+    private readonly reportRepository: IReportRepository,
+    private readonly reportSettingRepository: IReportSettingRepository
+  ) {}
 
-  const [reports, totalCount] = await Promise.all([
-    ReportModel.find(query).skip(skip).limit(pageSize).sort({ createdAt: -1 }),
-    ReportModel.countDocuments(query)
-  ])
-
-  const totalPages = Math.ceil(totalCount / pageSize)
-  return {
-    reports,
-    pagination: {
-      pageSize,
-      pageNumber,
-      totalCount,
-      totalPages,
-      skip
-    }
+  /**
+   * Get all reports for a user with pagination
+   * @param userId - User ID
+   * @param pagination - Pagination parameters
+   * @returns Paginated reports
+   */
+  async findByUserId(
+    userId: string,
+    pagination: { pageSize: number; pageNumber: number }
+  ) {
+    return await this.reportRepository.findByUserId(userId, pagination)
   }
-}
 
-export const updateReportSettingService = async (
-  userId: string,
-  body: UpdateReportSettingType
-) => {
-  const { isEnabled } = body
-  let nextReportDate: Date | null = null
+  /**
+   * Get report settings for a user
+   * @param userId - User ID
+   * @returns Report settings or null
+   */
+  async getSettings(userId: string) {
+    return await this.reportSettingRepository.findByUserId(userId)
+  }
 
-  const existingReportSetting = await ReportSettingModel.findOne({ userId })
-  if (!existingReportSetting)
-    throw new NotFoundException('Report setting not found"')
+  /**
+   * Update report settings
+   * @param userId - User ID
+   * @param body - Update data
+   * @returns Updated report settings
+   * @throws NotFoundException if settings not found
+   */
+  async updateSettings(userId: string, body: UpdateReportSettingType) {
+    const { isEnabled } = body
+    let nextReportDate: Date | undefined
 
-  if (isEnabled) {
-    const currentNextReportDate = existingReportSetting.nextReportDate
+    const existingReportSetting =
+      await this.reportSettingRepository.findByUserId(userId)
+    if (!existingReportSetting)
+      throw new NotFoundException('Report setting not found')
+
+    if (isEnabled) {
+      const currentNextReportDate = existingReportSetting.nextReportDate
+      const now = new Date()
+      if (!currentNextReportDate || currentNextReportDate <= now) {
+        nextReportDate = calculateNextReportDate(
+          existingReportSetting.lastSentDate,
+          existingReportSetting.frequency
+        )
+      } else {
+        nextReportDate = currentNextReportDate
+      }
+    }
+
+    const updated = await this.reportSettingRepository.update(userId, {
+      ...body,
+      nextReportDate
+    })
+
+    if (!updated) throw new NotFoundException('Report setting not found')
+
+    return updated
+  }
+
+  /**
+   * Find report by period
+   * @param userId - User ID
+   * @param period - Report period
+   * @returns Report or null
+   */
+  async findByPeriod(userId: string, period: string) {
+    return await this.reportRepository.findByPeriod(userId, period)
+  }
+
+  /**
+   * Update report status
+   * @param reportId - Report ID
+   * @param status - New status
+   * @returns Updated report
+   * @throws NotFoundException if report not found
+   */
+  async updateStatus(reportId: string, status: ReportStatusEnum) {
+    const updated = await this.reportRepository.updateStatus(reportId, status)
+    if (!updated) throw new NotFoundException('Report not found')
+    return updated
+  }
+
+  /**
+   * Resend a report
+   * @param userId - User ID
+   * @param reportId - Report ID
+   * @returns Success message
+   * @throws NotFoundException if report or user not found
+   */
+  async resendReport(userId: string, reportId: string) {
+    // 1. Find report by ID (using repository would be better, but we need to check userId)
+    const report = await ReportModel.findOne({
+      _id: reportId,
+      userId
+    })
+    if (!report) throw new NotFoundException('Report not found')
+
+    // 2. Get user info
+    const user = await UserModel.findById(userId)
+    if (!user) throw new NotFoundException('User not found')
+
+    // 3. Get report setting for frequency
+    const reportSetting =
+      await this.reportSettingRepository.findByUserId(userId)
+
+    // 4. Calculate time period from old report
+    const timezone = user.timezone || 'UTC'
     const now = new Date()
-    if (!currentNextReportDate || currentNextReportDate <= now) {
-      nextReportDate = calculateNextReportDate(
-        existingReportSetting.lastSentDate,
-        existingReportSetting.frequency
-      )
-    } else {
-      nextReportDate = currentNextReportDate
+
+    const sentDate = new Date(report.sentDate)
+
+    const from = fromZonedTime(
+      startOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
+      timezone
+    )
+    const to = fromZonedTime(
+      endOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
+      timezone
+    )
+
+    // 5. Generate report data
+    const reportData = await generateReportService(
+      userId,
+      from,
+      to,
+      timezone,
+      user.preferredCurrency
+    )
+
+    if (!reportData) {
+      throw new NotFoundException('No activity found for this period')
     }
+
+    // 6. Validate user data
+    if (!user.email || !user.name) {
+      throw new NotFoundException('User email or name not found')
+    }
+
+    // 7. Send email
+    await sendReportEmail({
+      email: user.email,
+      username: user.name,
+      report: {
+        period: reportData.period,
+        totalIncome: reportData.summary.income,
+        totalExpenses: reportData.summary.expenses,
+        availableBalance: reportData.summary.balance,
+        savingsRate: reportData.summary.savingsRate,
+        topSpendingCategories: reportData.summary.topCategories,
+        insights: reportData.insights,
+        currency: reportData.currency || user.preferredCurrency || 'USD'
+      },
+      frequency: reportSetting?.frequency || 'MONTHLY'
+    })
+
+    // 8. Update database
+    await Promise.all([
+      // Update Report
+      this.reportRepository.updateStatus(reportId, ReportStatusEnum.SENT),
+
+      // Update ReportSetting - only lastSentDate, keep nextReportDate unchanged
+      this.reportSettingRepository.update(userId, {
+        lastSentDate: now
+      })
+    ])
+
+    return { message: 'Report resent successfully' }
   }
-
-  existingReportSetting.set({
-    ...body,
-    nextReportDate
-  })
-
-  await existingReportSetting.save()
-  return existingReportSetting
 }
 
+// ─── Old Service Functions (Deprecated - Keep for backward compatibility) ────
+
+/**
+ * @internal - Helper function for generating report data
+ * Used by ReportService, report worker, and report controller
+ */
 export const generateReportService = async (
   userId: string,
   fromDate: Date,
@@ -298,97 +429,4 @@ function calculateSavingRate(totalIncome: number, totalExpenses: number) {
   if (totalIncome <= 0) return 0
   const savingRate = ((totalIncome - totalExpenses) / totalIncome) * 100
   return parseFloat(savingRate.toFixed(2))
-}
-
-export const resendReportService = async (userId: string, reportId: string) => {
-  // 1. Lấy report từ DB
-  const report = await ReportModel.findOne({
-    _id: reportId,
-    userId
-  })
-  if (!report) throw new NotFoundException('Report not found')
-
-  // 2. Lấy user info
-  const user = await UserModel.findById(userId)
-  if (!user) throw new NotFoundException('User not found')
-
-  // 3. Lấy report setting để lấy frequency
-  const reportSetting = await ReportSettingModel.findOne({ userId })
-
-  // 4. Phân tích mốc thời gian từ Report cũ
-  const timezone = user.timezone || 'UTC'
-  const now = new Date()
-
-  // Lấy thời điểm gửi của báo cáo cũ để làm mốc tính toán
-  const sentDate = new Date(report.sentDate)
-
-  const from = fromZonedTime(
-    startOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
-    timezone
-  )
-  const to = fromZonedTime(
-    endOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
-    timezone
-  )
-
-  // 5. Generate report data
-  const reportData = await generateReportService(
-    userId,
-    from,
-    to,
-    timezone,
-    user.preferredCurrency
-  )
-
-  if (!reportData) {
-    throw new NotFoundException('No activity found for this period')
-  }
-
-  // 6. Validate user data before sending email
-  if (!user.email || !user.name) {
-    throw new NotFoundException('User email or name not found')
-  }
-
-  // 7. Gửi email
-  await sendReportEmail({
-    email: user.email,
-    username: user.name,
-    report: {
-      period: reportData.period,
-      totalIncome: reportData.summary.income,
-      totalExpenses: reportData.summary.expenses,
-      availableBalance: reportData.summary.balance,
-      savingsRate: reportData.summary.savingsRate,
-      topSpendingCategories: reportData.summary.topCategories,
-      insights: reportData.insights,
-      currency: reportData.currency || user.preferredCurrency || 'USD'
-    },
-    frequency: reportSetting?.frequency || 'MONTHLY'
-  })
-
-  // 7. CẬP NHẬT DATABASE (Chạy song song để tối ưu tốc độ)
-  await Promise.all([
-    // 7a. Cập nhật Report (Ghi nhận thời gian gửi lại)
-    ReportModel.findByIdAndUpdate(reportId, {
-      $set: {
-        sentDate: now,
-        status: ReportStatusEnum.SENT,
-        updatedAt: now // Đã bổ sung
-      }
-    }),
-
-    // 7b. Cập nhật ReportSetting
-    // LƯU Ý QUAN TRỌNG: Chỉ cập nhật lastSentDate, TUYỆT ĐỐI GIỮ NGUYÊN nextReportDate để không phá chu kỳ Cronjob
-    ReportSettingModel.updateOne(
-      { userId },
-      {
-        $set: {
-          lastSentDate: now, // Đã bổ sung
-          updatedAt: now // Đã bổ sung
-        }
-      }
-    )
-  ])
-
-  return { message: 'Report resent successfully' }
 }

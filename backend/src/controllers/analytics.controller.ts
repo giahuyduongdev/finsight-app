@@ -2,14 +2,13 @@ import { Request, Response } from 'express'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { HTTPSTATUS } from '../config/http.config'
 import { DateRangePreset } from '../enums/date-range.enum'
-import {
-  chartAnalyticsService,
-  expensePieChartBreakdownService,
-  summaryAnalyticsService
-} from '../services/analytics.service'
 import { CurrencyService } from '../services/currency.service'
 import TransactionModel from '../models/transaction.model'
 import { getUserId } from '../utils/getUserId.util'
+import { container } from '../container'
+
+// Get AnalyticsService instance from DI container
+const analyticsService = container.getAnalyticsService()
 
 export const summaryAnalyticsController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -47,7 +46,7 @@ export const summaryAnalyticsController = asyncHandler(
       customTo
     }
 
-    const stats = await summaryAnalyticsService(
+    const stats = await analyticsService.getAnalytics(
       userId,
       filter.dateRangePreset,
       filter.customFrom,
@@ -99,7 +98,7 @@ export const chartAnalyticsController = asyncHandler(
       customTo
     }
 
-    const chartData = await chartAnalyticsService(
+    const chartData = await analyticsService.getChartAnalytics(
       userId,
       filter.dateRangePreset,
       filter.customFrom,
@@ -151,7 +150,7 @@ export const expensePieChartBreakdownController = asyncHandler(
       customTo
     }
 
-    const pieChartData = await expensePieChartBreakdownService(
+    const pieChartData = await analyticsService.getCategoryBreakdown(
       userId,
       filter.dateRangePreset,
       filter.customFrom,

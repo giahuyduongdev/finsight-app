@@ -25,7 +25,5 @@ export const stopWorkers = async () => {
     )
   )
   await Promise.all(workers.map((w) => w.close()))
-  logger.info(
-    logIcon(LOG_ICONS.SUCCESS, '[BullMQ] All workers stopped safely.')
-  )
+  logger.info(logIcon(LOG_ICONS.SUCCESS, '[BullMQ] All workers stopped safely'))
 }
