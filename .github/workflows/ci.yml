@@ -15,6 +15,7 @@ permissions:
 
 env:
   HUSKY: 0 # Disable husky in CI to avoid errors during install
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Opt into Node.js 24 for GitHub Actions
 
 jobs:
   validate-frontend:
