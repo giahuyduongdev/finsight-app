@@ -5,7 +5,9 @@ import { ZERO_DECIMAL_CURRENCIES } from './format-currency'
  * Handles cases like "1,234.56", "1.234,56", "1234.56", "1,234" etc.
  */
 export const parseAmount = (value: unknown, currency?: string): number => {
-  const cleanValue = String(value || '').trim().replace(/[^\d.,-]/g, '')
+  const cleanValue = String(value || '')
+    .trim()
+    .replace(/[^\d.,-]/g, '')
   if (!cleanValue) return 0
 
   const lastPoint = cleanValue.lastIndexOf('.')
@@ -28,9 +30,13 @@ export const parseAmount = (value: unknown, currency?: string): number => {
 
       const isProbablyGrouping =
         decimalPart.length === 3 &&
-        (ZERO_DECIMAL_CURRENCIES.includes(currency || 'USD') || separator === ',')
+        (ZERO_DECIMAL_CURRENCIES.includes(currency || 'USD') ||
+          separator === ',')
 
-      if (isProbablyGrouping && !cleanValue.includes(separator === '.' ? ',' : '.')) {
+      if (
+        isProbablyGrouping &&
+        !cleanValue.includes(separator === '.' ? ',' : '.')
+      ) {
         return Number(integerPart + decimalPart)
       } else {
         return Number(integerPart + '.' + (decimalPart || '0'))

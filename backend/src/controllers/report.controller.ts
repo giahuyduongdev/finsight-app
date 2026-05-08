@@ -1,15 +1,14 @@
 import { Request, Response } from 'express'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { HTTPSTATUS } from '../config/http.config'
-import {
-  generateReportService,
-  getAllReportsService,
-  resendReportService,
-  updateReportSettingService
-} from '../services/report.service'
+import { generateReportService } from '../services/report.service'
 import { updateReportSettingSchema } from '../validators/report.validator'
 import { fromZonedTime } from 'date-fns-tz'
 import { getUserId } from '../utils/getUserId.util'
+import { container } from '../container'
+
+// Get ReportService instance from DI container
+const reportService = container.getReportService()
 
 export const getAllReportsController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -20,7 +19,7 @@ export const getAllReportsController = asyncHandler(
       pageNumber: parseInt(req.query.pageNumber as string) || 1
     }
 
-    const result = await getAllReportsService(userId, pagination)
+    const result = await reportService.findByUserId(userId, pagination)
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Reports history fetched successfully',
@@ -34,7 +33,10 @@ export const updateReportSettingController = asyncHandler(
     const userId = getUserId(req)
     const body = updateReportSettingSchema.parse(req.body)
 
-    const updatedReportSetting = await updateReportSettingService(userId, body)
+    const updatedReportSetting = await reportService.updateSettings(
+      userId,
+      body
+    )
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Reports setting updated successfully',
@@ -79,7 +81,7 @@ export const resendReportController = asyncHandler(
       })
     }
 
-    const result = await resendReportService(userId, reportId)
+    const result = await reportService.resendReport(userId, reportId)
 
     return res.status(HTTPSTATUS.OK).json(result)
   }

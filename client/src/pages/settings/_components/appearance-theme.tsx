@@ -1,16 +1,15 @@
-import { useState } from "react"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Button } from "@/components/ui/button"
-import { useTheme } from "@/context/theme-provider"
+import { useState } from 'react'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Button } from '@/components/ui/button'
+import { useTheme } from '@/context/theme-provider'
 
 export function AppearanceTheme() {
   const { theme, setTheme } = useTheme()
 
   const [selectedTheme, setSelectedTheme] = useState(theme)
 
-
-  const handleThemeChange = (value: "light" | "dark") => {
+  const handleThemeChange = (value: 'light' | 'dark') => {
     setSelectedTheme(value)
   }
 
@@ -49,9 +48,7 @@ export function AppearanceTheme() {
                   </div>
                 </div>
               </div>
-              <p className="!block w-full p-2 text-center font-normal">
-                Light
-              </p>
+              <p className="!block w-full p-2 text-center font-normal">Light</p>
             </Label>
           </div>
           <div>
@@ -73,18 +70,18 @@ export function AppearanceTheme() {
                   </div>
                 </div>
               </div>
-              <p className="block w-full p-2 text-center font-normal">
-                Dark
-              </p>
+              <p className="block w-full p-2 text-center font-normal">Dark</p>
             </Label>
           </div>
         </RadioGroup>
       </div>
       <Button
-      type="button"
-      className="mt-4 text-white"
-      onClick={handleUpdateTheme}
-      >Update preferences</Button>
+        type="button"
+        className="mt-4 text-white"
+        onClick={handleUpdateTheme}
+      >
+        Update preferences
+      </Button>
     </div>
   )
 }

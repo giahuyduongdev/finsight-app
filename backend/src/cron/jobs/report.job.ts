@@ -1,8 +1,8 @@
-import ReportSettingModel from '../../models/report-setting.model'
 import { UserDocument } from '../../models/user.model'
 import { reportQueue, REPORT_JOBS } from '../../queues/report.queue'
 import { logger } from '../../config/logger.config'
 import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
+import { container } from '../../container'
 
 export const processReportJob = async () => {
   const now = new Date()
@@ -15,10 +15,10 @@ export const processReportJob = async () => {
   )
 
   try {
-    const settings = await ReportSettingModel.find({
-      isEnabled: true,
-      nextReportDate: { $lte: now }
-    }).populate<{ userId: UserDocument }>('userId')
+    // Get ReportSettingRepository from DI container
+    const reportSettingRepository = container.getReportSettingRepository()
+
+    const settings = await reportSettingRepository.findEnabledDue(now)
 
     if (!settings.length) {
       logger.info(logIcon(LOG_ICONS.INFO, '[Cron] No reports due at this time'))
@@ -34,8 +34,8 @@ export const processReportJob = async () => {
 
     const jobs = settings
       .filter((setting) => {
-        const user = setting.userId as UserDocument
-        if (!user) {
+        const user = setting.userId as unknown as UserDocument
+        if (!user || !user.id) {
           logger.warn(
             logIcon(
               LOG_ICONS.WARNING,
@@ -47,7 +47,7 @@ export const processReportJob = async () => {
         return true
       })
       .map((setting) => {
-        const user = setting.userId as UserDocument
+        const user = setting.userId as unknown as UserDocument
         // Validate frequency before using
         const frequency = setting.frequency || 'MONTHLY'
         return {

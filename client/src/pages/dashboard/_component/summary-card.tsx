@@ -205,7 +205,7 @@ const SummaryCard: FC<SummaryCardProps> = ({
           {cardType === 'savings' ? (
             <div className="flex items-center gap-1.5 w-full overflow-hidden">
               <status.Icon className={cn('size-3.5 shrink-0', status.color)} />
-              <span className={cn(status.color, "whitespace-nowrap shrink-0")}>
+              <span className={cn(status.color, 'whitespace-nowrap shrink-0')}>
                 {status.label} {value !== 0 && `(${formatPercentage(value)})`}
               </span>
               {status.description && (
@@ -219,16 +219,22 @@ const SummaryCard: FC<SummaryCardProps> = ({
           ) : value === 0 || status.label ? (
             <div className="flex items-center gap-1.5 w-full overflow-hidden">
               <status.Icon className={cn('size-3.5 shrink-0', status.color)} />
-              <span className={cn(status.color, "whitespace-nowrap shrink-0")}>{status.label}</span>
+              <span className={cn(status.color, 'whitespace-nowrap shrink-0')}>
+                {status.label}
+              </span>
               {status.description && (
-                <span className="text-gray-400 truncate">• {status.description}</span>
+                <span className="text-gray-400 truncate">
+                  • {status.description}
+                </span>
               )}
               {!status.description && (
-                <span className="text-gray-400 truncate">• {dateRange?.label}</span>
+                <span className="text-gray-400 truncate">
+                  • {dateRange?.label}
+                </span>
               )}
             </div>
           ) : showTrend ? (
-             <div className="flex items-center gap-1.5 w-full overflow-hidden">
+            <div className="flex items-center gap-1.5 w-full overflow-hidden">
               {percentageChange !== 0 && (
                 <div
                   className={cn(
@@ -265,7 +271,9 @@ const SummaryCard: FC<SummaryCardProps> = ({
                   </span>
                 </div>
               )}
-              <span className="text-gray-400 truncate">• {dateRange?.label}</span>
+              <span className="text-gray-400 truncate">
+                • {dateRange?.label}
+              </span>
             </div>
           ) : null}
         </div>

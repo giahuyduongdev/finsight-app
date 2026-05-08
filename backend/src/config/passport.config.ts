@@ -5,7 +5,7 @@ import {
 } from 'passport-jwt'
 import passport from 'passport'
 import { Env } from '../config/env.config'
-import { findByIdUserService } from '../services/user.service'
+import { container } from '../container'
 import { redis } from '../config/redis.config'
 
 interface JwtPayload {
@@ -32,7 +32,9 @@ passport.use(
         return done(null, JSON.parse(cached))
       }
 
-      const user = await findByIdUserService(payload.userId)
+      // Get UserService from DI container
+      const userService = container.getUserService()
+      const user = await userService.findById(payload.userId)
       if (!user) {
         return done(null, false)
       }

@@ -1,25 +1,27 @@
-import { FileSearch, LucideIcon } from "lucide-react";
-import * as React from "react";
+import { FileSearch, LucideIcon } from 'lucide-react'
+import * as React from 'react'
 
 interface EmptyStateProps {
-    icon?: LucideIcon;
-  title: string;
-  description: string;
-  className?: string;
+  icon?: LucideIcon
+  title: string
+  description: string
+  className?: string
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
   icon,
   title,
   description,
-  className = "",
+  className = ''
 }) => {
   const Icon = icon || FileSearch
   return (
-    <div className={`flex flex-col items-center justify-center min-h-[300px] w-full ${className}`}>
+    <div
+      className={`flex flex-col items-center justify-center min-h-[300px] w-full ${className}`}
+    >
       {Icon && (
         <div className="bg-muted p-4 rounded-full mb-6">
-          <Icon className="w-8 h-8 text-muted-foreground"  />
+          <Icon className="w-8 h-8 text-muted-foreground" />
         </div>
       )}
       <h3 className="text-base font-medium text-foreground mb-1">{title}</h3>
@@ -28,5 +30,5 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       </p>
       <div className="h-1 w-16 bg-gradient-to-r from-border to-muted rounded-full" />
     </div>
-  );
-};
+  )
+}

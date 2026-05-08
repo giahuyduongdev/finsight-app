@@ -15,8 +15,9 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
   )
   const summaryData = data?.data
   const preferredCurrency =
-    useSelector((state: RootState) => state.auth?.user?.preferredCurrency) || 'USD'
- 
+    useSelector((state: RootState) => state.auth?.user?.preferredCurrency) ||
+    'USD'
+
   return (
     <div className="flex flex-row items-center">
       <div className="flex-1 lg:flex-[1] grid grid-cols-1 lg:grid-cols-4 gap-4">

@@ -1,14 +1,14 @@
-import React from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import React from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface TableSkeletonProps {
-  columns: number;
-  rows?: number;
+  columns: number
+  rows?: number
 }
 
 const TableSkeleton: React.FC<TableSkeletonProps> = ({
   columns,
-  rows = 25,
+  rows = 25
 }) => {
   return (
     <div className="w-full bg-white dark:bg-background rounded-lg">
@@ -37,7 +37,7 @@ const TableSkeleton: React.FC<TableSkeletonProps> = ({
         ))}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default TableSkeleton;
+export default TableSkeleton

@@ -1,19 +1,19 @@
-import * as React from "react"
-import { Eye, EyeOff } from "lucide-react"
-import { Input } from "./input"
-import { cn } from "@/lib/utils"
+import * as React from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { Input } from './input'
+import { cn } from '@/lib/utils'
 
 type PasswordInputProps = React.ComponentProps<typeof Input>
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className, autoComplete = "current-password", ...props }, ref) => {
+  ({ className, autoComplete = 'current-password', ...props }, ref) => {
     const [showPassword, setShowPassword] = React.useState(false)
 
     return (
       <div className="relative">
         <Input
-          type={showPassword ? "text" : "password"}
-          className={cn("pr-10", className)}
+          type={showPassword ? 'text' : 'password'}
+          className={cn('pr-10', className)}
           autoComplete={autoComplete}
           ref={ref}
           {...props}
@@ -30,7 +30,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
             <Eye className="h-4 w-4" aria-hidden="true" />
           )}
           <span className="sr-only">
-            {showPassword ? "Hide password" : "Show password"}
+            {showPassword ? 'Hide password' : 'Show password'}
           </span>
         </button>
       </div>
@@ -38,6 +38,6 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
   }
 )
 
-PasswordInput.displayName = "PasswordInput"
+PasswordInput.displayName = 'PasswordInput'
 
 export { PasswordInput }

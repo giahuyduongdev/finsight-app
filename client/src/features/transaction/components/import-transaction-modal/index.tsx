@@ -103,10 +103,12 @@ const ImportTransactionModal = () => {
           Bulk Import
         </Button>
       </DialogTrigger>
-      <DialogContent className={cn(
-        "min-h-[40vh] transition-[max-width] duration-300",
-        step === 3 ? "sm:max-w-6xl" : "sm:max-w-lg"
-      )}>
+      <DialogContent
+        className={cn(
+          'min-h-[40vh] transition-[max-width] duration-300',
+          step === 3 ? 'sm:max-w-6xl' : 'sm:max-w-lg'
+        )}
+      >
         {renderStep()}
       </DialogContent>
     </Dialog>

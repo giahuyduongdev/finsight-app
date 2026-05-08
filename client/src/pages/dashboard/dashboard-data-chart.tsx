@@ -49,9 +49,8 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
   const isMobile = useIsMobile()
 
   const preferredCurrency =
-    useSelector(
-      (state: RootState) => state.auth?.user?.preferredCurrency
-    ) || 'USD'
+    useSelector((state: RootState) => state.auth?.user?.preferredCurrency) ||
+    'USD'
 
   const { data, isLoading } = useChartAnalyticsQuery({
     preset: dateRange?.value,

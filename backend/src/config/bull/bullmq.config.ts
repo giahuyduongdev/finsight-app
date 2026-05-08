@@ -26,5 +26,5 @@ bullMQConnection.on('reconnecting', () =>
   )
 )
 bullMQConnection.on('end', () =>
-  logger.warn(logIcon(LOG_ICONS.STOP, '[BullMQ] Connection closed.'))
+  logger.warn(logIcon(LOG_ICONS.STOP, '[BullMQ] Connection closed'))
 )

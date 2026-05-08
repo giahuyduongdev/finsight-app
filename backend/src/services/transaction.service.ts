@@ -1,7 +1,5 @@
-import TransactionModel, {
-  TransactionTypeEnum
-} from '../models/transaction.model'
-import { calculateNextOccurrence, getDateRange } from '../utils/dates/index'
+import { TransactionTypeEnum } from '../models/transaction.model'
+import { calculateNextOccurrence } from '../utils/dates/index'
 import {
   CreateTransactionType,
   UpdateTransactionType
@@ -10,432 +8,398 @@ import { NotFoundException } from '../utils/errors/index'
 import { CurrencyType } from '../enums/currency.enum'
 import { DateRangePreset } from '../enums/date-range.enum'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
+import { ITransactionRepository } from '../repositories/interfaces/transaction-repository.interface'
+import { IImportBatchRepository } from '../repositories/interfaces/import-batch-repository.interface'
+import mongoose from 'mongoose'
 
-export const createTransactionService = async (
-  body: CreateTransactionType,
-  userId: string
-) => {
-  let nextRecurringDate: Date | undefined
-  const currentDate = new Date()
-
-  if (body.isRecurring && body.recurringInterval) {
-    const calculatedDate = calculateNextOccurrence(
-      body.date,
-      body.recurringInterval
-    )
-    nextRecurringDate =
-      calculatedDate < currentDate
-        ? calculateNextOccurrence(currentDate, body.recurringInterval)
-        : calculatedDate
-  }
-
-  const transaction = await TransactionModel.create({
-    ...body,
-    userId,
-    status: body.status || 'COMPLETED',
-    category: body.category,
-    amount: Number(body.amount),
-    currency: body.currency || 'USD',
-    isRecurring: body.isRecurring,
-    recurringInterval: body.recurringInterval || null,
-    nextRecurringDate,
-    lastProcessed: null
-  })
-
-  // --- BACKFILL ---
-  if (
-    body.backfill &&
-    body.isRecurring &&
-    body.recurringInterval &&
-    body.date < currentDate
-  ) {
-    const MAX_BACKFILL_ENTRIES = 1000
-    const children: Array<
-      Partial<CreateTransactionType> & {
-        userId: string
-        recurringSourceId: unknown
-      }
-    > = []
-    let cursor = new Date(body.date)
-    let count = 0
-
-    while (cursor <= currentDate && count < MAX_BACKFILL_ENTRIES) {
-      children.push({
-        ...body,
-        userId,
-        date: new Date(cursor),
-        isRecurring: false,
-        recurringInterval: null,
-        recurringSourceId: transaction._id,
-        status: 'COMPLETED'
-      })
-      cursor = calculateNextOccurrence(cursor, body.recurringInterval)
-      count++
-    }
-
-    if (children.length) await TransactionModel.insertMany(children)
-
-    // cursor sau vòng while = kỳ đầu tiên sau now
-    // Update lại parent để tránh cron tạo trùng
-    await TransactionModel.updateOne(
-      { _id: transaction._id },
-      { $set: { nextRecurringDate: cursor } }
-    )
-  }
-  // --- END BACKFILL ---
-
-  // Invalidate analytics cache
-  await invalidateUserAnalyticsCache(userId)
-
-  return transaction
-}
-
-export const getAllTransactionService = async (
-  userId: string,
-  filters: {
-    keyword?: string
-    type?: keyof typeof TransactionTypeEnum
-    recurringStatus?: 'RECURRING' | 'NON_RECURRING'
-    currency?: CurrencyType
-    status?: 'COMPLETED' | 'PENDING' | 'FAILED'
-    dateRangePreset?: DateRangePreset
-    from?: string | Date
-    to?: string | Date
-    timezone?: string
-  },
-  pagination: {
-    pageSize: number
-    pageNumber: number
-  }
-) => {
-  const {
-    keyword,
-    type,
-    recurringStatus,
-    currency,
-    status,
-    dateRangePreset,
-    from,
-    to,
-    timezone
-  } = filters
-
-  const filterConditions: Record<string, unknown> = {
-    userId,
-    recurringSourceId: null
-  }
-
-  // --- Date Range Filter ---
-  const dateRange = getDateRange(
-    dateRangePreset,
-    from ? new Date(from) : undefined,
-    to ? new Date(to) : undefined,
-    timezone || 'UTC'
-  )
-
-  if (dateRange.from || dateRange.to) {
-    filterConditions.date = {} as { $gte?: Date; $lte?: Date }
-    if (dateRange.from)
-      (filterConditions.date as { $gte?: Date; $lte?: Date }).$gte =
-        dateRange.from
-    if (dateRange.to)
-      (filterConditions.date as { $gte?: Date; $lte?: Date }).$lte =
-        dateRange.to
-  }
-
-  if (keyword) {
-    filterConditions.$or = [
-      { title: { $regex: keyword, $options: 'i' } },
-      { category: { $regex: keyword, $options: 'i' } }
-    ]
-  }
-
-  if (type) {
-    filterConditions.type = type
-  }
-
-  if (currency) {
-    filterConditions.currency = currency
-  }
-
-  if (status) {
-    filterConditions.status = status
-  }
-
-  if (recurringStatus) {
-    if (recurringStatus === 'RECURRING') {
-      filterConditions.isRecurring = true
-    } else if (recurringStatus === 'NON_RECURRING') {
-      filterConditions.isRecurring = false
-    }
-  }
-
-  const { pageSize, pageNumber } = pagination
-  const skip = (pageNumber - 1) * pageSize
-
-  const [transactions, totalCount] = await Promise.all([
-    TransactionModel.find(filterConditions)
-      .skip(skip)
-      .limit(pageSize)
-      .sort({ date: -1, createdAt: -1 }),
-    TransactionModel.countDocuments(filterConditions)
-  ])
-
-  const totalPages = Math.ceil(totalCount / pageSize)
-
-  return {
-    transactions,
-    pagination: {
-      pageSize,
-      pageNumber,
-      totalCount,
-      totalPages,
-      skip
-    }
-  }
-}
-
-export const getTransactionByIdService = async (
-  userId: string,
-  transactionId: string
-) => {
-  const transaction = await TransactionModel.findOne({
-    _id: transactionId,
-    userId
-  })
-
-  if (!transaction) throw new NotFoundException('Transaction not found')
-
-  return transaction
-}
-
-export const getChildTransactionsService = async (
-  userId: string,
-  parentId: string,
-  pageNumber: number = 1,
-  pageSize: number = 10
-) => {
-  const parent = await TransactionModel.findOne({
-    _id: parentId,
-    userId,
-    isRecurring: true
-  })
-
-  if (!parent) throw new NotFoundException('Transaction not found')
-
-  const query = {
-    recurringSourceId: parentId,
-    userId
-  }
-
-  const [children, totalCount] = await Promise.all([
-    TransactionModel.find(query)
-      .sort({ date: -1 }) // mới nhất lên đầu
-      .skip((pageNumber - 1) * pageSize)
-      .limit(pageSize),
-    TransactionModel.countDocuments(query)
-  ])
-
-  return {
-    children,
-    pagination: {
-      totalCount,
-      pageSize,
-      pageNumber,
-      totalPages: Math.ceil(totalCount / pageSize)
-    }
-  }
-}
-
-export const duplicateTransactionService = async (
-  userId: string,
-  transactionId: string
-) => {
-  const transaction = await TransactionModel.findOne({
-    _id: transactionId,
-    userId
-  })
-  if (!transaction) throw new NotFoundException('Transaction not found')
-
-  const duplicated = await TransactionModel.create({
-    ...transaction.toObject(),
-    _id: undefined,
-    title: `Duplicate - ${transaction.title}`,
-    description: transaction.description
-      ? `${transaction.description} (Duplicate)`
-      : 'Duplicated transaction',
-
-    // --- RESET CÁC THÔNG SỐ ĐỊNH KỲ ---
-    isRecurring: false,
-    recurringInterval: undefined,
-    nextRecurringDate: undefined,
-
-    // --- NHỮNG TRƯỜNG MỚI CẦN UPDATE ---
-    status: 'COMPLETED', // Reset về trạng thái an toàn mặc định
-    recurringSourceId: null, // Cắt đứt quan hệ họ hàng với giao dịch gốc
-
-    createdAt: undefined,
-    updatedAt: undefined
-  })
-
-  await invalidateUserAnalyticsCache(userId)
-
-  return duplicated
-}
-
-export const updateTransactionService = async (
-  userId: string,
-  transactionId: string,
-  body: UpdateTransactionType
-) => {
-  const existingTransaction = await TransactionModel.findOne({
-    _id: transactionId,
-    userId
-  })
-  if (!existingTransaction) throw new NotFoundException('Transaction not found')
-
-  const now = new Date()
-  const isRecurring = body.isRecurring ?? existingTransaction.isRecurring
-
-  const date =
-    body.date !== undefined ? new Date(body.date) : existingTransaction.date
-
-  const recurringInterval =
-    body.recurringInterval || existingTransaction.recurringInterval
-
-  let nextRecurringDate: Date | undefined
-
-  if (isRecurring && recurringInterval) {
-    const calulatedDate = calculateNextOccurrence(date, recurringInterval)
-
-    nextRecurringDate =
-      calulatedDate < now
-        ? calculateNextOccurrence(now, recurringInterval)
-        : calulatedDate
-  }
-
-  // Kiểm tra sự thay đổi schedule TRƯỚC KHI set data mới
-  const isScheduleChanged =
-    (body.date !== undefined &&
-      new Date(body.date).getTime() !== existingTransaction.date.getTime()) ||
-    (body.recurringInterval !== undefined &&
-      body.recurringInterval !== existingTransaction.recurringInterval)
-
-  existingTransaction.set({
-    ...(body.title && { title: body.title }),
-    ...(body.description && { description: body.description }),
-    ...(body.category && { category: body.category }),
-    ...(body.type && { type: body.type }),
-    ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
-    ...(body.amount !== undefined && { amount: Number(body.amount) }),
-    ...(body.currency && { currency: body.currency }),
-    ...(body.status && { status: body.status }),
-    date,
-    isRecurring,
-    recurringInterval,
-    nextRecurringDate
-  })
-
-  await existingTransaction.save()
-
-  if (existingTransaction.isRecurring && isScheduleChanged) {
-    // Xóa tất cả PENDING children → cron sẽ tạo lại theo schedule mới
-    await TransactionModel.deleteMany({
-      recurringSourceId: existingTransaction._id,
-      status: 'PENDING'
-    })
-  }
-
-  // Invalidate analytics cache
-  await invalidateUserAnalyticsCache(userId)
-
-  return existingTransaction
-}
-
-export const deleteTransactionService = async (
-  userId: string,
-  transactionId: string
-) => {
-  const deleted = await TransactionModel.findOneAndDelete({
-    _id: transactionId,
-    userId
-  })
-  if (!deleted) throw new NotFoundException('Transaction not found')
-
-  // Xóa luôn các giao dịch con (nếu đây là giao dịch cha)
-  await TransactionModel.deleteMany({
-    recurringSourceId: transactionId,
-    userId
-  })
-
-  // Invalidate analytics cache
-  await invalidateUserAnalyticsCache(userId)
-
-  return
-}
-
-export const bulkDeleteTransactionService = async (
-  userId: string,
-  transactionIds: string[]
-) => {
-  const result = await TransactionModel.deleteMany({
-    _id: { $in: transactionIds },
-    userId
-  })
-
-  if (result.deletedCount === 0)
-    throw new NotFoundException('No transations found')
-
-  // Xóa luôn các giao dịch con thuộc các giao dịch cha này
-  await TransactionModel.deleteMany({
-    recurringSourceId: { $in: transactionIds },
-    userId
-  })
-
-  // Invalidate analytics cache
-  await invalidateUserAnalyticsCache(userId)
-
-  return {
-    success: true,
-    deletedCount: result.deletedCount
-  }
-}
+// ─── Type Definitions ─────────────────────────────────────────────────────────
 
 export type BulkTransactionItem = Omit<
   CreateTransactionType,
   'status' | 'backfill'
 > & {
   status: 'COMPLETED' | 'PENDING' | 'FAILED'
-  backfill?: boolean // Thêm dấu ? để biến nó thành optional (không bắt buộc)
+  backfill?: boolean
 }
-export const bulkImportTransactionService = async (
-  userId: string,
-  transactions: BulkTransactionItem[]
-) => {
-  const bulkOps = transactions.map((tx) => ({
-    insertOne: {
-      document: {
-        ...tx,
-        userId,
-        isRecurring: false,
-        nextRecurringDate: null,
-        recurringInterval: null,
-        lastProcessed: null,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
+
+// ─── TransactionService Class (New - DI-based) ───────────────────────────────
+
+/**
+ * TransactionService Class
+ * Handles transaction-related business logic with dependency injection
+ */
+export class TransactionService {
+  constructor(
+    private readonly transactionRepository: ITransactionRepository,
+    private readonly importBatchRepository: IImportBatchRepository
+  ) {}
+
+  /**
+   * Create a new transaction
+   * @param body - Transaction data
+   * @param userId - User ID
+   * @returns Created transaction
+   */
+  async create(body: CreateTransactionType, userId: string) {
+    let nextRecurringDate: Date | undefined
+    const currentDate = new Date()
+
+    if (body.isRecurring && body.recurringInterval) {
+      const calculatedDate = calculateNextOccurrence(
+        body.date,
+        body.recurringInterval
+      )
+      nextRecurringDate =
+        calculatedDate < currentDate
+          ? calculateNextOccurrence(currentDate, body.recurringInterval)
+          : calculatedDate
     }
-  }))
 
-  const result = await TransactionModel.bulkWrite(bulkOps, {
-    ordered: true
-  })
+    const transaction = await this.transactionRepository.create({
+      ...body,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      userId: new mongoose.Types.ObjectId(userId) as any,
+      status: body.status || 'COMPLETED',
+      category: body.category,
+      amount: Number(body.amount),
+      currency: body.currency || 'USD',
+      isRecurring: body.isRecurring,
+      recurringInterval: body.recurringInterval || undefined,
+      nextRecurringDate,
+      lastProcessed: undefined
+    })
 
-  // Invalidate analytics cache
-  await invalidateUserAnalyticsCache(userId)
+    // --- BACKFILL ---
+    if (
+      body.backfill &&
+      body.isRecurring &&
+      body.recurringInterval &&
+      body.date < currentDate
+    ) {
+      const MAX_BACKFILL_ENTRIES = 1000
+      const children: Array<
+        Partial<CreateTransactionType> & {
+          userId: string
+          recurringSourceId: unknown
+        }
+      > = []
+      let cursor = new Date(body.date)
+      let count = 0
 
-  return {
-    insertedCount: result.insertedCount,
-    success: true
+      while (cursor <= currentDate && count < MAX_BACKFILL_ENTRIES) {
+        children.push({
+          ...body,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          userId: new mongoose.Types.ObjectId(userId) as any,
+          date: new Date(cursor),
+          isRecurring: false,
+          recurringInterval: undefined,
+          recurringSourceId: transaction._id,
+          status: 'COMPLETED'
+        })
+        cursor = calculateNextOccurrence(cursor, body.recurringInterval)
+        count++
+      }
+
+      if (children.length) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await this.transactionRepository.bulkCreate(children as any[])
+      }
+
+      // cursor sau vòng while = kỳ đầu tiên sau now
+      // Update lại parent để tránh cron tạo trùng
+      await this.transactionRepository.update(
+        transaction._id.toString(),
+        userId,
+        {
+          nextRecurringDate: cursor
+        }
+      )
+    }
+    // --- END BACKFILL ---
+
+    // Invalidate analytics cache
+    await invalidateUserAnalyticsCache(userId)
+
+    return transaction
+  }
+
+  /**
+   * Find transactions by user ID with filters and pagination
+   * @param userId - User ID
+   * @param filters - Filter options
+   * @param pagination - Pagination options
+   * @returns Paginated transactions
+   */
+  async findByUserId(
+    userId: string,
+    filters: {
+      keyword?: string
+      type?: keyof typeof TransactionTypeEnum
+      recurringStatus?: 'RECURRING' | 'NON_RECURRING'
+      currency?: CurrencyType
+      status?: 'COMPLETED' | 'PENDING' | 'FAILED'
+      dateRangePreset?: DateRangePreset
+      from?: string | Date
+      to?: string | Date
+      timezone?: string
+    },
+    pagination: {
+      pageSize: number
+      pageNumber: number
+    }
+  ) {
+    return await this.transactionRepository.findByUserId(
+      userId,
+      filters,
+      pagination
+    )
+  }
+
+  /**
+   * Find transaction by ID
+   * @param userId - User ID
+   * @param transactionId - Transaction ID
+   * @returns Transaction document
+   * @throws NotFoundException if transaction not found
+   */
+  async findById(userId: string, transactionId: string) {
+    const transaction = await this.transactionRepository.findById(
+      transactionId,
+      userId
+    )
+
+    if (!transaction) throw new NotFoundException('Transaction not found')
+
+    return transaction
+  }
+
+  /**
+   * Find child transactions of a recurring parent
+   * @param userId - User ID
+   * @param parentId - Parent transaction ID
+   * @param pageNumber - Page number
+   * @param pageSize - Page size
+   * @returns Paginated child transactions
+   * @throws NotFoundException if parent transaction not found
+   */
+  async findChildTransactions(
+    userId: string,
+    parentId: string,
+    pageNumber: number = 1,
+    pageSize: number = 10
+  ) {
+    return await this.transactionRepository.findChildTransactions(
+      userId,
+      parentId,
+      { pageNumber, pageSize }
+    )
+  }
+
+  /**
+   * Duplicate a transaction
+   * @param userId - User ID
+   * @param transactionId - Transaction ID to duplicate
+   * @returns Duplicated transaction
+   * @throws NotFoundException if transaction not found
+   */
+  async duplicate(userId: string, transactionId: string) {
+    const transaction = await this.transactionRepository.findById(
+      transactionId,
+      userId
+    )
+    if (!transaction) throw new NotFoundException('Transaction not found')
+
+    const duplicated = await this.transactionRepository.create({
+      ...transaction.toObject(),
+      _id: undefined,
+      title: `Duplicate - ${transaction.title}`,
+      description: transaction.description
+        ? `${transaction.description} (Duplicate)`
+        : 'Duplicated transaction',
+
+      // --- RESET CÁC THÔNG SỐ ĐỊNH KỲ ---
+      isRecurring: false,
+      recurringInterval: undefined,
+      nextRecurringDate: undefined,
+
+      // --- NHỮNG TRƯỜNG MỚI CẦN UPDATE ---
+      status: 'COMPLETED',
+      recurringSourceId: null,
+
+      createdAt: undefined,
+      updatedAt: undefined
+    })
+
+    await invalidateUserAnalyticsCache(userId)
+
+    return duplicated
+  }
+
+  /**
+   * Update a transaction
+   * @param userId - User ID
+   * @param transactionId - Transaction ID
+   * @param body - Update data
+   * @returns Updated transaction
+   * @throws NotFoundException if transaction not found
+   */
+  async update(
+    userId: string,
+    transactionId: string,
+    body: UpdateTransactionType
+  ) {
+    const existingTransaction = await this.transactionRepository.findById(
+      transactionId,
+      userId
+    )
+    if (!existingTransaction)
+      throw new NotFoundException('Transaction not found')
+
+    const now = new Date()
+    const isRecurring = body.isRecurring ?? existingTransaction.isRecurring
+
+    const date =
+      body.date !== undefined ? new Date(body.date) : existingTransaction.date
+
+    const recurringInterval =
+      body.recurringInterval || existingTransaction.recurringInterval
+
+    let nextRecurringDate: Date | undefined
+
+    if (isRecurring && recurringInterval) {
+      const calculatedDate = calculateNextOccurrence(date, recurringInterval)
+
+      nextRecurringDate =
+        calculatedDate < now
+          ? calculateNextOccurrence(now, recurringInterval)
+          : calculatedDate
+    }
+
+    // Kiểm tra sự thay đổi schedule TRƯỚC KHI set data mới
+    const isScheduleChanged =
+      (body.date !== undefined &&
+        new Date(body.date).getTime() !== existingTransaction.date.getTime()) ||
+      (body.recurringInterval !== undefined &&
+        body.recurringInterval !== existingTransaction.recurringInterval)
+
+    const updateData: Partial<typeof existingTransaction> = {
+      ...(body.title && { title: body.title }),
+      ...(body.description && { description: body.description }),
+      ...(body.category && { category: body.category }),
+      ...(body.type && { type: body.type }),
+      ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
+      ...(body.amount !== undefined && { amount: Number(body.amount) }),
+      ...(body.currency && { currency: body.currency }),
+      ...(body.status && { status: body.status }),
+      date,
+      isRecurring,
+      recurringInterval,
+      nextRecurringDate
+    }
+
+    const updatedTransaction = await this.transactionRepository.update(
+      transactionId,
+      userId,
+      updateData
+    )
+
+    if (!updatedTransaction)
+      throw new NotFoundException('Transaction not found')
+
+    if (updatedTransaction.isRecurring && isScheduleChanged) {
+      // Xóa tất cả PENDING children → cron sẽ tạo lại theo schedule mới
+      await this.transactionRepository.deleteChildrenByParentId(
+        transactionId,
+        userId
+      )
+    }
+
+    // Invalidate analytics cache
+    await invalidateUserAnalyticsCache(userId)
+
+    return updatedTransaction
+  }
+
+  /**
+   * Delete a transaction by ID
+   * @param userId - User ID
+   * @param transactionId - Transaction ID
+   * @throws NotFoundException if transaction not found
+   */
+  async deleteById(userId: string, transactionId: string) {
+    const deleted = await this.transactionRepository.deleteById(
+      transactionId,
+      userId
+    )
+    if (!deleted) throw new NotFoundException('Transaction not found')
+
+    // Xóa luôn các giao dịch con (nếu đây là giao dịch cha)
+    await this.transactionRepository.deleteChildrenByParentId(
+      transactionId,
+      userId
+    )
+
+    // Invalidate analytics cache
+    await invalidateUserAnalyticsCache(userId)
+  }
+
+  /**
+   * Bulk delete transactions
+   * @param userId - User ID
+   * @param transactionIds - Array of transaction IDs
+   * @returns Delete result
+   * @throws NotFoundException if no transactions found
+   */
+  async bulkDelete(userId: string, transactionIds: string[]) {
+    const result = await this.transactionRepository.bulkDelete(
+      transactionIds,
+      userId
+    )
+
+    if (result.deletedCount === 0)
+      throw new NotFoundException('No transactions found')
+
+    // Xóa luôn các giao dịch con thuộc các giao dịch cha này
+    for (const id of transactionIds) {
+      await this.transactionRepository.deleteChildrenByParentId(id, userId)
+    }
+
+    // Invalidate analytics cache
+    await invalidateUserAnalyticsCache(userId)
+
+    return {
+      success: true,
+      deletedCount: result.deletedCount
+    }
+  }
+
+  /**
+   * Bulk import transactions
+   * @param userId - User ID
+   * @param transactions - Array of transactions to import
+   * @returns Import result
+   */
+  async bulkImport(userId: string, transactions: BulkTransactionItem[]) {
+    const transactionsToCreate = transactions.map((tx) => ({
+      ...tx,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      userId: new mongoose.Types.ObjectId(userId) as any,
+      isRecurring: false,
+      nextRecurringDate: undefined,
+      recurringInterval: undefined,
+      lastProcessed: undefined
+    }))
+
+    const result =
+      await this.transactionRepository.bulkCreate(transactionsToCreate)
+
+    // Invalidate analytics cache
+    await invalidateUserAnalyticsCache(userId)
+
+    return {
+      insertedCount: result.insertedCount,
+      success: true
+    }
   }
 }

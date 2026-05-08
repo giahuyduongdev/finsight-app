@@ -15,7 +15,10 @@ export const passwordSchema = z
   .min(6, 'Password must be at least 6 characters')
   .regex(/^[A-Z]/, 'Password must start with an uppercase letter')
   .regex(/\d/, 'Password must contain at least one number')
-  .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character')
+  .regex(
+    /[!@#$%^&*(),.?":{}|<>]/,
+    'Password must contain at least one special character'
+  )
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 

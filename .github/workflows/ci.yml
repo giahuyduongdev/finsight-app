@@ -15,6 +15,7 @@ permissions:
 
 env:
   HUSKY: 0 # Disable husky in CI to avoid errors during install
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Opt into Node.js 24 for GitHub Actions
 
 jobs:
   validate-frontend:
@@ -31,7 +32,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: client/package-lock.json
 
@@ -59,7 +60,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 

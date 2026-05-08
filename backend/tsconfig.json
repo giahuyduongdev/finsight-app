@@ -4,13 +4,18 @@
     "module": "commonjs",
     "rootDir": ".",
     "outDir": "./dist",
-    "types": ["node"],
+    "types": ["node", "jest"],
     "lib": ["es2022"],
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/@types/**/*.ts", "index.ts"],
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/@types/**/*.ts",
+    "src/@types/**/*.d.ts",
+    "index.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
 }

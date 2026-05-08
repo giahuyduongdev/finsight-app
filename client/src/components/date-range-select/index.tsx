@@ -153,7 +153,9 @@ export const DateRangeSelect = ({
   defaultRange = DateRangeEnum.ALL_TIME
 }: DateRangeSelectProps) => {
   const [open, setOpen] = useState(false)
-  const [pendingRange, setPendingRange] = useState<DateRange | undefined>(undefined)
+  const [pendingRange, setPendingRange] = useState<DateRange | undefined>(
+    undefined
+  )
 
   // Sync pendingRange when popover opens and it's a custom range
   useEffect(() => {
@@ -195,12 +197,15 @@ export const DateRangeSelect = ({
           )}
         >
           <div className="flex items-center gap-2">
-             <ChevronDownIcon className="size-4 opacity-50" />
-             <span className="truncate">{displayText}</span>
+            <ChevronDownIcon className="size-4 opacity-50" />
+            <span className="truncate">{displayText}</span>
           </div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 flex flex-col md:flex-row" align="start">
+      <PopoverContent
+        className="w-auto p-0 flex flex-col md:flex-row"
+        align="start"
+      >
         <div className="grid py-1 border-r min-w-[160px]">
           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Presets
@@ -211,7 +216,8 @@ export const DateRangeSelect = ({
               variant="ghost"
               className={cn(
                 'justify-start text-left font-normal h-9',
-                dateRange?.value === preset.value && 'bg-accent text-accent-foreground'
+                dateRange?.value === preset.value &&
+                  'bg-accent text-accent-foreground'
               )}
               onClick={() => {
                 setDateRange(preset.getRange())
@@ -241,8 +247,8 @@ export const DateRangeSelect = ({
                 size="sm"
                 className="h-8"
                 onClick={() => {
-                   setPendingRange(undefined)
-                   setOpen(false)
+                  setPendingRange(undefined)
+                  setOpen(false)
                 }}
               >
                 Cancel
@@ -252,8 +258,14 @@ export const DateRangeSelect = ({
                 className="h-8 !bg-[var(--secondary-dark-color)] text-white"
                 onClick={() => {
                   setDateRange({
-                    from: pendingRange?.from ? startOfDay(pendingRange.from) : null,
-                    to: pendingRange?.to ? endOfDay(pendingRange.to) : (pendingRange?.from ? endOfDay(pendingRange.from) : null),
+                    from: pendingRange?.from
+                      ? startOfDay(pendingRange.from)
+                      : null,
+                    to: pendingRange?.to
+                      ? endOfDay(pendingRange.to)
+                      : pendingRange?.from
+                        ? endOfDay(pendingRange.from)
+                        : null,
                     value: DateRangeEnum.CUSTOM,
                     label: 'Custom Range'
                   })
