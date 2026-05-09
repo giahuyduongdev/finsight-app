@@ -15,7 +15,6 @@ import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { sendReportEmail } from '../mailers/report.mailer'
 import UserModel from '../models/user.model'
 import { logger } from '../config/logger.config'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 import { IReportRepository } from '../repositories/interfaces/report-repository.interface'
 import { IReportSettingRepository } from '../repositories/interfaces/report-setting-repository.interface'
 
@@ -417,10 +416,14 @@ async function generateInsightsAI({
     const data = JSON.parse(cleanedText)
     return data
   } catch (error) {
-    logger.error(
-      logIcon(LOG_ICONS.ERROR, '[Report] Failed to generate AI insights'),
-      { error: error instanceof Error ? error.message : String(error) }
-    )
+    logger.error('[APP:Report] Failed to generate AI insights', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      cause:
+        error instanceof Error && 'cause' in error
+          ? (error as Error & { cause?: unknown }).cause
+          : undefined
+    })
     return []
   }
 }

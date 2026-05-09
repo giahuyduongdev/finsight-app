@@ -15,7 +15,6 @@ import TransactionModel, {
   TransactionDocument
 } from '../models/transaction.model'
 import { calculateNextOccurrence } from '../utils/dates/index'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 import { container } from '../container'
 
 function isBulkWriteError(
@@ -50,9 +49,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
   )
 
   if (!batchDoc) {
-    logger.warn(
-      logIcon(LOG_ICONS.WARNING, `Import batch ${importBatchId} not found`)
-    )
+    logger.warn(`[JOB:Transaction] Import batch ${importBatchId} not found`)
     return { insertedCount: 0, success: false }
   }
 
@@ -67,13 +64,9 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
   try {
     io = getIO()
   } catch (error) {
-    logger.warn(
-      logIcon(
-        LOG_ICONS.WARNING,
-        '[Worker] Socket not initialized, skipping emit'
-      ),
-      { error: error instanceof Error ? error.message : String(error) }
-    )
+    logger.warn('[JOB:Transaction] Socket not initialized, skipping emit', {
+      error: error instanceof Error ? error.message : String(error)
+    })
   }
 
   try {
@@ -117,10 +110,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
             const dbRejections =
               transactionsToInsert.length - insertedInThisBatch
             logger.warn(
-              logIcon(
-                LOG_ICONS.WARNING,
-                `[Worker] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`
-              )
+              `[JOB:Transaction] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`
             )
           } else {
             // Re-throw serious errors (connection, etc.) so BullMQ can retry.
@@ -150,21 +140,13 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
       })
 
       logger.info(
-        logIcon(
-          LOG_ICONS.QUEUE,
-          `[Worker] Batch ${Math.ceil((i + 1) / BATCH_SIZE)}: Processed ${totalProcessed}/${transactions.length} (Inserted: ${totalInserted}, Rejected: ${rejectedCount})`
-        )
+        `[JOB:Transaction] Batch ${Math.ceil((i + 1) / BATCH_SIZE)}: Processed ${totalProcessed}/${transactions.length} (Inserted: ${totalInserted}, Rejected: ${rejectedCount})`
       )
     }
 
     await importBatchRepository.updateStatus(importBatchId, 'COMPLETED')
     await importBatchRepository.removeTransactionsArray(importBatchId)
-    logger.info(
-      logIcon(
-        LOG_ICONS.DELETE,
-        `[Worker] Cleaned up import batch: ${importBatchId}`
-      )
-    )
+    logger.info(`[JOB:Transaction] Cleaned up import batch: ${importBatchId}`)
 
     // Xóa cache analytics của user
     await invalidateUserAnalyticsCache(userId)
@@ -172,10 +154,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     //  Emit completed
     const room = userId.toString()
     logger.info(
-      logIcon(
-        LOG_ICONS.WORKER,
-        `[Worker] Emitting bulk-import:completed to room: ${room}`
-      )
+      `[JOB:Transaction] Emitting bulk-import:completed to room: ${room}`
     )
 
     try {
@@ -186,10 +165,9 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
         message: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`
       })
     } catch (error) {
-      logger.error(
-        logIcon(LOG_ICONS.ERROR, '[Worker] Failed to emit completion event'),
-        { error: error instanceof Error ? error.message : String(error) }
-      )
+      logger.error('[JOB:Transaction] Failed to emit completion event', {
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
 
     return { insertedCount: totalInserted, rejectedCount, success: true }
@@ -202,10 +180,9 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
         message: 'Import failed, please try again'
       })
     } catch (error) {
-      logger.error(
-        logIcon(LOG_ICONS.ERROR, '[Worker] Failed to emit failure event'),
-        { error: error instanceof Error ? error.message : String(error) }
-      )
+      logger.error('[JOB:Transaction] Failed to emit failure event', {
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
 
     throw error
@@ -224,10 +201,7 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
 
   if (!transactionIds || !transactionIds.length) {
     logger.warn(
-      logIcon(
-        LOG_ICONS.WARNING,
-        `[Worker] No transactionIds in job data for user ${userId}`
-      )
+      `[JOB:Transaction] No transactionIds in job data for user ${userId}`
     )
     return
   }
@@ -245,10 +219,7 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
 
   if (!transactions.length) {
     logger.warn(
-      logIcon(
-        LOG_ICONS.WARNING,
-        `[Worker] No due transactions found in DB for batch of ${transactionIds.length} ids (User: ${userId})`
-      )
+      `[JOB:Transaction] No due transactions found in DB for batch of ${transactionIds.length} ids (User: ${userId})`
     )
     return
   }
@@ -291,19 +262,13 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
 
     await session.commitTransaction()
     logger.info(
-      logIcon(
-        LOG_ICONS.SUCCESS,
-        `[Worker] Batch Processed: ${transactions.length} txs for user ${userId}`
-      )
+      `[JOB:Transaction] Batch Processed: ${transactions.length} txs for user ${userId}`
     )
   } catch (error) {
     await session.abortTransaction()
     logger.error(
-      logIcon(
-        LOG_ICONS.ERROR,
-        `[Worker] Failed to process child batch for ${userId}`
-      ),
-      error
+      `[JOB:Transaction] Failed to process child batch for ${userId}`,
+      { error: error instanceof Error ? error.message : String(error) }
     )
     throw error
   } finally {
@@ -325,21 +290,12 @@ const processRecurringSummaryJob = async (job: Job<RecurringJobData>) => {
       message: `The system has processed your recurring transactions.`
     })
   } catch (error) {
-    logger.error(
-      logIcon(
-        LOG_ICONS.ERROR,
-        '[Worker] Failed to emit recurring summary event'
-      ),
-      { error: error instanceof Error ? error.message : String(error) }
-    )
+    logger.error('[JOB:Transaction] Failed to emit recurring summary event', {
+      error: error instanceof Error ? error.message : String(error)
+    })
   }
 
-  logger.info(
-    logIcon(
-      LOG_ICONS.WORKER,
-      `[Worker] Parent Summary Processed for user: ${userId}`
-    )
-  )
+  logger.info(`[JOB:Transaction] Parent Summary Processed for user: ${userId}`)
   return { success: true, userId, timestamp: new Date().toISOString() }
 }
 
@@ -356,9 +312,7 @@ export const transactionWorker = new Worker(
       case TRANSACTION_JOBS.RECURRING_SUMMARY:
         return await processRecurringSummaryJob(job as Job<RecurringJobData>)
       default:
-        logger.error(
-          logIcon(LOG_ICONS.ERROR, `[Worker] Unknown job name: ${job.name}`)
-        )
+        logger.error(`[JOB:Transaction] Unknown job name: ${job.name}`)
         throw new Error(`Unknown job name: ${job.name}`)
     }
   },
@@ -374,27 +328,18 @@ transactionWorker.on('completed', (job) => {
   if (job.name === TRANSACTION_JOBS.BULK_IMPORT) {
     const count = job.returnvalue?.insertedCount || 0
     logger.info(
-      logIcon(
-        LOG_ICONS.SUCCESS,
-        `[Worker] Bulk import done: ${count} transactions for user: ${job.data.userId}`
-      )
+      `[JOB:Transaction] Bulk import done: ${count} transactions for user: ${job.data.userId}`
     )
   } else if (job.name === TRANSACTION_JOBS.RECURRING) {
     logger.info(
-      logIcon(
-        LOG_ICONS.SUCCESS,
-        `[Worker] Recurring batch processed: ${job.data.transactionIds?.length} txs`
-      )
+      `[JOB:Transaction] Recurring batch processed: ${job.data.transactionIds?.length} txs`
     )
   }
 })
 
 transactionWorker.on('failed', async (job, err) => {
   logger.error(
-    logIcon(
-      LOG_ICONS.ERROR,
-      `[Worker] Job ${job?.id} (${job?.name}) failed: ${err.message}`
-    )
+    `[JOB:Transaction] Job ${job?.id} (${job?.name}) failed: ${err.message}`
   )
 
   // Xử lý Poison Pill cho Recurring nếu cần
@@ -412,17 +357,13 @@ transactionWorker.on('failed', async (job, err) => {
         { $set: { isRecurring: false, lastProcessed: new Date() } }
       )
       logger.info(
-        logIcon(
-          LOG_ICONS.WARNING,
-          `[Poison Pill] Batch paused: ${job.data.transactionIds.length} transactions`
-        )
+        `[JOB:Transaction] Poison pill - Batch paused: ${job.data.transactionIds.length} transactions`
       )
     } catch (updateError) {
       const error = updateError as Error
-      logger.error(
-        logIcon(LOG_ICONS.ERROR, `CRITICAL: Cannot pause recurring batch`),
-        error?.message
-      )
+      logger.error(`[JOB:Transaction] CRITICAL: Cannot pause recurring batch`, {
+        error: error?.message
+      })
     }
   }
 })

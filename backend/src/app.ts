@@ -22,7 +22,6 @@ import { setupBullBoard } from './config/bull/bull-board.config'
 import { logger } from './config/logger.config'
 import { correlationIdMiddleware } from './middlewares/correlationId.middleware'
 import { requestContextMiddleware } from './middlewares/requestContext.middleware'
-import { logIcon, LOG_ICONS } from './utils/logger-icon.util'
 
 const app = express()
 const BASE_PATH = Env.BASE_PATH
@@ -53,10 +52,7 @@ if (Env.NODE_ENV === 'development') {
   // Bull Board - No auth in development for easy access
   app.use('/admin/queues', setupBullBoard())
   logger.info(
-    logIcon(
-      LOG_ICONS.TARGET,
-      `Bull Board: http://localhost:${Env.PORT}/admin/queues`
-    )
+    `[SYS:BullMQ] Bull Board: http://localhost:${Env.PORT}/admin/queues`
   )
 }
 

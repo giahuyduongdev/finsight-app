@@ -18,14 +18,19 @@ export class ImportBatchRepository implements IImportBatchRepository {
   async create(batchData: Partial<IImportBatch>): Promise<IImportBatch> {
     try {
       const batch = await ImportBatchModel.create(batchData)
-      logger.info('Import batch created', {
+      logger.info('[APP:ImportBatch] Import batch created', {
         batchId: batch._id,
         userId: batch.userId,
         totalItems: batch.totalItems
       })
       return batch
     } catch (error) {
-      logger.error('Error creating import batch', { error, batchData })
+      logger.error('[APP:ImportBatch] Error creating import batch', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: batchData.userId,
+        totalItems: batchData.totalItems
+      })
       throw error
     }
   }
@@ -37,7 +42,11 @@ export class ImportBatchRepository implements IImportBatchRepository {
     try {
       return await ImportBatchModel.findById(batchId).exec()
     } catch (error) {
-      logger.error('Error finding import batch by ID', { error, batchId })
+      logger.error('[APP:ImportBatch] Error finding import batch by ID', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        batchId
+      })
       throw error
     }
   }
@@ -75,10 +84,10 @@ export class ImportBatchRepository implements IImportBatchRepository {
         }
       }
     } catch (error) {
-      logger.error('Error finding import batches by userId', {
-        error,
-        userId,
-        pagination
+      logger.error('[APP:ImportBatch] Error finding import batches by userId', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId
       })
       throw error
     }
@@ -110,7 +119,7 @@ export class ImportBatchRepository implements IImportBatchRepository {
       ).exec()
 
       if (batch) {
-        logger.info('Import batch status updated', {
+        logger.info('[APP:ImportBatch] Import batch status updated', {
           batchId,
           status,
           terminalAt
@@ -119,8 +128,9 @@ export class ImportBatchRepository implements IImportBatchRepository {
 
       return batch
     } catch (error) {
-      logger.error('Error updating import batch status', {
-        error,
+      logger.error('[APP:ImportBatch] Error updating import batch status', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         batchId,
         status
       })
@@ -149,7 +159,7 @@ export class ImportBatchRepository implements IImportBatchRepository {
       ).exec()
 
       if (batch) {
-        logger.info('Import batch progress updated', {
+        logger.info('[APP:ImportBatch] Import batch progress updated', {
           batchId,
           processedCount,
           rejectedCount
@@ -158,11 +168,10 @@ export class ImportBatchRepository implements IImportBatchRepository {
 
       return batch
     } catch (error) {
-      logger.error('Error updating import batch progress', {
-        error,
-        batchId,
-        processedCount,
-        rejectedCount
+      logger.error('[APP:ImportBatch] Error updating import batch progress', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        batchId
       })
       throw error
     }
@@ -177,7 +186,10 @@ export class ImportBatchRepository implements IImportBatchRepository {
         .sort({ createdAt: 1 })
         .exec()
     } catch (error) {
-      logger.error('Error finding pending import batches', { error })
+      logger.error('[APP:ImportBatch] Error finding pending import batches', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
       throw error
     }
   }
@@ -192,8 +204,9 @@ export class ImportBatchRepository implements IImportBatchRepository {
         updatedAt: { $lt: thresholdDate }
       }).exec()
     } catch (error) {
-      logger.error('Error finding stale import batches', {
-        error,
+      logger.error('[APP:ImportBatch] Error finding stale import batches', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         thresholdDate
       })
       throw error
@@ -210,7 +223,7 @@ export class ImportBatchRepository implements IImportBatchRepository {
         terminalAt: { $lt: beforeDate }
       }).exec()
 
-      logger.info('Old completed import batches deleted', {
+      logger.info('[APP:ImportBatch] Old completed import batches deleted', {
         deletedCount: result.deletedCount,
         beforeDate
       })
@@ -219,10 +232,14 @@ export class ImportBatchRepository implements IImportBatchRepository {
         deletedCount: result.deletedCount || 0
       }
     } catch (error) {
-      logger.error('Error deleting old completed import batches', {
-        error,
-        beforeDate
-      })
+      logger.error(
+        '[APP:ImportBatch] Error deleting old completed import batches',
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          beforeDate
+        }
+      )
       throw error
     }
   }
@@ -239,15 +256,21 @@ export class ImportBatchRepository implements IImportBatchRepository {
 
       const removed = result.modifiedCount > 0
       if (removed) {
-        logger.info('Transactions array removed from batch', { batchId })
+        logger.info('[APP:ImportBatch] Transactions array removed from batch', {
+          batchId
+        })
       }
 
       return removed
     } catch (error) {
-      logger.error('Error removing transactions array from batch', {
-        error,
-        batchId
-      })
+      logger.error(
+        '[APP:ImportBatch] Error removing transactions array from batch',
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          batchId
+        }
+      )
       throw error
     }
   }

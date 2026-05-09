@@ -299,7 +299,12 @@ export const scanReceiptController = asyncHandler(
       })
     } catch (error) {
       const err = error as Error
-      logger.error('Failed to process receipt image', { error: err })
+      logger.error('[APP:Transaction] Failed to process receipt image', {
+        error: err,
+        userId,
+        fileName: file.originalname,
+        fileSize: file.size
+      })
       return res.status(HTTPSTATUS.INTERNAL_SERVER_ERROR).json({
         message: 'Internal server error'
       })

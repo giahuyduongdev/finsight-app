@@ -1,7 +1,6 @@
 import mongoose from 'mongoose'
 import { Env } from '../config/env.config'
 import { logger } from './logger.config'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 class Database {
   private static instance: Database
@@ -12,31 +11,22 @@ class Database {
 
   private setupEventListeners(): void {
     mongoose.connection.on('connected', () => {
-      logger.info(
-        logIcon(LOG_ICONS.SUCCESS, '[MongoDB] Connected successfully!')
-      )
+      logger.info('[SYS:MongoDB] Connected successfully!')
     })
 
     mongoose.connection.on('disconnected', () => {
-      logger.warn(
-        logIcon(
-          LOG_ICONS.STOP,
-          '[MongoDB] Connection lost! Waiting to reconnect...'
-        )
-      )
+      logger.warn('[SYS:MongoDB] Connection lost! Waiting to reconnect...')
     })
 
     mongoose.connection.on('reconnected', () => {
-      logger.info(
-        logIcon(LOG_ICONS.SUCCESS, '[MongoDB] Reconnected successfully!')
-      )
+      logger.info('[SYS:MongoDB] Reconnected successfully!')
     })
 
     mongoose.connection.on('error', (err: Error) => {
-      logger.error(
-        logIcon(LOG_ICONS.ERROR, '[MongoDB] Connection error:'),
-        err.message
-      )
+      logger.error('[SYS:MongoDB] Connection error:', {
+        error: err.message,
+        stack: err.stack
+      })
     })
   }
 
@@ -61,7 +51,7 @@ class Database {
         connectTimeoutMS: connectTimeout
       })
     } catch (error) {
-      logger.error('Error connecting to MongoDB:', {
+      logger.error('[SYS:MongoDB] Error connecting to MongoDB:', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       })

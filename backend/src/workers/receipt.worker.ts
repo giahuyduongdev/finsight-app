@@ -8,7 +8,6 @@ import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { getIO } from '../config/socket.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 import { RECEIPT_JOBS, ScanReceiptJobData } from '../queues/receipt.queue'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
@@ -20,15 +19,9 @@ async function safeInvalidateUserAnalyticsCache(userId: string): Promise<void> {
     await invalidateUserAnalyticsCache(userId)
   } catch (cacheError) {
     const error = cacheError as Error
-    logger.warn(
-      logIcon(
-        LOG_ICONS.WARNING,
-        `[Worker] Cache invalidation failed for user ${userId}`
-      ),
-      {
-        error: error.message
-      }
-    )
+    logger.warn(`[JOB:Receipt] Cache invalidation failed for user ${userId}`, {
+      error: error.message
+    })
     // Continue - cache invalidation failure is non-critical
   }
 }
@@ -193,10 +186,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       // Retry case: Upload succeeded but AI extraction failed
       // Download image from Cloudinary and retry AI extraction
       logger.info(
-        logIcon(
-          LOG_ICONS.INFO,
-          `[Worker] Retrying AI extraction for existing image: ${imageUrl}`
-        )
+        `[JOB:Receipt] Retrying AI extraction for existing image: ${imageUrl}`
       )
 
       // Fetch image from Cloudinary with timeout
@@ -243,18 +233,15 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     }
   } catch (error) {
     const err = error as Error
-    logger.error(
-      logIcon(LOG_ICONS.ERROR, `[Worker] Receipt scan failed: ${err.message}`),
-      {
-        jobId: job.id,
-        userId,
-        fileName,
-        fileSize,
-        hasFileBuffer: !!fileBuffer,
-        hasImageUrl: !!imageUrl,
-        error: err.message
-      }
-    )
+    logger.error(`[JOB:Receipt] Receipt scan failed: ${err.message}`, {
+      jobId: job.id,
+      userId,
+      fileName,
+      fileSize,
+      hasFileBuffer: !!fileBuffer,
+      hasImageUrl: !!imageUrl,
+      error: err.message
+    })
 
     // Catch Gemini Rate Limit (429) details
     let friendlyMessage = err.message || 'Receipt scanning failed'
@@ -289,7 +276,7 @@ export const receiptWorker = new Worker(
       return await processScanReceiptJob(job as Job<ScanReceiptJobData>)
     } else {
       const errorMsg = `Unknown job name: ${job.name}`
-      logger.error(logIcon(LOG_ICONS.ERROR, `[Worker] ${errorMsg}`))
+      logger.error(`[JOB:Receipt] ${errorMsg}`)
       throw new Error(errorMsg)
     }
   },
@@ -303,22 +290,16 @@ export const receiptWorker = new Worker(
 
 receiptWorker.on('completed', (job) => {
   logger.info(
-    logIcon(
-      LOG_ICONS.SUCCESS,
-      `[Worker] Receipt scan completed: ${job.id} for user ${job.data.userId}`
-    )
+    `[JOB:Receipt] Receipt scan completed: ${job.id} for user ${job.data.userId}`
   )
 })
 
 receiptWorker.on('failed', (job, err) => {
-  logger.error(
-    logIcon(LOG_ICONS.ERROR, `[Worker] Receipt scan failed: ${job?.id}`),
-    {
-      error: err.message,
-      userId: job?.data.userId,
-      fileName: job?.data.fileName,
-      attemptsMade: job?.attemptsMade,
-      maxAttempts: job?.opts.attempts
-    }
-  )
+  logger.error(`[JOB:Receipt] Receipt scan failed: ${job?.id}`, {
+    error: err.message,
+    userId: job?.data.userId,
+    fileName: job?.data.fileName,
+    attemptsMade: job?.attemptsMade,
+    maxAttempts: job?.opts.attempts
+  })
 })

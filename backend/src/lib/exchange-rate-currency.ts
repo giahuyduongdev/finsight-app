@@ -2,7 +2,6 @@ import axios from 'axios'
 import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
 import { logger } from '../config/logger.config'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 export const getExchangeRate = async (
   from: CurrencyType | string,
@@ -31,11 +30,13 @@ export const getExchangeRate = async (
     return rate
   } catch (error) {
     logger.error(
-      logIcon(
-        LOG_ICONS.ERROR,
-        `[Currency] Fallback rate fetch failed: ${from} to ${to}`
-      ),
-      (error as Error).message
+      `[APP:Currency] Fallback rate fetch failed: ${from} to ${to}`,
+      {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        from,
+        to
+      }
     )
     // Nếu có tỉ giá cũ trong cache (dù đã hết hạn hoặc fallback cứng) thì có thể trả về 0 hoặc throw
     throw error

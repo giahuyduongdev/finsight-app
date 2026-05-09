@@ -1,5 +1,4 @@
 import { logger } from '../../config/logger.config'
-import { logIcon, LOG_ICONS } from '../../utils/logger-icon.util'
 import { container } from '../../container'
 
 /**
@@ -8,9 +7,7 @@ import { container } from '../../container'
  */
 export const cleanupStaleImportBatches = async () => {
   try {
-    logger.info(
-      logIcon(LOG_ICONS.INFO, '[Cron] Cleaning up stale import batches...')
-    )
+    logger.info('[JOB:Cron] Cleaning up stale import batches...')
 
     // Get ImportBatchRepository from DI container
     const importBatchRepository = container.getImportBatchRepository()
@@ -31,23 +28,15 @@ export const cleanupStaleImportBatches = async () => {
       )
 
       logger.info(
-        logIcon(
-          LOG_ICONS.SUCCESS,
-          `[Cron] Marked ${staleBatches.length} stale import batches as FAILED`
-        )
+        `[JOB:Cron] Marked ${staleBatches.length} stale import batches as FAILED`
       )
     } else {
-      logger.info(
-        logIcon(LOG_ICONS.INFO, '[Cron] No stale import batches found')
-      )
+      logger.info('[JOB:Cron] No stale import batches found')
     }
   } catch (error) {
-    logger.error(
-      logIcon(LOG_ICONS.ERROR, '[Cron] Failed to cleanup stale import batches'),
-      {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      }
-    )
+    logger.error('[JOB:Cron] Failed to cleanup stale import batches', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    })
   }
 }

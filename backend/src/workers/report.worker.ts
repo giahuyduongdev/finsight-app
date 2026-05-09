@@ -27,7 +27,6 @@ import ReportSettingModel from '../models/report-setting.model'
 import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
-import { logIcon, LOG_ICONS } from '../utils/logger-icon.util'
 
 // ─── Job Processing ───────────────────────────────────────────────────────────
 
@@ -51,9 +50,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
   // Validate email before proceeding
   if (!email) {
-    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] User email not found'), {
-      userId
-    })
+    logger.error('[JOB:Report] User email not found', { userId })
     throw new Error(`User email not found for userId: ${userId}`)
   }
 
@@ -99,7 +96,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     preferredCurrency
   )
 
-  logger.debug('[Worker] Report data generated', {
+  logger.debug('[JOB:Report] Report data generated', {
     userId,
     period: report?.period
   })
@@ -124,12 +121,9 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
         frequency
       })
       emailSent = true
-      logger.info(
-        logIcon(LOG_ICONS.EMAIL, '[Worker] Email sent successfully'),
-        { userId }
-      )
+      logger.info('[JOB:Report] Email sent successfully', { userId })
     } catch (error) {
-      logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] Email failed'), {
+      logger.error('[JOB:Report] Email failed', {
         userId,
         error: (error as Error).message,
         attemptsMade: job.attemptsMade,
@@ -227,7 +221,7 @@ export const reportWorker = new Worker(
     if (job.name === REPORT_JOBS.PROCESS_REPORT) {
       return await processReportJob(job as Job<ProcessReportJobData>)
     }
-    logger.error(logIcon(LOG_ICONS.ERROR, '[Worker] Unknown job name'), {
+    logger.error('[JOB:Report] Unknown job name', {
       jobId: job.id,
       jobName: job.name
     })
@@ -243,15 +237,12 @@ export const reportWorker = new Worker(
 
 reportWorker.on('completed', (job) => {
   logger.info(
-    logIcon(
-      LOG_ICONS.SUCCESS,
-      `[Worker] Report completed: ${job.id} for user ${job.data.userId}`
-    )
+    `[JOB:Report] Report completed: ${job.id} for user ${job.data.userId}`
   )
 })
 
 reportWorker.on('failed', (job, err) => {
-  logger.error(logIcon(LOG_ICONS.ERROR, `[Worker] Report failed: ${job?.id}`), {
+  logger.error(`[JOB:Report] Report failed: ${job?.id}`, {
     error: err.message,
     userId: job?.data.userId,
     attemptsMade: job?.attemptsMade,
