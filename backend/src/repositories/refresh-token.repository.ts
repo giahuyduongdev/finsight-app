@@ -8,8 +8,11 @@ import { logger } from '../config/logger.config'
 /**
  * Mask token for safe logging
  */
-const maskToken = (token?: string) =>
-  token ? `${token.slice(0, 6)}...${token.slice(-4)}` : undefined
+const maskToken = (token?: string) => {
+  if (!token) return undefined
+  if (token.length <= 12) return '[REDACTED]'
+  return `${token.slice(0, 4)}...${token.slice(-4)}`
+}
 
 /**
  * Refresh Token Repository Implementation

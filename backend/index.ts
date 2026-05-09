@@ -23,7 +23,10 @@ const SHUTDOWN_TIMEOUT_MS = 10_000
 // ─── Global error handlers ────────────────────────────────────────────────────
 
 process.on('uncaughtException', (err: Error) => {
-  logger.error('[APP:Server] Uncaught Exception:', err)
+  logger.error('[APP:Server] Uncaught Exception:', {
+    error: err.message,
+    stack: err.stack
+  })
   process.exit(1)
 })
 
@@ -140,7 +143,10 @@ const startServer = async (): Promise<void> => {
       logger.info('[APP:Server] Shutdown complete. Goodbye!')
       process.exit(0)
     } catch (err) {
-      logger.error('[APP:Server] Shutdown error:', err)
+      logger.error('[APP:Server] Shutdown error:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined
+      })
       process.exit(1)
     }
   }
@@ -152,6 +158,9 @@ const startServer = async (): Promise<void> => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 startServer().catch((err) => {
-  logger.error('[APP:Server] Failed to start server:', err)
+  logger.error('[APP:Server] Failed to start server:', {
+    error: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined
+  })
   process.exit(1)
 })

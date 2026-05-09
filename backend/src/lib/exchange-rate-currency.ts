@@ -31,7 +31,12 @@ export const getExchangeRate = async (
   } catch (error) {
     logger.error(
       `[APP:Currency] Fallback rate fetch failed: ${from} to ${to}`,
-      (error as Error).message
+      {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        from,
+        to
+      }
     )
     // Nếu có tỉ giá cũ trong cache (dù đã hết hạn hoặc fallback cứng) thì có thể trả về 0 hoặc throw
     throw error
