@@ -49,14 +49,14 @@ export const checkOverload = () => {
     // CẢNH BÁO QUAN TRỌNG: Luôn in ra ở mọi môi trường nếu hệ thống chạm ngưỡng
     if (numConnection > maxConnections) {
       logger.warn(
-        ` [WARNING] Connection overload detected! Active: ${numConnection}, Max: ${maxConnections}`
+        `[SYS:MongoDB] Connection overload detected! Active: ${numConnection}, Max: ${maxConnections}`
       )
       // Ở hệ thống lớn, người ta thường gọi thêm 1 API bắn tin nhắn về Telegram/Slack cho team Dev ở dòng này
     }
 
     if (memoryUsageMB > memoryThresholdMB) {
       logger.warn(
-        ` [WARNING] Memory overload detected! Usage: ${memoryUsageMB.toFixed(2)} MB, Limit: ${memoryThresholdMB} MB`
+        `[SYS:MongoDB] Memory overload detected! Usage: ${memoryUsageMB.toFixed(2)} MB, Limit: ${memoryThresholdMB} MB`
       )
     }
   }, MONITOR_INTERVAL_MS)

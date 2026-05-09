@@ -23,7 +23,10 @@ class Database {
     })
 
     mongoose.connection.on('error', (err: Error) => {
-      logger.error('[SYS:MongoDB] Connection error:', err.message)
+      logger.error('[SYS:MongoDB] Connection error:', {
+        error: err.message,
+        stack: err.stack
+      })
     })
   }
 

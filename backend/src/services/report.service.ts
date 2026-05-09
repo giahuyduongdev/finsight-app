@@ -417,7 +417,12 @@ async function generateInsightsAI({
     return data
   } catch (error) {
     logger.error('[APP:Report] Failed to generate AI insights', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      cause:
+        error instanceof Error && 'cause' in error
+          ? (error as Error & { cause?: unknown }).cause
+          : undefined
     })
     return []
   }

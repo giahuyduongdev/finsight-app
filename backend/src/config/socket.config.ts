@@ -38,7 +38,10 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error'
 
-      logger.error(`[SYS:Socket] Auth error: ${errorMessage}`)
+      logger.error('[SYS:Socket] Auth error', {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      })
 
       // Gửi về mã lỗi cụ thể để FE biết đường làm mới Token
       if (error instanceof Error && error.name === 'TokenExpiredError') {

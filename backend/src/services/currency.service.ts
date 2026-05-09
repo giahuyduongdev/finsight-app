@@ -150,10 +150,10 @@ export class CurrencyService {
         updatedAt: new Date().toISOString()
       }
     } catch (error) {
-      logger.error(
-        '[APP:Currency] Error getting rates from cache:',
-        (error as Error).message
-      )
+      logger.error('[APP:Currency] Error getting rates from cache', {
+        error: (error as Error).message,
+        stack: (error as Error).stack
+      })
 
       // Fallback cứng nếu Redis trống hoàn toàn (cho lần đầu chạy hoặc lỗi nặng)
       return {

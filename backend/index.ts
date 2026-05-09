@@ -28,7 +28,10 @@ process.on('uncaughtException', (err: Error) => {
 })
 
 process.on('unhandledRejection', (reason: unknown) => {
-  logger.error('[APP:Server] Unhandled Rejection:', reason)
+  logger.error('[APP:Server] Unhandled Rejection:', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined
+  })
   process.exit(1)
 })
 

@@ -268,7 +268,7 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
     await session.abortTransaction()
     logger.error(
       `[JOB:Transaction] Failed to process child batch for ${userId}`,
-      error
+      { error: error instanceof Error ? error.message : String(error) }
     )
     throw error
   } finally {
@@ -361,10 +361,9 @@ transactionWorker.on('failed', async (job, err) => {
       )
     } catch (updateError) {
       const error = updateError as Error
-      logger.error(
-        `[JOB:Transaction] CRITICAL: Cannot pause recurring batch`,
-        error?.message
-      )
+      logger.error(`[JOB:Transaction] CRITICAL: Cannot pause recurring batch`, {
+        error: error?.message
+      })
     }
   }
 })

@@ -6,6 +6,12 @@ import { DeleteResult } from '../types/repository.types'
 import { logger } from '../config/logger.config'
 
 /**
+ * Mask token for safe logging
+ */
+const maskToken = (token?: string) =>
+  token ? `${token.slice(0, 6)}...${token.slice(-4)}` : undefined
+
+/**
  * Refresh Token Repository Implementation
  * Handles data access operations for refresh tokens
  */
@@ -25,8 +31,9 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
       return token
     } catch (error) {
       logger.error('[APP:Auth] Error creating refresh token', {
-        error,
-        tokenData
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: tokenData.userId
       })
       throw error
     }
@@ -40,8 +47,9 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
       return await RefreshTokenModel.findOne({ token }).exec()
     } catch (error) {
       logger.error('[APP:Auth] Error finding refresh token by token', {
-        error,
-        token
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        tokenPreview: maskToken(token)
       })
       throw error
     }
@@ -57,7 +65,8 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
         .exec()
     } catch (error) {
       logger.error('[APP:Auth] Error finding refresh tokens by userId', {
-        error,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         userId
       })
       throw error
@@ -76,11 +85,17 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
 
       const revoked = result.modifiedCount > 0
       if (revoked) {
-        logger.info('[APP:Auth] Refresh token revoked', { token })
+        logger.info('[APP:Auth] Refresh token revoked', {
+          tokenPreview: maskToken(token)
+        })
       }
       return revoked
     } catch (error) {
-      logger.error('[APP:Auth] Error revoking refresh token', { error, token })
+      logger.error('[APP:Auth] Error revoking refresh token', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        tokenPreview: maskToken(token)
+      })
       throw error
     }
   }
@@ -100,7 +115,8 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
       }
     } catch (error) {
       logger.error('[APP:Auth] Error deleting refresh tokens by userId', {
-        error,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         userId
       })
       throw error
@@ -126,7 +142,8 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
       }
     } catch (error) {
       logger.error('[APP:Auth] Error deleting expired refresh tokens', {
-        error,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         currentDate
       })
       throw error

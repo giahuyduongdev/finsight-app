@@ -86,7 +86,10 @@ class RedisClient {
     })
 
     this.client.on('error', (err: Error) =>
-      logger.error('[SYS:Redis] Connection error:', err.message)
+      logger.error('[SYS:Redis] Connection error', {
+        message: err.message,
+        stack: err.stack
+      })
     )
     this.client.on('end', () => logger.warn('[SYS:Redis] Connection closed'))
     this.client.on('reconnecting', () =>

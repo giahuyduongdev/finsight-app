@@ -28,7 +28,7 @@ export const morganMiddleware =
           const status = Number(tokens.status(req, res)) || 0
           const responseTime = tokens['response-time'](req, res) || '0'
 
-          return `${method} ${url} | Status: ${status} | ${responseTime} ms`
+          return `[APP:Server] ${method} ${url} | Status: ${status} | ${responseTime} ms`
         },
         { stream, skip }
       )

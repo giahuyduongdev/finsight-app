@@ -3,9 +3,9 @@
  * Centralized export for all repository interface contracts
  */
 
-export { IImportBatchRepository } from './import-batch-repository.interface'
-export { IRefreshTokenRepository } from './refresh-token-repository.interface'
-export { IReportRepository } from './report-repository.interface'
-export { IReportSettingRepository } from './report-setting-repository.interface'
-export { ITransactionRepository } from './transaction-repository.interface'
-export { IUserRepository } from './user-repository.interface'
+export type { IImportBatchRepository } from './import-batch-repository.interface'
+export type { IRefreshTokenRepository } from './refresh-token-repository.interface'
+export type { IReportRepository } from './report-repository.interface'
+export type { IReportSettingRepository } from './report-setting-repository.interface'
+export type { ITransactionRepository } from './transaction-repository.interface'
+export type { IUserRepository } from './user-repository.interface'

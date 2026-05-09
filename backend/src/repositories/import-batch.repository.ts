@@ -26,8 +26,10 @@ export class ImportBatchRepository implements IImportBatchRepository {
       return batch
     } catch (error) {
       logger.error('[APP:ImportBatch] Error creating import batch', {
-        error,
-        batchData
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: batchData.userId,
+        totalItems: batchData.totalItems
       })
       throw error
     }
@@ -41,7 +43,8 @@ export class ImportBatchRepository implements IImportBatchRepository {
       return await ImportBatchModel.findById(batchId).exec()
     } catch (error) {
       logger.error('[APP:ImportBatch] Error finding import batch by ID', {
-        error,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         batchId
       })
       throw error
@@ -82,9 +85,9 @@ export class ImportBatchRepository implements IImportBatchRepository {
       }
     } catch (error) {
       logger.error('[APP:ImportBatch] Error finding import batches by userId', {
-        error,
-        userId,
-        pagination
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId
       })
       throw error
     }
@@ -126,7 +129,8 @@ export class ImportBatchRepository implements IImportBatchRepository {
       return batch
     } catch (error) {
       logger.error('[APP:ImportBatch] Error updating import batch status', {
-        error,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         batchId,
         status
       })
@@ -165,10 +169,9 @@ export class ImportBatchRepository implements IImportBatchRepository {
       return batch
     } catch (error) {
       logger.error('[APP:ImportBatch] Error updating import batch progress', {
-        error,
-        batchId,
-        processedCount,
-        rejectedCount
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        batchId
       })
       throw error
     }
@@ -184,7 +187,8 @@ export class ImportBatchRepository implements IImportBatchRepository {
         .exec()
     } catch (error) {
       logger.error('[APP:ImportBatch] Error finding pending import batches', {
-        error
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       })
       throw error
     }
@@ -201,7 +205,8 @@ export class ImportBatchRepository implements IImportBatchRepository {
       }).exec()
     } catch (error) {
       logger.error('[APP:ImportBatch] Error finding stale import batches', {
-        error,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         thresholdDate
       })
       throw error
@@ -230,7 +235,8 @@ export class ImportBatchRepository implements IImportBatchRepository {
       logger.error(
         '[APP:ImportBatch] Error deleting old completed import batches',
         {
-          error,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
           beforeDate
         }
       )
@@ -260,7 +266,8 @@ export class ImportBatchRepository implements IImportBatchRepository {
       logger.error(
         '[APP:ImportBatch] Error removing transactions array from batch',
         {
-          error,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
           batchId
         }
       )
