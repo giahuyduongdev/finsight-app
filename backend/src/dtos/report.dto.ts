@@ -13,7 +13,7 @@ export const toReportSettingResponse = (
   const data = reportSetting.toObject ? reportSetting.toObject() : reportSetting
 
   return {
-    message: 'Report setting retrieved successfully',
+    message: 'Report settings retrieved successfully',
     data: {
       _id: data._id.toString(),
       userId: data.userId.toString(),

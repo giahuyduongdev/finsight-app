@@ -118,8 +118,10 @@ FRONTEND_ORIGIN=http://localhost:5173
 You can also use the interactive setup script:
 
 ```bash
-chmod +x setup.sh
-./setup.sh
+# From the backend directory
+cd backend
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 ```
 
 The script will ask you to choose between:

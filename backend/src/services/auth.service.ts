@@ -594,8 +594,14 @@ export const loginService = async (
 
 export const refreshTokenService = async (token: string) => {
   // 1. Verify refresh token
-  const decoded = verifyRefreshToken(token)
-  if (!decoded || !decoded.userId) {
+  let decoded
+  try {
+    decoded = verifyRefreshToken(token)
+  } catch {
+    throw new UnauthorizedException('Invalid or expired refresh token')
+  }
+
+  if (!decoded?.userId) {
     throw new UnauthorizedException('Invalid refresh token')
   }
 

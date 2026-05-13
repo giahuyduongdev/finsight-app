@@ -31,10 +31,18 @@ export async function initializeDatabases(): Promise<void> {
  * Gracefully disconnect all databases
  */
 export async function disconnectDatabases(): Promise<void> {
-  const { MongoDatabase } = await import('./mongo.database')
-  const { RedisDatabase } = await import('./redis.database')
+  try {
+    const { MongoDatabase } = await import('./mongo.database')
+    const { RedisDatabase } = await import('./redis.database')
 
-  await Promise.all([MongoDatabase.disconnect(), RedisDatabase.disconnect()])
+    await Promise.all([MongoDatabase.disconnect(), RedisDatabase.disconnect()])
 
-  logger.info('[SYS:Database] All databases disconnected')
+    logger.info('[SYS:Database] All databases disconnected')
+  } catch (error) {
+    logger.error('[SYS:Database] Error during disconnect:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    throw error
+  }
 }

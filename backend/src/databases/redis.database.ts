@@ -14,7 +14,7 @@ class RedisDatabase {
   private constructor() {
     this.client = new Redis(redisConfig.url, {
       ...redisConfig.options,
-      lazyConnect: false // Auto-connect on initialization
+      lazyConnect: true // Defer connection until explicitly needed
     })
     this.setupEventListeners()
   }
@@ -43,20 +43,37 @@ class RedisDatabase {
 
   /**
    * Get Redis client instance (Singleton)
+   * Connects lazily on first access
    */
   public static getInstance(): Redis {
     if (!RedisDatabase.instance) {
       RedisDatabase.instance = new RedisDatabase()
+      // Connect explicitly since lazyConnect is true
+      RedisDatabase.instance.client.connect().catch((err) => {
+        logger.error('[SYS:Redis] Failed to connect', {
+          message: err.message,
+          stack: err.stack
+        })
+      })
     }
     return RedisDatabase.instance.client
   }
 
   /**
-   * Disconnect from Redis
+   * Disconnect from Redis with timeout
    */
   public static async disconnect(): Promise<void> {
     if (RedisDatabase.instance) {
-      await RedisDatabase.instance.client.quit()
+      const disconnectPromise = RedisDatabase.instance.client.quit()
+      const timeoutPromise = new Promise<void>((resolve) =>
+        setTimeout(() => {
+          logger.warn('[SYS:Redis] Disconnect timeout, forcing close')
+          RedisDatabase.instance.client.disconnect()
+          resolve()
+        }, 5000)
+      )
+
+      await Promise.race([disconnectPromise, timeoutPromise])
       logger.info('[SYS:Redis] Disconnected')
     }
   }

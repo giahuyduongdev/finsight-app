@@ -20,10 +20,10 @@ import { DateRangePreset } from '../enums/date-range.enum'
  * The timezone parameter ensures date boundaries are calculated correctly
  * for the user's local time.
  *
- * @property dateRangePreset - Predefined date range option (e.g., THIS_MONTH, LAST_QUARTER)
+ * @property dateRangePreset - Predefined date range option (e.g., `THIS_MONTH`, `LAST_QUARTER`)
  * @property customFrom - Start date for custom date range (required if using custom range)
  * @property customTo - End date for custom date range (required if using custom range)
- * @property timezone - IANA timezone identifier for date boundary calculations (e.g., "America/New_York")
+ * @property timezone - IANA timezone identifier for date boundary calculations (e.g., `"America/New_York"`)
  *
  * @example
  * Using preset range:
@@ -56,15 +56,15 @@ export interface AnalyticsDateFilter {
  *
  * Calculates percentage changes in financial metrics by comparing the current
  * period with the previous period of equal length. For example, if analyzing
- * "THIS_MONTH", the previous period would be "LAST_MONTH". Includes both the
+ * `"THIS_MONTH"`, the previous period would be `"LAST_MONTH"`. Includes both the
  * percentage changes and the absolute values from the previous period for
  * context and verification.
  *
  * @property income - Percentage change in income (positive = increase, negative = decrease)
  * @property expenses - Percentage change in expenses (positive = increase, negative = decrease)
  * @property balance - Percentage change in balance (income - expenses)
- * @property prevPeriodFrom - Start date of the comparison period, or null if no previous period
- * @property prevPeriodTo - End date of the comparison period, or null if no previous period
+ * @property prevPeriodFrom - Start date of the comparison period, or `null` if no previous period
+ * @property prevPeriodTo - End date of the comparison period, or `null` if no previous period
  * @property previousValues - Absolute financial values from the previous period for reference
  * @property previousValues.incomeAmount - Total income in the previous period
  * @property previousValues.expenseAmount - Total expenses in the previous period
@@ -107,8 +107,9 @@ export interface PercentageChange {
  * income is being saved (not spent), while the expense ratio shows what
  * portion is being spent. These two values always sum to 100%.
  *
- * Formula: savings rate = (income - expenses) / income * 100
- * Formula: expense ratio = expenses / income * 100
+ * Formula: `savings rate = (income - expenses) / income * 100`
+ *
+ * Formula: `expense ratio = expenses / income * 100`
  *
  * @property percentage - Savings rate as a percentage of income (0-100)
  * @property expenseRatio - Expense ratio as a percentage of income (0-100)
@@ -140,12 +141,12 @@ export interface SavingsRate {
  * @property savingRate - Savings rate metrics (percentage and expense ratio)
  * @property transactionCount - Total number of transactions in the selected period
  * @property percentageChange - Period-over-period comparison, or empty object if no previous period
- * @property currency - ISO 4217 currency code (e.g., "USD", "EUR")
+ * @property currency - ISO 4217 currency code (e.g., `"USD"`, `"EUR"`)
  * @property preset - Date range information for the query
- * @property preset.from - Start date of the period, or null if unbounded
- * @property preset.to - End date of the period, or null if unbounded
- * @property preset.value - Preset identifier (e.g., "THIS_MONTH")
- * @property preset.label - Human-readable label (e.g., "This Month")
+ * @property preset.from - Start date of the period, or `null` if unbounded
+ * @property preset.to - End date of the period, or `null` if unbounded
+ * @property preset.value - Preset identifier (e.g., `"THIS_MONTH"`)
+ * @property preset.label - Human-readable label (e.g., `"This Month"`)
  *
  * @example
  * ```typescript
@@ -204,7 +205,7 @@ export interface SummaryAnalytics {
  * of financial trends over time. The date format is ISO 8601 string for consistent
  * serialization and chart rendering.
  *
- * @property date - ISO 8601 date string (e.g., "2024-01-15")
+ * @property date - ISO 8601 date string (e.g., `"2024-01-15"`)
  * @property income - Total income amount for this date
  * @property expenses - Total expense amount for this date
  *
@@ -236,10 +237,10 @@ export interface ChartDataPoint {
  * @property totalExpenseCount - Total number of expense transactions in the period
  * @property currency - ISO 4217 currency code for all amounts
  * @property preset - Date range information for the query
- * @property preset.from - Start date of the period, or null if unbounded
- * @property preset.to - End date of the period, or null if unbounded
- * @property preset.value - Preset identifier (e.g., "THIS_YEAR")
- * @property preset.label - Human-readable label (e.g., "This Year")
+ * @property preset.from - Start date of the period, or `null` if unbounded
+ * @property preset.to - End date of the period, or `null` if unbounded
+ * @property preset.value - Preset identifier (e.g., `"THIS_YEAR"`)
+ * @property preset.label - Human-readable label (e.g., `"This Year"`)
  *
  * @example
  * ```typescript
@@ -281,7 +282,7 @@ export interface ChartAnalytics {
  * the category name, absolute spending amount, and percentage of total spending.
  * Used for pie charts, donut charts, and category ranking displays.
  *
- * @property name - Category name (e.g., "Food & Dining", "Transportation")
+ * @property name - Category name (e.g., `"Food & Dining"`, `"Transportation"`)
  * @property value - Total amount spent in this category
  * @property percentage - Percentage of total spending (0-100)
  *
@@ -312,10 +313,10 @@ export interface CategoryBreakdownItem {
  * @property breakdown - Array of category items sorted by spending amount (descending)
  * @property currency - ISO 4217 currency code for all amounts
  * @property preset - Date range information for the query
- * @property preset.from - Start date of the period, or null if unbounded
- * @property preset.to - End date of the period, or null if unbounded
- * @property preset.value - Preset identifier (e.g., "THIS_QUARTER")
- * @property preset.label - Human-readable label (e.g., "This Quarter")
+ * @property preset.from - Start date of the period, or `null` if unbounded
+ * @property preset.to - End date of the period, or `null` if unbounded
+ * @property preset.value - Preset identifier (e.g., `"THIS_QUARTER"`)
+ * @property preset.label - Human-readable label (e.g., `"This Quarter"`)
  *
  * @example
  * ```typescript

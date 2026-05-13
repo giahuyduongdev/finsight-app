@@ -18,7 +18,8 @@ type SignOptsAndSecret = SignOptions & {
 
 const JWT_DEFAULTS: SignOptions = {
   audience: ['user'],
-  algorithm: 'HS256'
+  algorithm: 'HS256',
+  issuer: Env.JWT_ISSUER
 }
 
 const accessTokenSignOptions: SignOptsAndSecret = {
@@ -68,24 +69,26 @@ export const signRefreshToken = (payload: AccessTokenPayload) => {
 // ─── Verify ───────────────────────────────────────────────────────────────────
 
 /**
- * Verify an access token. Validates signature + audience.
+ * Verify an access token. Validates signature + audience + issuer.
  * Throws JsonWebTokenError / TokenExpiredError on failure.
  */
 export const verifyAccessToken = (
   token: string
 ): JwtPayload & AccessTokenPayload => {
   return jwt.verify(token, Env.JWT_SECRET, {
-    audience: 'user'
+    audience: 'user',
+    issuer: Env.JWT_ISSUER
   }) as unknown as JwtPayload & AccessTokenPayload
 }
 
 /**
- * Verify a refresh token. Validates signature only (no audience).
+ * Verify a refresh token. Validates signature + issuer.
  * Throws JsonWebTokenError / TokenExpiredError on failure.
  */
 export const verifyRefreshToken = (
   token: string
 ): JwtPayload & AccessTokenPayload => {
-  return jwt.verify(token, Env.JWT_REFRESH_SECRET) as unknown as JwtPayload &
-    AccessTokenPayload
+  return jwt.verify(token, Env.JWT_REFRESH_SECRET, {
+    issuer: Env.JWT_ISSUER
+  }) as unknown as JwtPayload & AccessTokenPayload
 }

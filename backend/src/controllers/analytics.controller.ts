@@ -7,7 +7,6 @@ import TransactionModel from '../models/transaction.model'
 import { getUserId } from '../utils/getUserId.util'
 import { container } from '../container'
 import { parseDateQuery } from '../utils/query-parser.util'
-import { toOTPResponse } from '../dtos'
 
 // Get AnalyticsService instance from DI container
 const analyticsService = container.getAnalyticsService()
@@ -25,15 +24,15 @@ export const summaryAnalyticsController = asyncHandler(
     const customTo = parseDateQuery(to)
 
     if (from && !customFrom) {
-      return res
-        .status(HTTPSTATUS.BAD_REQUEST)
-        .json(toOTPResponse('Invalid "from" date parameter'))
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid "from" date parameter'
+      })
     }
 
     if (to && !customTo) {
-      return res
-        .status(HTTPSTATUS.BAD_REQUEST)
-        .json(toOTPResponse('Invalid "to" date parameter'))
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid "to" date parameter'
+      })
     }
 
     const stats = await analyticsService.getAnalytics(
@@ -65,15 +64,15 @@ export const chartAnalyticsController = asyncHandler(
     const customTo = parseDateQuery(to)
 
     if (from && !customFrom) {
-      return res
-        .status(HTTPSTATUS.BAD_REQUEST)
-        .json(toOTPResponse('Invalid "from" date parameter'))
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid "from" date parameter'
+      })
     }
 
     if (to && !customTo) {
-      return res
-        .status(HTTPSTATUS.BAD_REQUEST)
-        .json(toOTPResponse('Invalid "to" date parameter'))
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid "to" date parameter'
+      })
     }
 
     const chartData = await analyticsService.getChartAnalytics(
@@ -105,15 +104,15 @@ export const expensePieChartBreakdownController = asyncHandler(
     const customTo = parseDateQuery(to)
 
     if (from && !customFrom) {
-      return res
-        .status(HTTPSTATUS.BAD_REQUEST)
-        .json(toOTPResponse('Invalid "from" date parameter'))
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid "from" date parameter'
+      })
     }
 
     if (to && !customTo) {
-      return res
-        .status(HTTPSTATUS.BAD_REQUEST)
-        .json(toOTPResponse('Invalid "to" date parameter'))
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({
+        message: 'Invalid "to" date parameter'
+      })
     }
 
     const pieChartData = await analyticsService.getCategoryBreakdown(

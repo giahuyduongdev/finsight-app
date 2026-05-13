@@ -20,9 +20,12 @@ Backend API for Finsight - Personal Finance Management Application
 2. **Setup configuration:**
 
    ```bash
+   # From the backend directory
+   cd backend
+
    # Option 1: Use setup script
-   chmod +x setup.sh
-   ./setup.sh
+   chmod +x scripts/setup.sh
+   ./scripts/setup.sh
 
    # Option 2: Manual setup
    cp samples/.env.sample .env

@@ -178,7 +178,7 @@ export const bulkDeleteTransactionController = asyncHandler(
     io.to(userId).emit('transaction:bulk-deleted', { ids: transactionIds })
 
     return res.status(HTTPSTATUS.OK).json({
-      message: 'Transaction deleted successfully',
+      message: 'Transactions deleted successfully',
       ...result
     })
   }

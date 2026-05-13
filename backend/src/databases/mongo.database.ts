@@ -55,11 +55,19 @@ class MongoDatabase {
 
   /**
    * Get MongoDB instance (Singleton)
+   * Uses a connection promise to prevent race conditions
    */
+  private static connectionPromise: Promise<void> | null = null
+
   static async getInstance(): Promise<void> {
     if (!MongoDatabase.instance) {
-      MongoDatabase.instance = new MongoDatabase()
-      await MongoDatabase.instance.connect()
+      if (!MongoDatabase.connectionPromise) {
+        MongoDatabase.connectionPromise = (async () => {
+          MongoDatabase.instance = new MongoDatabase()
+          await MongoDatabase.instance.connect()
+        })()
+      }
+      await MongoDatabase.connectionPromise
     }
   }
 

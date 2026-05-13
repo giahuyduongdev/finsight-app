@@ -22,16 +22,17 @@ import { UserDocument } from '../models/user.model'
  * accidental exposure of sensitive authentication data.
  *
  * The resulting type includes all user profile information:
- * - name: User's full name
- * - email: User's email address
- * - profilePicture: URL to profile image or null
- * - timezone: IANA timezone identifier (e.g., 'America/New_York', 'UTC')
- * - preferredCurrency: ISO 4217 currency code (e.g., 'USD', 'EUR')
- * - role: User role (USER or ADMIN)
- * - auth0Ids: Array of Auth0 identity provider IDs (optional)
- * - createdAt: Account creation timestamp
- * - updatedAt: Last modification timestamp
- * - omitPassword: Method to remove password from user object
+ * - `_id`: User's unique identifier
+ * - `name`: User's full name
+ * - `email`: User's email address
+ * - `profilePicture`: URL to profile image or null
+ * - `timezone`: IANA timezone identifier (e.g., 'America/New_York', 'UTC')
+ * - `preferredCurrency`: ISO 4217 currency code (e.g., 'USD', 'EUR')
+ * - `role`: User role (USER or ADMIN)
+ * - `auth0Ids`: Array of Auth0 identity provider IDs (optional)
+ * - `createdAt`: Account creation timestamp
+ * - `updatedAt`: Last modification timestamp
+ * - `omitPassword`: Method to remove password from user object
  *
  * @example
  * ```typescript

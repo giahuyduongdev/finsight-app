@@ -410,7 +410,23 @@ async function generateInsightsAI(
     if (!cleanedText) return []
 
     const data = JSON.parse(cleanedText)
-    return data
+
+    // Validate AI output structure
+    if (!Array.isArray(data)) {
+      logger.warn('[APP:Report] AI returned non-array insights', { data })
+      return []
+    }
+
+    // Validate each insight is a string
+    const validInsights = data.filter((item) => typeof item === 'string')
+    if (validInsights.length !== data.length) {
+      logger.warn('[APP:Report] Some AI insights were not strings', {
+        total: data.length,
+        valid: validInsights.length
+      })
+    }
+
+    return validInsights
   } catch (error) {
     logger.error('[APP:Report] Failed to generate AI insights', {
       error: error instanceof Error ? error.message : String(error),

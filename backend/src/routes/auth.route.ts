@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import {
   loginController,
   refreshTokenController,
@@ -132,9 +132,19 @@ authRoutes.post(
   resendChangeEmailOTPController
 )
 
+// Conditional validation: only validate body if cookie is absent
+const validateRefreshTokenIfNeeded = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.cookies?.refreshToken) return next()
+  return validate(refreshTokenSchema, 'body')(req, res, next)
+}
+
 authRoutes.post(
   '/refresh-token',
-  validate(refreshTokenSchema, 'body'),
+  validateRefreshTokenIfNeeded,
   refreshTokenController
 )
 authRoutes.post('/logout', logoutController)
