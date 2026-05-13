@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+# Validate commit message using commitlint
+npx --no -- commitlint --edit ${1}

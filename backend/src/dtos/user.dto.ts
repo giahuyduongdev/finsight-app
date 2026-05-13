@@ -1,19 +1,11 @@
-import { UserDocument } from '../models/user.model' // Nhớ trỏ đúng đường dẫn file model của bạn
+import { UserWithoutPassword } from '../types/user.type'
+import { UserResponseDTO } from '../types/dto.type'
 
-// 1. Định nghĩa Type chuẩn xác trả về cho Frontend
-export interface UserResponseDTO {
-  id: string
-  name: string
-  email: string
-  profilePicture: string | null // Khớp với Schema của bạn
-  timezone: string
-  preferredCurrency: string
-  role: string
-}
-
-type SanitizeUserInput = Omit<UserDocument, 'password'>
-// 2. Hàm "Làm sạch" và ép kiểu dữ liệu
-export const sanitizeUser = (user: SanitizeUserInput): UserResponseDTO => {
+/**
+ * Mapper function: Convert internal User type to API response DTO
+ * Transforms MongoDB document to JSON-friendly format for client
+ */
+export const sanitizeUser = (user: UserWithoutPassword): UserResponseDTO => {
   // Đảm bảo user là một plain object (phòng trường hợp Mongoose Document)
   // Nếu bạn đã gọi .lean() ở query thì không cần, nhưng cứ để đây cho an toàn tuyệt đối
   const userData = user.toObject ? user.toObject() : user

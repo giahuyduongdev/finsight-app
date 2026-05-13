@@ -1,20 +1,24 @@
-import jwt, { SignOptions } from 'jsonwebtoken'
+import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken'
+import ms from 'ms'
 import { Env } from '../config/env.config'
-
-type TimeUnit = 's' | 'm' | 'h' | 'd' | 'w' | 'y'
-type TimeString = `${number}${TimeUnit}`
 
 export type AccessTokenPayload = {
   userId: string
 }
+
+type TimeUnit = 's' | 'm' | 'h' | 'd' | 'w' | 'y'
+type TimeString = `${number}${TimeUnit}`
 
 type SignOptsAndSecret = SignOptions & {
   secret: string
   expiresIn?: TimeString | number
 }
 
-const defaults: SignOptions = {
-  audience: ['user']
+// ─── Defaults ────────────────────────────────────────────────────────────────
+
+const JWT_DEFAULTS: SignOptions = {
+  audience: ['user'],
+  algorithm: 'HS256'
 }
 
 const accessTokenSignOptions: SignOptsAndSecret = {
@@ -22,40 +26,66 @@ const accessTokenSignOptions: SignOptsAndSecret = {
   secret: Env.JWT_SECRET
 }
 
-export const refreshTokenSignOptions: SignOptsAndSecret = {
+const refreshTokenSignOptions: SignOptsAndSecret = {
   expiresIn: Env.JWT_REFRESH_EXPIRES_IN as TimeString,
-  secret: Env.JWT_REFRESH_SECRET
+  secret: Env.JWT_REFRESH_SECRET,
+  audience: 'refresh'
 }
 
-export const signJwtToken = (
-  payload: AccessTokenPayload,
-  options?: SignOptsAndSecret
-) => {
-  // Check if this is an access token by comparing the secret
-  const isAccessToken =
-    !options || options.secret === accessTokenSignOptions.secret
+// ─── Sign ─────────────────────────────────────────────────────────────────────
 
-  const { secret, ...opts } = options || accessTokenSignOptions
+/**
+ * Sign an access token. Returns the token and its expiration timestamp (ms).
+ */
+export const signAccessToken = (payload: AccessTokenPayload) => {
+  const { secret, expiresIn, ...opts } = accessTokenSignOptions
 
   const token = jwt.sign(payload, secret, {
-    ...defaults,
-    ...opts
+    ...JWT_DEFAULTS,
+    ...opts,
+    expiresIn
   })
 
-  const decoded = jwt.decode(token)
+  const expiresAt = Date.now() + ms(Env.JWT_EXPIRES_IN as ms.StringValue)
 
-  if (isAccessToken) {
-    if (!decoded || typeof decoded === 'string' || !decoded.exp) {
-      throw new Error('Failed to sign token: missing expiration claim')
-    }
-    return {
-      token,
-      expiresAt: decoded.exp * 1000
-    }
-  }
+  return { token, expiresAt }
+}
 
-  return {
-    token,
-    expiresAt: undefined
-  }
+/**
+ * Sign a refresh token. Does not expose expiresAt (managed via DB).
+ */
+export const signRefreshToken = (payload: AccessTokenPayload) => {
+  const { secret, expiresIn, ...opts } = refreshTokenSignOptions
+
+  const token = jwt.sign(payload, secret, {
+    ...opts,
+    expiresIn
+  })
+
+  return { token }
+}
+
+// ─── Verify ───────────────────────────────────────────────────────────────────
+
+/**
+ * Verify an access token. Validates signature + audience.
+ * Throws JsonWebTokenError / TokenExpiredError on failure.
+ */
+export const verifyAccessToken = (
+  token: string
+): JwtPayload & AccessTokenPayload => {
+  return jwt.verify(token, Env.JWT_SECRET, {
+    audience: 'user'
+  }) as unknown as JwtPayload & AccessTokenPayload
+}
+
+/**
+ * Verify a refresh token. Validates signature only (no audience).
+ * Throws JsonWebTokenError / TokenExpiredError on failure.
+ */
+export const verifyRefreshToken = (
+  token: string
+): JwtPayload & AccessTokenPayload => {
+  return jwt.verify(token, Env.JWT_REFRESH_SECRET) as unknown as JwtPayload &
+    AccessTokenPayload
 }

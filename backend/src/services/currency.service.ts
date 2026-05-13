@@ -3,6 +3,8 @@ import { redis } from '../config/redis.config'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 import { CurrencyEnum } from '../enums/currency.enum'
+import { BadRequestException, InternalServerException } from '../utils/errors'
+import { ErrorCodeEnum } from '../enums/error-code.enum'
 
 const CACHE_KEY_PREFIX = 'rate:'
 const BROADCAST_EVENT = 'currency:rates_updated'
@@ -26,7 +28,12 @@ export class CurrencyService {
       )
 
       const rates = response.data.rates
-      if (!rates) throw new Error('Invalid response from exchange rate API')
+      if (!rates) {
+        throw new BadRequestException(
+          'Invalid response from exchange rate API',
+          ErrorCodeEnum.VALIDATION_ERROR
+        )
+      }
 
       // Cập nhật Cache Redis cho tất cả các cặp tiền tệ phổ biến
       // Chúng ta sẽ lưu cả 2 chiều để tăng hiệu năng query sau này
@@ -142,7 +149,10 @@ export class CurrencyService {
             updatedAt: new Date().toISOString()
           }
         }
-        throw new Error('Cache is empty and manual fetch failed')
+        throw new InternalServerException(
+          'Cache is empty and manual fetch failed',
+          ErrorCodeEnum.INTERNAL_SERVER_ERROR
+        )
       }
 
       return {

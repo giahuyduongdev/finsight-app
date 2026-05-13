@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client'
 import { useDispatch, useSelector } from 'react-redux'
 import type { RootState, AppDispatch } from '@/app/store'
 import { useRefreshMutation } from '@/features/auth/authAPI'
-import { setCredentials, logout } from '@/features/auth/authSlice'
+import { updateCredentials, logout } from '@/features/auth/authSlice'
 
 let socketInstance: Socket | null = null
 let isRefreshing = false // Tránh loop nếu refresh thất bại liên tục
@@ -29,12 +29,15 @@ export const useSocket = () => {
     const url = new URL(apiUrl)
     const socketUrl = `${url.protocol}//${url.host}`
 
-    // Nếu socket già đã tồn tại nhưng token thay đổi -> disconnect và reconnect với token mới
+    // Token changed on an existing socket → update auth and reconnect
     if (socketInstance) {
       console.log('🔄 Updating socket auth token')
-      socketInstance.disconnect() // Disconnect first
+      socketInstance.off('connect')
+      socketInstance.off('connect_error')
+      socketInstance.off('disconnect')
+      socketInstance.disconnect()
       socketInstance.auth = { token: accessToken }
-      socketInstance.connect() // Reconnect with new token
+      socketInstance.connect()
       setSocket(socketInstance)
       return
     }
@@ -66,7 +69,12 @@ export const useSocket = () => {
 
           try {
             const result = await refresh({}).unwrap()
-            dispatch(setCredentials(result))
+            dispatch(
+              updateCredentials({
+                accessToken: result.accessToken,
+                expiresAt: result.expiresAt
+              })
+            )
             // Re-enable reconnection after successful refresh
             if (socketInstance) {
               socketInstance.io.opts.reconnection = true

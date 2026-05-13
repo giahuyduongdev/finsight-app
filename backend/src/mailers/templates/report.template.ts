@@ -1,6 +1,8 @@
-import { ReportType } from '../../@types/report.type'
+import { ReportType } from '../../types/report.type'
 import { formatCurrency } from '../../utils/format-currency.util'
-import { capitalizeFirstLetter } from '../../utils/string.util'
+
+const capitalizeFirstLetter = (str: string): string =>
+  str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
 
 const escapeHtml = (value: string): string =>
   value

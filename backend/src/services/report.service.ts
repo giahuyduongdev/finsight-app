@@ -17,6 +17,7 @@ import UserModel from '../models/user.model'
 import { logger } from '../config/logger.config'
 import { IReportRepository } from '../repositories/interfaces/report-repository.interface'
 import { IReportSettingRepository } from '../repositories/interfaces/report-setting-repository.interface'
+import { GeneratedReport, InsightsGenerationInput } from '../types/report.type'
 
 // ─── ReportService Class (New - DI-based) ────────────────────────────────────
 
@@ -214,7 +215,7 @@ export const generateReportService = async (
   toDate: Date,
   timezone: string,
   preferredCurrency: string = 'USD'
-) => {
+): Promise<GeneratedReport | null> => {
   const results = await TransactionModel.aggregate([
     {
       $match: {
@@ -375,23 +376,18 @@ export const generateReportService = async (
   }
 }
 
-async function generateInsightsAI({
-  totalIncome,
-  totalExpenses,
-  availableBalance,
-  savingsRate,
-  categories,
-  periodLabel,
-  currency = 'USD'
-}: {
-  totalIncome: number
-  totalExpenses: number
-  availableBalance: number
-  savingsRate: number
-  categories: Record<string, { amount: number; percentage: number }>
-  periodLabel: string
-  currency?: string
-}) {
+async function generateInsightsAI(
+  input: InsightsGenerationInput
+): Promise<string[]> {
+  const {
+    totalIncome,
+    totalExpenses,
+    availableBalance,
+    savingsRate,
+    categories,
+    periodLabel,
+    currency = 'USD'
+  } = input
   try {
     const prompt = reportInsightPrompt({
       totalIncome,

@@ -11,16 +11,7 @@ import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 import { ITransactionRepository } from '../repositories/interfaces/transaction-repository.interface'
 import { IImportBatchRepository } from '../repositories/interfaces/import-batch-repository.interface'
 import mongoose from 'mongoose'
-
-// ─── Type Definitions ─────────────────────────────────────────────────────────
-
-export type BulkTransactionItem = Omit<
-  CreateTransactionType,
-  'status' | 'backfill'
-> & {
-  status: 'COMPLETED' | 'PENDING' | 'FAILED'
-  backfill?: boolean
-}
+import { BulkTransactionItem } from '../types/transaction.type'
 
 // ─── TransactionService Class (New - DI-based) ───────────────────────────────
 

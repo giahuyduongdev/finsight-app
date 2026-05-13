@@ -1,5 +1,5 @@
 import { RefreshTokenDocument } from '../../models/refresh-token.model'
-import { DeleteResult } from '../../types/repository.types'
+import { DeleteResult } from '../../types/repository.type'
 
 /**
  * Refresh Token Repository Interface

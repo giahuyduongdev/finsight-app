@@ -1,6 +1,6 @@
 import { Server } from 'socket.io'
 import { Server as HTTPServer } from 'http'
-import jwt, { JwtPayload } from 'jsonwebtoken'
+import { verifyAccessToken } from '../utils/jwt.util'
 import { Env } from './env.config'
 import { logger } from './logger.config'
 
@@ -24,9 +24,7 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
         return next(new Error('UNAUTHORIZED: No token provided'))
       }
 
-      const decoded = jwt.verify(token, Env.JWT_SECRET, {
-        audience: ['user']
-      }) as JwtPayload & { userId: string }
+      const decoded = verifyAccessToken(token)
 
       if (!decoded.userId) {
         return next(new Error('UNAUTHORIZED: Invalid token payload'))

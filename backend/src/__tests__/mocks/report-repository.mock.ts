@@ -6,7 +6,7 @@
 import { IReportRepository } from '../../repositories/interfaces/report-repository.interface'
 import { ReportDocument, ReportStatusEnum } from '../../models/report.model'
 import mongoose from 'mongoose'
-import { PaginatedResult } from '../../types/repository.types'
+import { PaginatedResult } from '../../types/repository.type'
 
 export class MockReportRepository implements IReportRepository {
   private reports: Map<string, ReportDocument> = new Map()

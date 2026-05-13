@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import UserModel, { UserDocument } from '../models/user.model'
+import UserModel from '../models/user.model'
 import {
   BadRequestException,
   ConflictException,
@@ -7,6 +7,13 @@ import {
   NotFoundException,
   UnauthorizedException
 } from '../utils/errors/index'
+import {
+  RegisterResponse,
+  OTPVerificationResult,
+  LoginResponse,
+  OAuthCallbackResult,
+  Auth0Profile
+} from '../types/auth.type'
 import {
   ForgotPasswordSchemaType,
   LoginSchemaType,
@@ -23,7 +30,11 @@ import {
 import ReportSettingModel from '../models/report-setting.model'
 import { ReportFrequencyEnum } from '../enums/report-frequency.enum'
 import { calculateNextReportDate } from '../utils/dates/index'
-import { refreshTokenSignOptions, signJwtToken } from '../utils/jwt.util'
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken
+} from '../utils/jwt.util'
 import RefreshTokenModel from '../models/refresh-token.model'
 import ms from 'ms'
 import { Env } from '../config/env.config'
@@ -46,10 +57,12 @@ import {
 import crypto from 'crypto'
 import { encrypt, decrypt } from '../utils/encryption.util'
 
-export const registerService = async (body: RegisterSchemaType) => {
+export const registerService = async (
+  body: RegisterSchemaType
+): Promise<RegisterResponse> => {
   const { email } = body
   const session = await mongoose.startSession()
-  let result: { user: Omit<UserDocument, 'password'> } | null = null
+  let result: RegisterResponse | null = null
 
   try {
     await session.withTransaction(async () => {
@@ -138,11 +151,11 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
   }
 }
 
-type RegisterResult = {
-  user: Omit<UserDocument, 'password'>
-}
+type RegisterResult = RegisterResponse
 
-export const verifyRegisterOTPService = async (body: VerifyOTPSchemaType) => {
+export const verifyRegisterOTPService = async (
+  body: VerifyOTPSchemaType
+): Promise<OTPVerificationResult> => {
   const { email, otp } = body
 
   const storedOTP = await redis.get(REDIS_KEYS.registerOtp(email))
@@ -517,7 +530,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
 export const loginService = async (
   body: LoginSchemaType,
   userAgent: string
-) => {
+): Promise<LoginResponse> => {
   const { email, password, timezone } = body
   const user = await UserModel.findOne({ email })
   if (!user) throw new NotFoundException('Email/password not found')
@@ -530,12 +543,9 @@ export const loginService = async (
   user.timezone = timezone || user.timezone || 'UTC'
   await user.save()
 
-  const { token: accessToken, expiresAt } = signJwtToken({ userId: user.id })
+  const { token: accessToken, expiresAt } = signAccessToken({ userId: user.id })
 
-  const { token: refreshToken } = signJwtToken(
-    { userId: user.id },
-    refreshTokenSignOptions
-  )
+  const { token: refreshToken } = signRefreshToken({ userId: user.id })
 
   await RefreshTokenModel.deleteMany({
     userId: user.id,
@@ -572,13 +582,19 @@ export const loginService = async (
     accessToken: accessToken,
     refreshToken: refreshToken,
     expiresAt,
-    reportSetting
+    reportSetting: reportSetting
+      ? {
+          _id: reportSetting._id.toString(),
+          frequency: reportSetting.frequency,
+          isEnabled: reportSetting.isEnabled
+        }
+      : null
   }
 }
 
 export const refreshTokenService = async (token: string) => {
   // 1. Verify refresh token
-  const decoded = jwt.verify(token, Env.JWT_REFRESH_SECRET) as JwtPayload
+  const decoded = verifyRefreshToken(token)
   if (!decoded || !decoded.userId) {
     throw new UnauthorizedException('Invalid refresh token')
   }
@@ -599,7 +615,7 @@ export const refreshTokenService = async (token: string) => {
   if (!user) throw new NotFoundException('User not found')
 
   // 4. Tạo access token mới
-  const { token: accessToken, expiresAt } = signJwtToken({ userId: user.id })
+  const { token: accessToken, expiresAt } = signAccessToken({ userId: user.id })
 
   return {
     accessToken,
@@ -660,10 +676,7 @@ export const createRefreshToken = async (
   userAgent: string = ''
 ): Promise<string> => {
   // 1. Tạo Refresh Token bằng hàm JWT có sẵn của bạn
-  const { token: refreshToken } = signJwtToken(
-    { userId },
-    refreshTokenSignOptions
-  )
+  const { token: refreshToken } = signRefreshToken({ userId })
 
   // 2. Tính toán thời gian hết hạn để lưu DB (khớp với thời hạn của token)
   const expiresAt = new Date(
@@ -696,7 +709,7 @@ export const createRefreshToken = async (
 export const oauthCallbackService = async (
   code: string,
   timezone: string = 'UTC'
-) => {
+): Promise<OAuthCallbackResult> => {
   // 1. Đổi code → tokens từ Auth0
   const tokenController = new AbortController()
   const tokenTimeout = setTimeout(() => tokenController.abort(), 10000) // 10s timeout
@@ -731,13 +744,6 @@ export const oauthCallbackService = async (
     }
 
     // 2. Lấy profile từ Auth0
-    interface Auth0Profile {
-      email: string
-      name: string
-      picture: string
-      sub: string
-    }
-
     const profileController = new AbortController()
     const profileTimeout = setTimeout(() => profileController.abort(), 10000) // 10s timeout
 
@@ -795,7 +801,9 @@ export const oauthCallbackService = async (
     }
 
     // 4. Tạo JWT
-    const { token: accessToken, expiresAt } = signJwtToken({ userId: user.id })
+    const { token: accessToken, expiresAt } = signAccessToken({
+      userId: user.id
+    })
     const refreshToken = await createRefreshToken(user.id)
 
     return { accessToken, expiresAt, refreshToken, user }

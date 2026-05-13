@@ -3,7 +3,7 @@ import {
   PaginationParams,
   PaginatedResult,
   DeleteResult
-} from '../../types/repository.types'
+} from '../../types/repository.type'
 
 /**
  * Import Batch Repository Interface

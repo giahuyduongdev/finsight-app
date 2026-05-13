@@ -1,0 +1,52 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# API KEYS & SECRETS
+# ═══════════════════════════════════════════════════════════════════════════
+# ⚠️  CRITICAL: Never commit this file with real values to version control!
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── JWT Configuration ────────────────────────────────────────────────────────
+# Generate strong random secrets for production:
+# node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_EXPIRES_IN=15m
+
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production
+JWT_REFRESH_EXPIRES_IN=7d
+
+# ─── Encryption ───────────────────────────────────────────────────────────────
+# Must be exactly 32 characters for AES-256
+ENCRYPTION_SECRET=your-32-character-encryption-key-here
+
+# ─── AI Services ──────────────────────────────────────────────────────────────
+# Google Gemini AI (for receipt OCR and AI features)
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# ─── Cloud Storage ────────────────────────────────────────────────────────────
+# Cloudinary (for image uploads)
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+# ─── Email Service ────────────────────────────────────────────────────────────
+# Resend (for transactional emails)
+RESEND_API_KEY=your-resend-api-key
+RESEND_MAILER_SENDER=noreply@yourdomain.com
+
+# ─── OAuth Authentication ─────────────────────────────────────────────────────
+# Auth0 (for social login)
+AUTH0_DOMAIN=your-domain.auth0.com
+AUTH0_CLIENT_ID=your-client-id
+AUTH0_CLIENT_SECRET=your-client-secret
+AUTH0_CALLBACK_URL=http://localhost:5000/api/v1/auth/callback
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECURITY CHECKLIST:
+# ═══════════════════════════════════════════════════════════════════════════
+# ✓ Generate strong random secrets for JWT_SECRET and JWT_REFRESH_SECRET
+# ✓ Use a 32-character string for ENCRYPTION_SECRET
+# ✓ Never use default/example values in production
+# ✓ Rotate secrets regularly
+# ✓ Use environment-specific secrets (dev, staging, prod)
+# ✓ Store production secrets in secure vault (AWS Secrets Manager, etc.)
+# ═══════════════════════════════════════════════════════════════════════════

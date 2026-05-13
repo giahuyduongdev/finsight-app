@@ -5,7 +5,7 @@ import {
   TransactionFilters,
   DeleteResult,
   BulkInsertResult
-} from '../../types/repository.types'
+} from '../../types/repository.type'
 
 /**
  * Transaction Repository Interface

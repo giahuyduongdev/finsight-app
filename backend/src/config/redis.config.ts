@@ -1,8 +1,12 @@
-import Redis from 'ioredis'
-import { Env } from './env.config'
+/**
+ * Redis Configuration
+ * Redis keys, TTL constants, and rate limiters
+ */
+
 import rateLimit from 'express-rate-limit'
 import RedisStore, { RedisReply } from 'rate-limit-redis'
-import { logger } from './logger.config'
+import { redis } from '../databases/redis.database'
+import { isDevelopment } from './app.config'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -65,47 +69,8 @@ export const REDIS_TTL = {
   CHANGE_EMAIL_RESEND: 60 // 1 phút
 } as const
 
-// ─── Redis Client ─────────────────────────────────────────────────────────────
-
-class RedisClient {
-  private static instance: RedisClient
-  public client: Redis
-
-  private constructor() {
-    this.client = new Redis(Env.REDIS_URL, {
-      maxRetriesPerRequest: 3,
-      connectTimeout: 10000,
-      lazyConnect: true
-    })
-    this.setupEventListeners()
-  }
-
-  private setupEventListeners(): void {
-    this.client.on('connect', async () => {
-      logger.info('[SYS:Redis] Connected successfully!')
-    })
-
-    this.client.on('error', (err: Error) =>
-      logger.error('[SYS:Redis] Connection error', {
-        message: err.message,
-        stack: err.stack
-      })
-    )
-    this.client.on('end', () => logger.warn('[SYS:Redis] Connection closed'))
-    this.client.on('reconnecting', () =>
-      logger.info('[SYS:Redis] Connection lost. Attempting to reconnect...')
-    )
-  }
-
-  public static getInstance(): Redis {
-    if (!RedisClient.instance) {
-      RedisClient.instance = new RedisClient()
-    }
-    return RedisClient.instance.client
-  }
-}
-
-export const redis = RedisClient.getInstance()
+// Re-export redis client for backward compatibility
+export { redis }
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
 
@@ -119,12 +84,10 @@ const makeRedisStore = (prefix: string) =>
     prefix
   })
 
-const isDev = () => Env.NODE_ENV === 'development'
-
 export const rateLimiter = rateLimit({
   windowMs: RATE_LIMIT_WINDOW_MS,
   max: RATE_LIMIT.GLOBAL,
-  skip: isDev,
+  skip: isDevelopment,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -137,7 +100,7 @@ export const rateLimiter = rateLimit({
 export const authRateLimiter = rateLimit({
   windowMs: RATE_LIMIT_WINDOW_MS,
   max: RATE_LIMIT.AUTH,
-  skip: isDev,
+  skip: isDevelopment,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

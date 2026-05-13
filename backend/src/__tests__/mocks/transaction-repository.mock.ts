@@ -10,7 +10,7 @@ import {
   DeleteResult,
   PaginatedResult,
   TransactionFilters
-} from '../../types/repository.types'
+} from '../../types/repository.type'
 
 export class MockTransactionRepository implements ITransactionRepository {
   private transactions = new Map<string, TransactionDocument>()

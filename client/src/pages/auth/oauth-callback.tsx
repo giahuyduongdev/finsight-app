@@ -4,14 +4,14 @@ import { useAppDispatch } from '@/app/hook'
 import { setCredentials } from '@/features/auth/authSlice'
 import { AUTH_ROUTES, PROTECTED_ROUTES } from '@/routes/common/routePath'
 import { toast } from 'sonner'
-import { useLazyGetMeQuery } from '@/features/auth/authAPI' // 👉 Import hook gọi API của bạn vào đây
+import { useLazyGetMeQuery } from '@/features/auth/authAPI' // Import hook gọi API của bạn vào đây
 
 const OAuthCallback = () => {
   const [params] = useSearchParams()
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
 
-  // 👉 Khởi tạo hàm gọi API lấy Profile
+  // Khởi tạo hàm gọi API lấy Profile
   const [getMe] = useLazyGetMeQuery()
 
   useEffect(() => {

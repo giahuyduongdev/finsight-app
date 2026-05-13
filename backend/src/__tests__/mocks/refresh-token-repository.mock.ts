@@ -5,7 +5,7 @@
 
 import { IRefreshTokenRepository } from '../../repositories/interfaces/refresh-token-repository.interface'
 import { RefreshTokenDocument } from '../../models/refresh-token.model'
-import { DeleteResult } from '../../types/repository.types'
+import { DeleteResult } from '../../types/repository.type'
 
 export class MockRefreshTokenRepository implements IRefreshTokenRepository {
   private tokens: Map<string, RefreshTokenDocument> = new Map()

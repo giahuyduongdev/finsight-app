@@ -1,95 +1,19 @@
-import { HTTPSTATUS, HttpStatusCodeType } from '../../config/http.config'
-import { ErrorCodeEnum, ErrorCodeEnumType } from '../../enums/error-code.enum'
+/**
+ * Error utilities for the application
+ *
+ * This module exports all error classes used throughout the application.
+ *
+ * @example
+ * ```typescript
+ * import { NotFoundException, BadRequestException } from '@/utils/errors'
+ *
+ * throw new NotFoundException('User not found')
+ * throw new BadRequestException('Invalid email format')
+ * ```
+ */
 
-export class AppError extends Error {
-  public statusCode: HttpStatusCodeType
-  public errorCode?: ErrorCodeEnumType
-  public meta?: Record<string, unknown>
+// Export base error class
+export * from './app-error'
 
-  constructor(
-    message: string,
-    statusCode = HTTPSTATUS.INTERNAL_SERVER_ERROR,
-    errorCode?: ErrorCodeEnumType,
-    meta?: Record<string, unknown>
-  ) {
-    super(message)
-    this.statusCode = statusCode
-    this.errorCode = errorCode
-    this.meta = meta
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class HttpException extends AppError {
-  constructor(
-    message = 'Http Exception Error',
-    statusCode: HttpStatusCodeType,
-    errorCode?: ErrorCodeEnumType
-  ) {
-    super(message, statusCode, errorCode)
-  }
-}
-
-export class NotFoundException extends AppError {
-  constructor(message = 'Resource not found', errorCode?: ErrorCodeEnumType) {
-    super(
-      message,
-      HTTPSTATUS.NOT_FOUND,
-      errorCode || ErrorCodeEnum.RESOURCE_NOT_FOUND
-    )
-  }
-}
-
-export class BadRequestException extends AppError {
-  constructor(
-    message = 'Bad Request',
-    errorCode?: ErrorCodeEnumType,
-    meta?: Record<string, unknown>
-  ) {
-    super(
-      message,
-      HTTPSTATUS.BAD_REQUEST,
-      errorCode || ErrorCodeEnum.VALIDATION_ERROR,
-      meta
-    )
-  }
-}
-
-export class UnauthorizedException extends AppError {
-  constructor(message = 'Unauthorized Access', errorCode?: ErrorCodeEnumType) {
-    super(
-      message,
-      HTTPSTATUS.UNAUTHORIZED,
-      errorCode || ErrorCodeEnum.ACCESS_UNAUTHORIZED
-    )
-  }
-}
-
-export class InternalServerException extends AppError {
-  constructor(
-    message = 'Internal Server Error',
-    errorCode?: ErrorCodeEnumType
-  ) {
-    super(
-      message,
-      HTTPSTATUS.INTERNAL_SERVER_ERROR,
-      errorCode || ErrorCodeEnum.INTERNAL_SERVER_ERROR
-    )
-  }
-}
-
-export class ForbiddenException extends AppError {
-  constructor(message = 'Forbidden Access', errorCode?: ErrorCodeEnumType) {
-    super(
-      message,
-      HTTPSTATUS.FORBIDDEN,
-      errorCode || ErrorCodeEnum.ACCESS_FORBIDDEN
-    )
-  }
-}
-
-export class ConflictException extends AppError {
-  constructor(message = 'Conflict', errorCode?: ErrorCodeEnumType) {
-    super(message, HTTPSTATUS.CONFLICT, errorCode)
-  }
-}
+// Export all HTTP exception classes
+export * from './http-exceptions'
