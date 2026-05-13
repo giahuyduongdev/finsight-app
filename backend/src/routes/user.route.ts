@@ -16,8 +16,8 @@ const userRoutes = Router()
 userRoutes.get('/current-user', getCurrentUserController)
 userRoutes.put(
   '/update-user',
-  validate(updateUserSchema, 'body'),
   upload.single('profilePicture'),
+  validate(updateUserSchema, 'body'),
   updateUserController
 )
 userRoutes.put(
