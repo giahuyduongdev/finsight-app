@@ -113,9 +113,11 @@ export const loginController = asyncHandler(
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // HTTPS khi production
-      sameSite: 'strict',
-      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue),
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     return res.status(HTTPSTATUS.OK).json(
@@ -151,8 +153,8 @@ export const logoutController = asyncHandler(
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict', // PHẢI khớp với lúc res.cookie
-      path: '/' // Thường mặc định là '/', nhưng thêm vào cho chắc chắn
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/'
     })
 
     return res
@@ -173,7 +175,7 @@ export const logoutAllController = asyncHandler(
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
       path: '/'
     })
 
@@ -278,7 +280,9 @@ export const oauthCallbackController = asyncHandler(
       httpOnly: true,
       secure: Env.NODE_ENV === 'production',
       sameSite: 'lax', // Dùng 'lax' sẽ tốt hơn cho việc redirect giữa các domain khác nhau
-      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue),
+      path: '/',
+      domain: Env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     // 6. Build URL Redirect dùng URLSearchParams cho an toàn
