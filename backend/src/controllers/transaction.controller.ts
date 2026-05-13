@@ -2,15 +2,6 @@ import { Request, Response } from 'express'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { logger } from '../config/logger.config'
-import {
-  bulkDeleteTransactionSchema,
-  bulkTransactionSchema,
-  createTransactionSchema,
-  transactionIdSchema,
-  updateTransactionSchema
-} from '../validators/transaction.validator'
-import { TransactionTypeEnum } from '../models/transaction.model'
-import { CurrencyType } from '../enums/currency.enum'
 import { transactionQueue, receiptQueue } from '../queues'
 import { TRANSACTION_JOBS } from '../queues/transaction.queue'
 import { RECEIPT_JOBS } from '../queues/receipt.queue'
@@ -18,13 +9,16 @@ import importBatchModel from '../models/import-batch.model'
 import { getIO } from '../config/socket.config'
 import { getUserId } from '../utils/getUserId.util'
 import { container } from '../container'
+import { toTransactionDTO, toTransactionDTOArray } from '../dtos'
+import { TransactionFilterQuery } from '../types/query-filters.type'
+import { parsePaginationQuery } from '../utils/query-parser.util'
 
 // Get TransactionService instance from DI container
 const transactionService = container.getTransactionService()
 
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = createTransactionSchema.parse(req.body)
+    const body = req.body
     const userId = getUserId(req)
 
     const transaction = await transactionService.create(body, userId)
@@ -34,7 +28,7 @@ export const createTransactionController = asyncHandler(
 
     return res.status(HTTPSTATUS.CREATED).json({
       message: 'Transaction created successfully',
-      transaction
+      transaction: toTransactionDTO(transaction)
     })
   }
 )
@@ -43,38 +37,21 @@ export const getAllTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
 
-    const filters = {
+    const filters: TransactionFilterQuery = {
       keyword: req.query.keyword as string | undefined,
-      type: req.query.type as keyof typeof TransactionTypeEnum | undefined,
-      recurringStatus: req.query.recurringStatus as
-        | 'RECURRING'
-        | 'NON_RECURRING'
-        | undefined,
-      currency: req.query.currency as CurrencyType | undefined,
-      status: req.query.status as
-        | 'COMPLETED'
-        | 'PENDING'
-        | 'FAILED'
-        | undefined,
-      dateRangePreset: req.query.dateRangePreset as
-        | '30days'
-        | 'lastMonth'
-        | 'last3Months'
-        | 'lastYear'
-        | 'thisMonth'
-        | 'thisYear'
-        | 'allTime'
-        | 'custom'
-        | undefined,
+      type: req.query.type as TransactionFilterQuery['type'],
+      recurringStatus: req.query
+        .recurringStatus as TransactionFilterQuery['recurringStatus'],
+      currency: req.query.currency as TransactionFilterQuery['currency'],
+      status: req.query.status as TransactionFilterQuery['status'],
+      dateRangePreset: req.query
+        .dateRangePreset as TransactionFilterQuery['dateRangePreset'],
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined,
       timezone: req.query.timezone as string | undefined
     }
 
-    const pagination = {
-      pageSize: parseInt(req.query.pageSize as string) || 20,
-      pageNumber: parseInt(req.query.pageNumber as string) || 1
-    }
+    const pagination = parsePaginationQuery(req.query)
 
     const result = await transactionService.findByUserId(
       userId,
@@ -83,7 +60,7 @@ export const getAllTransactionController = asyncHandler(
     )
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction fetched successfully',
-      transactions: result.data,
+      transactions: toTransactionDTOArray(result.data),
       pagination: result.pagination
     })
   }
@@ -92,13 +69,13 @@ export const getAllTransactionController = asyncHandler(
 export const getTransactionByIdController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const transactionId = transactionIdSchema.parse(req.params.id)
+    const transactionId = req.params.id as string
 
     const transaction = await transactionService.findById(userId, transactionId)
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction fetched successfully',
-      transaction
+      transaction: toTransactionDTO(transaction)
     })
   }
 )
@@ -106,16 +83,16 @@ export const getTransactionByIdController = asyncHandler(
 export const getChildTransactionsController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const parentId = transactionIdSchema.parse(req.params.id)
+    const parentId = req.params.id as string
 
-    const pageNumber = Math.max(
-      1,
-      parseInt(req.query.pageNumber as string) || 1
-    )
-    const pageSize = Math.min(
-      50,
-      Math.max(1, parseInt(req.query.pageSize as string) || 10)
-    )
+    const pagination = parsePaginationQuery(req.query, {
+      pageSize: 10,
+      pageNumber: 1
+    })
+
+    // Apply constraints: max 50, min 1
+    const pageSize = Math.min(50, Math.max(1, pagination.pageSize))
+    const pageNumber = Math.max(1, pagination.pageNumber)
 
     const result = await transactionService.findChildTransactions(
       userId,
@@ -126,7 +103,7 @@ export const getChildTransactionsController = asyncHandler(
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Child transactions fetched successfully',
-      children: result.data,
+      children: toTransactionDTOArray(result.data),
       pagination: result.pagination
     })
   }
@@ -135,7 +112,7 @@ export const getChildTransactionsController = asyncHandler(
 export const duplicateTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const transactionId = transactionIdSchema.parse(req.params.id)
+    const transactionId = req.params.id as string
 
     const transaction = await transactionService.duplicate(
       userId,
@@ -147,7 +124,7 @@ export const duplicateTransactionController = asyncHandler(
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction fetched successfully',
-      data: transaction
+      data: toTransactionDTO(transaction)
     })
   }
 )
@@ -155,8 +132,8 @@ export const duplicateTransactionController = asyncHandler(
 export const updateTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const transactionId = transactionIdSchema.parse(req.params.id)
-    const body = updateTransactionSchema.parse(req.body)
+    const transactionId = req.params.id as string
+    const body = req.body
 
     const updatedTransaction = await transactionService.update(
       userId,
@@ -169,7 +146,7 @@ export const updateTransactionController = asyncHandler(
 
     return res.status(HTTPSTATUS.OK).json({
       message: 'Transaction updated successfully',
-      data: updatedTransaction
+      data: toTransactionDTO(updatedTransaction)
     })
   }
 )
@@ -177,7 +154,7 @@ export const updateTransactionController = asyncHandler(
 export const deleteTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const transactionId = transactionIdSchema.parse(req.params.id)
+    const transactionId = req.params.id as string
 
     await transactionService.deleteById(userId, transactionId)
 
@@ -193,7 +170,7 @@ export const deleteTransactionController = asyncHandler(
 export const bulkDeleteTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const { transactionIds } = bulkDeleteTransactionSchema.parse(req.body)
+    const { transactionIds } = req.body
 
     const result = await transactionService.bulkDelete(userId, transactionIds)
 
@@ -201,7 +178,7 @@ export const bulkDeleteTransactionController = asyncHandler(
     io.to(userId).emit('transaction:bulk-deleted', { ids: transactionIds })
 
     return res.status(HTTPSTATUS.OK).json({
-      message: 'Transaction deleted successfully',
+      message: 'Transactions deleted successfully',
       ...result
     })
   }
@@ -210,7 +187,7 @@ export const bulkDeleteTransactionController = asyncHandler(
 export const bulkTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const { transactions } = bulkTransactionSchema.parse(req.body)
+    const { transactions } = req.body
 
     // 1. TẠO "VÉ GIỮ ĐỒ": Lưu toàn bộ 300 giao dịch vào MongoDB trước
     const batch = await importBatchModel.create({

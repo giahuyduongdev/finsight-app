@@ -2,23 +2,19 @@ import mongoose from 'mongoose'
 import readline from 'readline'
 import http from 'http'
 import app from './src/app'
-import { Env } from './src/config/env.config'
-import connectDB from './src/config/database.config'
+import { appConfig, isDevelopment } from './src/config/app.config'
+import { initializeDatabases } from './src/databases'
 import { initializeCrons, stopCrons } from './src/cron'
 import {
   checkOverload,
   stopOverload
 } from './src/helpers/check-db-connect.helper'
-import { redis } from './src/config/redis.config'
+import { redis } from './src/databases/redis.database'
 import { logger } from './src/config/logger.config'
 import { initializeWorkers, stopWorkers } from './src/workers'
 import { closeQueues } from './src/queues'
 import { initializeSocket, getIO } from './src/config/socket.config'
 import { CurrencyService } from './src/services/currency.service'
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const SHUTDOWN_TIMEOUT_MS = 10_000
 
 // ─── Global error handlers ────────────────────────────────────────────────────
 
@@ -63,7 +59,7 @@ const closeGracefully = (
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 const startServer = async (): Promise<void> => {
-  await connectDB()
+  await initializeDatabases()
 
   const server = http.createServer(app)
 
@@ -77,15 +73,17 @@ const startServer = async (): Promise<void> => {
     logger.error('[APP:Server] Failed to fetch initial rates:', error)
   }
 
-  if (Env.NODE_ENV === 'development') {
+  if (isDevelopment()) {
     checkOverload()
   }
 
   await initializeCrons()
   initializeWorkers()
 
-  server.listen(Env.PORT, () => {
-    logger.info(`[APP:Server] running on port ${Env.PORT} [${Env.NODE_ENV}]`)
+  server.listen(appConfig.port, () => {
+    logger.info(
+      `[APP:Server] Server running on port ${appConfig.port} [${appConfig.nodeEnv}]`
+    )
   })
 
   // ─── Graceful Shutdown ──────────────────────────────────────────────────────
@@ -103,7 +101,7 @@ const startServer = async (): Promise<void> => {
     const forceExitTimer = setTimeout(() => {
       logger.error('[APP:Server] Shutdown timed out. Forcing exit.')
       process.exit(1)
-    }, SHUTDOWN_TIMEOUT_MS)
+    }, appConfig.timeouts.shutdown)
     forceExitTimer.unref()
 
     try {

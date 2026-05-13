@@ -5,7 +5,7 @@
 
 import { IImportBatchRepository } from '../../repositories/interfaces/import-batch-repository.interface'
 import { IImportBatch } from '../../models/import-batch.model'
-import { PaginatedResult } from '../../types/repository.types'
+import { PaginatedResult } from '../../types/repository.type'
 import mongoose from 'mongoose'
 
 export class MockImportBatchRepository implements IImportBatchRepository {

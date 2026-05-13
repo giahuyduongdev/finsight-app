@@ -76,8 +76,6 @@ const baseQueryWithReauth: BaseQueryFn<
         }
         api.dispatch(updateCredentials({ accessToken, expiresAt }))
 
-        await new Promise((resolve) => setTimeout(resolve, 200))
-
         // GỬI LẠI request gốc
         result = await baseQuery(args, api, extraOptions)
       } else {

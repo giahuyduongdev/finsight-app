@@ -22,31 +22,22 @@ import {
   verifyChangeEmailOTPService,
   resendChangeEmailOTPService
 } from '../services/auth.service'
-import {
-  forgotPasswordSchema,
-  loginSchema,
-  refreshTokenSchema,
-  registerSchema,
-  resendOTPSchema,
-  resetPasswordSchema,
-  verifyForgotOTPSchema,
-  verifyOTPSchema,
-  changePasswordRequestSchema,
-  verifyChangePasswordOTPSchema,
-  changeEmailRequestSchema,
-  verifyChangeEmailOTPSchema
-} from '../validators/auth.validator'
 import { Env } from '../config/env.config'
 import ms from 'ms'
 import { UnauthorizedException } from '../utils/errors/index'
-import { sanitizeUser } from '../dtos/user.dtos'
+import {
+  sanitizeUser,
+  toOTPResponse,
+  toTokenRefreshResponse,
+  toAuthSuccessResponse
+} from '../dtos'
 import { logger } from '../config/logger.config'
 import { getUserId } from '../utils/getUserId.util'
 import crypto from 'crypto'
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = registerSchema.parse(req.body)
+    const body = req.body
     const result = await registerService(body)
     return res.status(HTTPSTATUS.CREATED).json({
       message: 'User registered successfully',
@@ -57,15 +48,15 @@ export const registerController = asyncHandler(
 
 export const registerOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = registerSchema.parse(req.body)
+    const body = req.body
     const result = await registerOTPService(body)
-    return res.status(HTTPSTATUS.ACCEPTED).json({ message: result.message })
+    return res.status(HTTPSTATUS.ACCEPTED).json(toOTPResponse(result.message))
   }
 )
 
 export const verifyRegisterOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = verifyOTPSchema.parse(req.body)
+    const body = req.body
     const result = await verifyRegisterOTPService(body)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -73,7 +64,7 @@ export const verifyRegisterOTPController = asyncHandler(
 
 export const resendRegisterOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = resendOTPSchema.parse(req.body)
+    const body = req.body
     const result = await resendRegisterVerifyOTPService(body)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -81,15 +72,15 @@ export const resendRegisterOTPController = asyncHandler(
 
 export const forgotPasswordController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = forgotPasswordSchema.parse(req.body)
+    const body = req.body
     const result = await forgotPasswordService(body)
-    return res.status(HTTPSTATUS.ACCEPTED).json({ message: result.message })
+    return res.status(HTTPSTATUS.ACCEPTED).json(toOTPResponse(result.message))
   }
 )
 
 export const verifyForgotPasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = verifyForgotOTPSchema.parse(req.body)
+    const body = req.body
     const result = await verifyForgotPasswordOTPService(body)
     return res.status(HTTPSTATUS.CREATED).json(result)
   }
@@ -97,7 +88,7 @@ export const verifyForgotPasswordOTPController = asyncHandler(
 
 export const resendForgotPasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = resendOTPSchema.parse(req.body)
+    const body = req.body
     const result = await resendForgotPasswordOTPService(body)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -105,7 +96,7 @@ export const resendForgotPasswordOTPController = asyncHandler(
 
 export const resetPasswordController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = resetPasswordSchema.parse(req.body)
+    const body = req.body
 
     const result = await resetPasswordService(body)
 
@@ -115,47 +106,44 @@ export const resetPasswordController = asyncHandler(
 
 export const loginController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = loginSchema.parse({ ...req.body })
+    const body = { ...req.body }
     const userAgent = req.headers['user-agent'] || ''
     const { user, accessToken, refreshToken, expiresAt, reportSetting } =
       await loginService(body, userAgent)
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // HTTPS khi production
-      sameSite: 'strict',
-      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue),
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'User logged in successfully',
-      user: sanitizeUser(user),
-      accessToken,
-      expiresAt,
-      reportSetting
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      toAuthSuccessResponse({
+        user: sanitizeUser(user),
+        accessToken,
+        expiresAt,
+        reportSetting
+      })
+    )
   }
 )
 
 export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response) => {
-    const { refreshToken } = refreshTokenSchema.parse({
-      refreshToken: req.cookies?.refreshToken ?? req.body?.refreshToken
-    })
+    const refreshToken = req.cookies?.refreshToken ?? req.body?.refreshToken
 
     const result = await refreshTokenService(refreshToken)
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Token refreshed successfully',
-      ...result
-    })
+    return res.status(HTTPSTATUS.OK).json(toTokenRefreshResponse(result))
   }
 )
 
 export const logoutController = asyncHandler(
   async (req: Request, res: Response) => {
-    const refreshToken =
-      req.cookies?.refreshToken || refreshTokenSchema.parse(req.body)
+    const refreshToken = req.cookies?.refreshToken ?? req.body?.refreshToken
     const accessToken = req.headers.authorization?.split(' ')[1] // lấy access token từ header
     if (!accessToken)
       throw new UnauthorizedException('Access token is required')
@@ -165,13 +153,14 @@ export const logoutController = asyncHandler(
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict', // PHẢI khớp với lúc res.cookie
-      path: '/' // Thường mặc định là '/', nhưng thêm vào cho chắc chắn
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Logged out successfully'
-    })
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(toOTPResponse('Logged out successfully'))
   }
 )
 
@@ -187,13 +176,14 @@ export const logoutAllController = asyncHandler(
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/'
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Logged out from all devices successfully'
-    })
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(toOTPResponse('Logged out from all devices successfully'))
   }
 )
 
@@ -211,7 +201,8 @@ export const oauthRedirectController = asyncHandler(
       secure: Env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 10 * 60 * 1000, // 10 minutes
-      path: '/'
+      path: '/',
+      domain: Env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     const params = new URLSearchParams({
@@ -282,7 +273,8 @@ export const oauthCallbackController = asyncHandler(
       httpOnly: true,
       secure: Env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/'
+      path: '/',
+      domain: Env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     const result = await oauthCallbackService(code as string, timezone) // ← truyền timezone
@@ -292,7 +284,9 @@ export const oauthCallbackController = asyncHandler(
       httpOnly: true,
       secure: Env.NODE_ENV === 'production',
       sameSite: 'lax', // Dùng 'lax' sẽ tốt hơn cho việc redirect giữa các domain khác nhau
-      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+      maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue),
+      path: '/',
+      domain: Env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     // 6. Build URL Redirect dùng URLSearchParams cho an toàn
@@ -310,7 +304,7 @@ export const oauthCallbackController = asyncHandler(
 export const changePasswordRequestController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const body = changePasswordRequestSchema.parse(req.body)
+    const body = req.body
     const result = await changePasswordRequestService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -319,7 +313,7 @@ export const changePasswordRequestController = asyncHandler(
 export const verifyChangePasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const body = verifyChangePasswordOTPSchema.parse(req.body)
+    const body = req.body
     const result = await verifyChangePasswordOTPService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -336,7 +330,7 @@ export const resendChangePasswordOTPController = asyncHandler(
 export const changeEmailRequestController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const body = changeEmailRequestSchema.parse(req.body)
+    const body = req.body
     const result = await changeEmailRequestService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
   }
@@ -345,7 +339,7 @@ export const changeEmailRequestController = asyncHandler(
 export const verifyChangeEmailOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
-    const body = verifyChangeEmailOTPSchema.parse(req.body)
+    const body = req.body
     const result = await verifyChangeEmailOTPService(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)
   }

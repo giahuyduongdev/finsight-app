@@ -8,7 +8,7 @@ import {
   TransactionFilters,
   DeleteResult,
   BulkInsertResult
-} from '../types/repository.types'
+} from '../types/repository.type'
 import { getDateRange } from '../utils/dates/index'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 

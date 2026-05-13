@@ -3,7 +3,7 @@ import ReportModel, {
   ReportDocument,
   ReportStatusEnum
 } from '../models/report.model'
-import { PaginationParams, PaginatedResult } from '../types/repository.types'
+import { PaginationParams, PaginatedResult } from '../types/repository.type'
 
 /**
  * Report Repository Implementation

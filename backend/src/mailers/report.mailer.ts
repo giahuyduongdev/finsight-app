@@ -1,7 +1,7 @@
 import { formatCurrency } from '../utils/format-currency.util'
 import { getReportEmailTemplate } from './templates/report.template'
 import { sendEmail } from './mailer'
-import { ReportType } from '../@types/report.type'
+import { ReportType } from '../types/report.type'
 
 type ReportEmailParams = {
   email: string

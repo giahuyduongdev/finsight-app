@@ -2,7 +2,7 @@ import RefreshTokenModel, {
   RefreshTokenDocument
 } from '../models/refresh-token.model'
 import { IRefreshTokenRepository } from './interfaces/refresh-token-repository.interface'
-import { DeleteResult } from '../types/repository.types'
+import { DeleteResult } from '../types/repository.type'
 import { logger } from '../config/logger.config'
 
 /**

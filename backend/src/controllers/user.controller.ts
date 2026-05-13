@@ -2,11 +2,7 @@ import { Request, Response } from 'express'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { container } from '../container'
-import {
-  changePasswordSchema,
-  updateUserSchema
-} from '../validators/user.validator'
-import { sanitizeUser } from '../dtos/user.dtos'
+import { sanitizeUser } from '../dtos/user.dto'
 import { getUserId } from '../utils/getUserId.util'
 
 // Get UserService instance from DI container
@@ -33,7 +29,7 @@ export const getCurrentUserController = asyncHandler(
 
 export const updateUserController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = updateUserSchema.parse(req.body)
+    const body = req.body
     const userId = getUserId(req)
     const profilePic = req.file
 
@@ -48,7 +44,7 @@ export const updateUserController = asyncHandler(
 
 export const changeUserPasswordController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = changePasswordSchema.parse(req.body)
+    const body = req.body
     const userId = getUserId(req)
     const result = await userService.changePassword(userId, body)
     return res.status(HTTPSTATUS.OK).json(result)

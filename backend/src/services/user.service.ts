@@ -7,6 +7,7 @@ import { compareValue, hashValue } from '../utils/bcrypt.util'
 import { IUserRepository } from '../repositories/interfaces/user-repository.interface'
 import { IRefreshTokenRepository } from '../repositories/interfaces/refresh-token-repository.interface'
 import { UserDocument } from '../models/user.model'
+import { UserWithoutPassword } from '../types/user.type'
 
 // ─── UserService Class (New - DI-based) ──────────────────────────────────────
 
@@ -25,9 +26,7 @@ export class UserService {
    * @param userId - User ID
    * @returns User document without password, or null if not found
    */
-  async findById(
-    userId: string
-  ): Promise<Omit<UserDocument, 'password'> | null> {
+  async findById(userId: string): Promise<UserWithoutPassword | null> {
     const user = await this.userRepository.findById(userId)
     if (!user) return null
     return user.omitPassword()
@@ -38,9 +37,7 @@ export class UserService {
    * @param email - User email
    * @returns User document without password, or null if not found
    */
-  async findByEmail(
-    email: string
-  ): Promise<Omit<UserDocument, 'password'> | null> {
+  async findByEmail(email: string): Promise<UserWithoutPassword | null> {
     const user = await this.userRepository.findByEmail(email)
     if (!user) return null
     return user.omitPassword()
@@ -58,7 +55,7 @@ export class UserService {
     userId: string,
     body: UpdateUserType,
     profilePic?: Express.Multer.File
-  ): Promise<Omit<UserDocument, 'password'>> {
+  ): Promise<UserWithoutPassword> {
     const user = await this.userRepository.findById(userId)
     if (!user) throw new NotFoundException('User not found')
 

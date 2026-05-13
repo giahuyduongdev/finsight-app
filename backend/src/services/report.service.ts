@@ -17,6 +17,7 @@ import UserModel from '../models/user.model'
 import { logger } from '../config/logger.config'
 import { IReportRepository } from '../repositories/interfaces/report-repository.interface'
 import { IReportSettingRepository } from '../repositories/interfaces/report-setting-repository.interface'
+import { GeneratedReport, InsightsGenerationInput } from '../types/report.type'
 
 // ─── ReportService Class (New - DI-based) ────────────────────────────────────
 
@@ -214,7 +215,7 @@ export const generateReportService = async (
   toDate: Date,
   timezone: string,
   preferredCurrency: string = 'USD'
-) => {
+): Promise<GeneratedReport | null> => {
   const results = await TransactionModel.aggregate([
     {
       $match: {
@@ -375,23 +376,18 @@ export const generateReportService = async (
   }
 }
 
-async function generateInsightsAI({
-  totalIncome,
-  totalExpenses,
-  availableBalance,
-  savingsRate,
-  categories,
-  periodLabel,
-  currency = 'USD'
-}: {
-  totalIncome: number
-  totalExpenses: number
-  availableBalance: number
-  savingsRate: number
-  categories: Record<string, { amount: number; percentage: number }>
-  periodLabel: string
-  currency?: string
-}) {
+async function generateInsightsAI(
+  input: InsightsGenerationInput
+): Promise<string[]> {
+  const {
+    totalIncome,
+    totalExpenses,
+    availableBalance,
+    savingsRate,
+    categories,
+    periodLabel,
+    currency = 'USD'
+  } = input
   try {
     const prompt = reportInsightPrompt({
       totalIncome,
@@ -414,7 +410,23 @@ async function generateInsightsAI({
     if (!cleanedText) return []
 
     const data = JSON.parse(cleanedText)
-    return data
+
+    // Validate AI output structure
+    if (!Array.isArray(data)) {
+      logger.warn('[APP:Report] AI returned non-array insights', { data })
+      return []
+    }
+
+    // Validate each insight is a string
+    const validInsights = data.filter((item) => typeof item === 'string')
+    if (validInsights.length !== data.length) {
+      logger.warn('[APP:Report] Some AI insights were not strings', {
+        total: data.length,
+        valid: validInsights.length
+      })
+    }
+
+    return validInsights
   } catch (error) {
     logger.error('[APP:Report] Failed to generate AI insights', {
       error: error instanceof Error ? error.message : String(error),

@@ -81,6 +81,6 @@ export const updateTransactionSchema = baseTransactionSchema.partial()
 export type CreateTransactionType = z.infer<typeof createTransactionSchema>
 
 export type UpdateTransactionType = z.infer<typeof updateTransactionSchema>
-export type BulkDelteTransactionType = z.infer<
+export type BulkDeleteTransactionType = z.infer<
   typeof bulkDeleteTransactionSchema
 >

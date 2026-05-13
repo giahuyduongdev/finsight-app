@@ -9,6 +9,11 @@ import { differenceInDays, subDays, subYears } from 'date-fns'
 import { getExchangeRate } from '../lib/exchange-rate-currency'
 import { redis } from '../config/redis.config'
 import { ITransactionRepository } from '../repositories/interfaces/transaction-repository.interface'
+import {
+  SummaryAnalytics,
+  ChartAnalytics,
+  CategoryBreakdown
+} from '../types/analytics.type'
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
@@ -75,7 +80,7 @@ export class AnalyticsService {
     customTo?: Date,
     timezone: string = 'UTC',
     preferredCurrency: string = 'USD'
-  ) {
+  ): Promise<SummaryAnalytics> {
     const { range, rangeValue, queryFrom, queryTo, fromKey, toKey, from, to } =
       resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 
@@ -274,7 +279,7 @@ export class AnalyticsService {
     customTo?: Date,
     timezone: string = 'UTC',
     preferredCurrency: string = 'USD'
-  ) {
+  ): Promise<ChartAnalytics> {
     const { range, rangeValue, queryFrom, queryTo, fromKey, toKey } =
       resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 
@@ -416,7 +421,7 @@ export class AnalyticsService {
     customTo?: Date,
     timezone: string = 'UTC',
     preferredCurrency: string = 'USD'
-  ) {
+  ): Promise<CategoryBreakdown> {
     const { range, rangeValue, queryFrom, queryTo, fromKey, toKey } =
       resolveAnalyticsRange(dateRangePreset, customFrom, customTo, timezone)
 

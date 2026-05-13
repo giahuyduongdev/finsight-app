@@ -1,6 +1,6 @@
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
-import { Env } from './env.config'
+import { appConfig } from './app.config'
 import { getRequestContext } from '../utils/asyncContext'
 import { redactSensitiveFields } from '../utils/redact.util'
 
@@ -100,9 +100,9 @@ const transports: winston.transport[] = [
 // ─── Logger ───────────────────────────────────────────────────────────────────
 
 export const logger = winston.createLogger({
-  level: Env.NODE_ENV === 'production' ? 'info' : 'debug',
+  level: appConfig.logging.level,
   levels,
-  format: Env.NODE_ENV === 'production' ? prodFormat : devFormat,
+  format: appConfig.logging.style === 'json' ? prodFormat : devFormat,
   transports,
   exitOnError: false
 })

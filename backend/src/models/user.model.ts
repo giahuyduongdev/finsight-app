@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose'
 import { compareValue, hashValue } from '../utils/bcrypt.util'
 import { CurrencyEnum } from '../enums/currency.enum'
 import { RoleUserEnum } from '../enums/role-user.enum'
+import { UserWithoutPassword } from '../types/user.type'
 
 export interface UserDocument extends Document {
   name: string
@@ -15,7 +16,7 @@ export interface UserDocument extends Document {
   createdAt: Date
   updatedAt: Date
   comparePassword: (password: string) => Promise<boolean>
-  omitPassword: () => Omit<UserDocument, 'password'>
+  omitPassword: () => UserWithoutPassword
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -78,7 +79,7 @@ userSchema.pre('save', async function (next) {
   next()
 })
 
-userSchema.methods.omitPassword = function (): Omit<UserDocument, 'password'> {
+userSchema.methods.omitPassword = function (): UserWithoutPassword {
   const userObject = this.toObject()
   delete userObject.password
   return userObject

@@ -4,7 +4,7 @@ import {
   PaginationParams,
   PaginatedResult,
   DeleteResult
-} from '../types/repository.types'
+} from '../types/repository.type'
 import { logger } from '../config/logger.config'
 
 /**
