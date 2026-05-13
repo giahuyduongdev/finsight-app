@@ -18,7 +18,7 @@ const httpConfig = () => ({
   METHOD_NOT_ALLOWED: 405,
   REQUEST_TIMEOUT: 408,
   CONFLICT: 409,
-  REQUEST_TOO_LONG: 413,
+  PAYLOAD_TOO_LARGE: 413,
   UNSUPPORTED_MEDIA_TYPE: 415,
   UNPROCESSABLE_ENTITY: 422,
   TOO_MANY_REQUESTS: 429,
@@ -124,7 +124,7 @@ const reasonPhrases = () =>
      * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.11
      * The request entity is larger than limits defined by the server.
      */
-    REQUEST_TOO_LONG: 'Payload Too Large',
+    PAYLOAD_TOO_LARGE: 'Payload Too Large',
 
     /**
      * Official Documentation @ https://tools.ietf.org/html/rfc7231#section-6.5.13

@@ -126,7 +126,7 @@ export class PayloadTooLargeException extends AppError {
   constructor(message = 'Payload Too Large', errorCode?: ErrorCodeEnumType) {
     super(
       message,
-      HTTPSTATUS.REQUEST_TOO_LONG,
+      HTTPSTATUS.PAYLOAD_TOO_LARGE,
       errorCode || ErrorCodeEnum.REQUEST_TOO_LARGE
     )
   }

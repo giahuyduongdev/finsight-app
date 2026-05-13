@@ -72,7 +72,7 @@ export type {
 export type {
   CreateTransactionType,
   UpdateTransactionType,
-  BulkDelteTransactionType
+  BulkDeleteTransactionType
 } from '../validators/transaction.validator'
 
 // ─── Report Validator Types ───────────────────────────────────────────────────

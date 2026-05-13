@@ -25,7 +25,11 @@ import { requestContextMiddleware } from './middlewares/requestContext.middlewar
 
 const app = express()
 
-// Logging middlewares
+// Request context must be set before logging
+app.use(correlationIdMiddleware)
+app.use(requestContextMiddleware)
+
+// Logging middlewares (after request context is available)
 app.use(successLogger)
 app.use(errorLogger)
 
@@ -40,15 +44,15 @@ app.use(cookieParser())
 app.use(passport.initialize())
 app.use(checkBlacklist)
 app.use(cors(appConfig.cors))
-app.use(correlationIdMiddleware)
-app.use(requestContextMiddleware)
 
 app.set('trust proxy', appConfig.trustProxy)
 app.use(rateLimiter)
 
 if (appConfig.features.bullBoard) {
-  // Bull Board - No auth in development for easy access
-  app.use('/admin/queues', setupBullBoard())
+  // Bull Board - Protected in production, open in development
+  const bullBoardMiddlewares =
+    appConfig.nodeEnv === 'development' ? [] : [passportAuthenticateJwt]
+  app.use('/admin/queues', ...bullBoardMiddlewares, setupBullBoard())
   logger.info(
     `[SYS:BullMQ] Bull Board: http://localhost:${appConfig.port}/admin/queues`
   )
