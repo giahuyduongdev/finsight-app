@@ -30,7 +30,8 @@ const accessTokenSignOptions: SignOptsAndSecret = {
 const refreshTokenSignOptions: SignOptsAndSecret = {
   expiresIn: Env.JWT_REFRESH_EXPIRES_IN as TimeString,
   secret: Env.JWT_REFRESH_SECRET,
-  audience: 'refresh'
+  audience: 'refresh',
+  issuer: Env.JWT_ISSUER // ← must match verifyRefreshToken's issuer check
 }
 
 // ─── Sign ─────────────────────────────────────────────────────────────────────

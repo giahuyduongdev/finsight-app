@@ -154,7 +154,8 @@ export const logoutController = asyncHandler(
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      path: '/'
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     return res
@@ -176,7 +177,8 @@ export const logoutAllController = asyncHandler(
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      path: '/'
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     return res
@@ -199,7 +201,8 @@ export const oauthRedirectController = asyncHandler(
       secure: Env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 10 * 60 * 1000, // 10 minutes
-      path: '/'
+      path: '/',
+      domain: Env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     const params = new URLSearchParams({
@@ -270,7 +273,8 @@ export const oauthCallbackController = asyncHandler(
       httpOnly: true,
       secure: Env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/'
+      path: '/',
+      domain: Env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
     const result = await oauthCallbackService(code as string, timezone) // ← truyền timezone
