@@ -14,7 +14,7 @@ export const transactionApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
     createTransaction: builder.mutation<void, CreateTransactionBody>({
       query: (body) => ({
-        url: '/transaction',
+        url: '/transactions',
         method: 'POST',
         body: body
       }),
@@ -23,7 +23,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     aiScanReceipt: builder.mutation<AIScanReceiptResponse, FormData>({
       query: (formData) => ({
-        url: '/transaction/scan-receipt',
+        url: '/transactions/scan-receipt',
         method: 'POST',
         body: formData
       })
@@ -60,7 +60,7 @@ export const transactionApi = apiClient.injectEndpoints({
         if (timezone) queryParams.timezone = timezone
 
         return {
-          url: '/transaction/all',
+          url: '/transactions/all',
           method: 'GET',
           params: queryParams
         }
@@ -71,7 +71,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     getSingleTransaction: builder.query<GetSingleTransactionResponse, string>({
       query: (id) => ({
-        url: `/transaction/${id}`,
+        url: `/transactions/${id}`,
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache', // Ép trình duyệt tuyệt đối không dùng Cache cũ
@@ -84,7 +84,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     duplicateTransaction: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/transaction/${id}/duplicate`,
+        url: `/transactions/${id}/duplicate`,
         method: 'POST'
       }),
       invalidatesTags: ['transactions', 'analytics']
@@ -92,7 +92,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     updateTransaction: builder.mutation<void, UpdateTransactionPayload>({
       query: ({ id, transaction }) => ({
-        url: `/transaction/${id}`,
+        url: `/transactions/${id}`,
         method: 'PUT',
         body: transaction
       }),
@@ -102,7 +102,7 @@ export const transactionApi = apiClient.injectEndpoints({
     bulkImportTransaction: builder.mutation<void, BulkImportTransactionPayload>(
       {
         query: (body) => ({
-          url: '/transaction/bulk',
+          url: '/transactions/bulk',
           method: 'POST',
           body
         })
@@ -114,7 +114,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     deleteTransaction: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/transaction/${id}`,
+        url: `/transactions/${id}`,
         method: 'DELETE'
       }),
       invalidatesTags: ['transactions', 'analytics']
@@ -125,7 +125,7 @@ export const transactionApi = apiClient.injectEndpoints({
       { id: string; pageNumber: number; pageSize?: number }
     >({
       query: ({ id, pageNumber, pageSize = 10 }) => ({
-        url: `/transaction/${id}/children`,
+        url: `/transactions/${id}/children`,
         method: 'GET',
         params: { pageNumber, pageSize }
       }),
@@ -134,7 +134,7 @@ export const transactionApi = apiClient.injectEndpoints({
 
     bulkDeleteTransaction: builder.mutation<void, string[]>({
       query: (transactionIds) => ({
-        url: '/transaction/bulk',
+        url: '/transactions/bulk',
         method: 'DELETE',
         body: {
           transactionIds

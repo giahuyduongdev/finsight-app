@@ -6,6 +6,7 @@ import {
 } from '@google/genai'
 import { Env } from './env.config'
 import { logger } from './logger.config'
+import { geminiCircuitBreaker } from '../utils/circuitBreaker.util'
 
 const apiKeys = Env.GEMINI_API_KEY.split(',')
   .map((key) => key.trim())
@@ -62,7 +63,7 @@ const isFatalError = (message: string): boolean => {
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
-export const generateWithFallback = async (
+const generateWithFallbackInternal = async (
   contents: ContentListUnion,
   config: GenerateContentConfig = {}
 ): Promise<GenerateContentResponse> => {
@@ -130,4 +131,14 @@ export const generateWithFallback = async (
 
   logger.error('[APP:AI] All models and API keys exhausted')
   throw lastError ?? new Error('All AI models and API keys exhausted')
+}
+
+export const generateWithFallback = async (
+  contents: ContentListUnion,
+  config: GenerateContentConfig = {}
+): Promise<GenerateContentResponse> => {
+  return geminiCircuitBreaker.execute(
+    () => generateWithFallbackInternal(contents, config),
+    'Gemini AI'
+  )
 }

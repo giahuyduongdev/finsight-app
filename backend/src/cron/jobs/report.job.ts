@@ -2,6 +2,7 @@ import { UserDocument } from '../../models/user.model'
 import { reportQueue, REPORT_JOBS } from '../../queues/report.queue'
 import { logger } from '../../config/logger.config'
 import { container } from '../../container'
+import { v4 as uuidv4 } from 'uuid'
 
 export const processReportJob = async () => {
   const now = new Date()
@@ -42,7 +43,8 @@ export const processReportJob = async () => {
             timezone: user.timezone || 'UTC',
             preferredCurrency: user.preferredCurrency,
             frequency,
-            dueDate: setting.nextReportDate?.toISOString() || now.toISOString()
+            dueDate: setting.nextReportDate?.toISOString() || now.toISOString(),
+            correlationId: uuidv4()
           },
           opts: {
             // jobId duy nhất để tránh enqueue trùng nếu cron chạy lại

@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+cd client
+npm run build
+
+cd ../backend
+npm run type-check
+npm run test:unit

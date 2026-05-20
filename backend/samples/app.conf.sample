@@ -13,7 +13,8 @@ BASE_PATH=/api/v1
 FRONTEND_ORIGIN=http://localhost:5173
 
 # ─── External APIs ────────────────────────────────────────────────────────────
-EXCHANGE_RATE_API_URL=https://api.exchangerate-api.com/v4/latest/USD
+EXCHANGE_RATE_PRIMARY_API_URL=https://api.exchangerate-api.com/v4/latest
+EXCHANGE_RATE_FALLBACK_API_URL=https://v6.exchangerate-api.com/v6/<your-api-key>/latest
 
 # ═══════════════════════════════════════════════════════════════════════════
 # NOTES:

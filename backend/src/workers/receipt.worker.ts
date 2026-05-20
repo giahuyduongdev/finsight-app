@@ -8,6 +8,23 @@ import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { getIO } from '../config/socket.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 import { RECEIPT_JOBS, ScanReceiptJobData } from '../queues/receipt.queue'
+import { cloudinaryCircuitBreaker } from '../utils/circuitBreaker.util'
+
+const MAX_RETRY_DELAY_MS = 30000
+
+function getNextRetryDelay(job?: Job): number {
+  const backoff = job?.opts.backoff
+  const baseDelay =
+    typeof backoff === 'object' &&
+    backoff !== null &&
+    'delay' in backoff &&
+    typeof backoff.delay === 'number'
+      ? backoff.delay
+      : 1000
+  const retryIndex = Math.max((job?.attemptsMade ?? 1) - 1, 0)
+
+  return Math.min(baseDelay * 2 ** retryIndex, MAX_RETRY_DELAY_MS)
+}
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
@@ -30,23 +47,27 @@ async function safeInvalidateUserAnalyticsCache(userId: string): Promise<void> {
  * Upload image buffer to Cloudinary (permanent storage)
  */
 async function uploadToCloudinary(buffer: Buffer): Promise<UploadApiResponse> {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: 'receipts',
-        resource_type: 'image',
-        timeout: 10000
-      },
-      (error, result) => {
-        if (error || !result) {
-          reject(error || new Error('Upload failed'))
-        } else {
-          resolve(result)
-        }
-      }
-    )
-    uploadStream.end(buffer)
-  })
+  return cloudinaryCircuitBreaker.execute(
+    () =>
+      new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'receipts',
+            resource_type: 'image',
+            timeout: 10000
+          },
+          (error, result) => {
+            if (error || !result) {
+              reject(error || new Error('Upload failed'))
+            } else {
+              resolve(result)
+            }
+          }
+        )
+        uploadStream.end(buffer)
+      }),
+    'Cloudinary'
+  )
 }
 
 /**
@@ -118,7 +139,8 @@ function parseGeminiResponse(responseText: string) {
  * Process receipt scanning job with async upload and cleanup
  */
 async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
-  const { userId, fileBuffer, imageUrl, fileName, fileSize } = job.data
+  const { userId, fileBuffer, imageUrl, fileName, fileSize, correlationId } =
+    job.data
 
   try {
     let finalImageUrl: string
@@ -146,7 +168,8 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
           imageUrl: uploadResult.value.secure_url,
           fileBuffer: undefined, // Clear base64 from Redis
           fileName,
-          fileSize
+          fileSize,
+          correlationId
         })
       } else {
         throw new Error(
@@ -236,6 +259,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     logger.error(`[JOB:Receipt] Receipt scan failed: ${err.message}`, {
       jobId: job.id,
       userId,
+      correlationId,
       fileName,
       fileSize,
       hasFileBuffer: !!fileBuffer,
@@ -295,11 +319,27 @@ receiptWorker.on('completed', (job) => {
 })
 
 receiptWorker.on('failed', (job, err) => {
-  logger.error(`[JOB:Receipt] Receipt scan failed: ${job?.id}`, {
+  const attemptsMade = job?.attemptsMade ?? 0
+  const maxAttempts = job?.opts.attempts ?? 1
+  const isRetrying = attemptsMade < maxAttempts
+
+  const logMetadata = {
     error: err.message,
     userId: job?.data.userId,
+    correlationId: job?.data.correlationId,
     fileName: job?.data.fileName,
-    attemptsMade: job?.attemptsMade,
-    maxAttempts: job?.opts.attempts
-  })
+    attemptsMade,
+    maxAttempts,
+    ...(isRetrying && { nextRetryDelayMs: getNextRetryDelay(job) })
+  }
+
+  if (isRetrying) {
+    logger.warn(
+      `[JOB:Receipt] Receipt scan retry scheduled: ${job?.id}`,
+      logMetadata
+    )
+    return
+  }
+
+  logger.error(`[JOB:Receipt] Receipt scan failed: ${job?.id}`, logMetadata)
 })

@@ -28,6 +28,22 @@ import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
 
+const MAX_RETRY_DELAY_MS = 30000
+
+function getNextRetryDelay(job?: Job): number {
+  const backoff = job?.opts.backoff
+  const baseDelay =
+    typeof backoff === 'object' &&
+    backoff !== null &&
+    'delay' in backoff &&
+    typeof backoff.delay === 'number'
+      ? backoff.delay
+      : 1000
+  const retryIndex = Math.max((job?.attemptsMade ?? 1) - 1, 0)
+
+  return Math.min(baseDelay * 2 ** retryIndex, MAX_RETRY_DELAY_MS)
+}
+
 // ─── Job Processing ───────────────────────────────────────────────────────────
 
 /**
@@ -242,10 +258,23 @@ reportWorker.on('completed', (job) => {
 })
 
 reportWorker.on('failed', (job, err) => {
-  logger.error(`[JOB:Report] Report failed: ${job?.id}`, {
+  const attemptsMade = job?.attemptsMade ?? 0
+  const maxAttempts = job?.opts?.attempts ?? 1
+  const isRetrying = attemptsMade < maxAttempts
+
+  const logMetadata = {
     error: err.message,
     userId: job?.data.userId,
-    attemptsMade: job?.attemptsMade,
-    maxAttempts: job?.opts?.attempts
-  })
+    correlationId: job?.data.correlationId,
+    attemptsMade,
+    maxAttempts,
+    ...(isRetrying && { nextRetryDelayMs: getNextRetryDelay(job) })
+  }
+
+  if (isRetrying) {
+    logger.warn(`[JOB:Report] Report retry scheduled: ${job?.id}`, logMetadata)
+    return
+  }
+
+  logger.error(`[JOB:Report] Report failed: ${job?.id}`, logMetadata)
 })

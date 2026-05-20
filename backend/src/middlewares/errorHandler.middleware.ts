@@ -8,6 +8,7 @@ import { logger } from '../config/logger.config'
 import { getUserMessage } from '../utils/userMessage.util'
 import { redactSensitiveFields } from '../utils/redact.util'
 import { Env } from '../config/env.config'
+import { captureSentryError } from '../config/sentry.config'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,44 +80,78 @@ export const errorHandler: ErrorRequestHandler = (
     }
   }
 
-  // 3. ENHANCE: Add metadata fields (requestId, timestamp, path, method, userMessage)
-  responseBody = {
-    ...responseBody,
-    requestId: req.correlationId || 'unknown',
-    timestamp: new Date().toISOString(),
+  // 3. Build standardized error response following ErrorResponse interface
+  const errorResponse: {
+    error: {
+      code: string
+      message: string
+      userMessage: string
+      statusCode: number
+      requestId: string
+      timestamp: string
+      path: string
+      method: string
+      details?: Array<{ field: string; message: string }>
+      stack?: string
+    }
+  } = {
+    error: {
+      code: (responseBody.errorCode as string) || 'INTERNAL_SERVER_ERROR',
+      message: responseBody.message as string,
+      userMessage: getUserMessage(error, statusCode),
+      statusCode,
+      requestId: req.correlationId || 'unknown',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method
+    }
+  }
+
+  // Add validation details if present
+  if (responseBody.errors && Array.isArray(responseBody.errors)) {
+    errorResponse.error.details = responseBody.errors as Array<{
+      field: string
+      message: string
+    }>
+  }
+
+  // Add stack trace only in development for server errors
+  if (Env.NODE_ENV !== 'production' && error.stack && statusCode >= 500) {
+    errorResponse.error.stack = error.stack
+  }
+
+  // 4. Redact sensitive fields in details if present
+  if (errorResponse.error.details) {
+    errorResponse.error.details = redactSensitiveFields(
+      errorResponse.error.details
+    ) as typeof errorResponse.error.details
+  }
+
+  // 5. Log appropriately based on error severity
+  const logMessage = `[${req.method}] ${req.path} - ${errorResponse.error.message}`
+  const logMetadata = {
+    requestId: errorResponse.error.requestId,
+    statusCode,
+    errorCode: errorResponse.error.code,
     path: req.path,
     method: req.method,
-    userMessage: getUserMessage(error, statusCode)
+    error: error?.message
   }
-
-  // 4. ENHANCE: Redact sensitive fields in meta if present
-  if (responseBody.meta) {
-    responseBody.meta = redactSensitiveFields(responseBody.meta)
-  }
-
-  // 5. ENHANCE: Conditionally include stack trace (only in development AND only for server errors)
-  if (Env.NODE_ENV !== 'production' && error.stack && statusCode >= 500) {
-    responseBody.stack = error.stack
-  }
-
-  // 6. CHIẾN THUẬT LOG THÔNG MINH
-  const logMessage = `[${req.method}] ${req.path} - ${responseBody.message}`
 
   if (statusCode < 500) {
-    // Lỗi Client (400, 401, 403, 404...): Chỉ đánh log cảnh báo (warn), KHÔNG in stack trace
-    logger.warn(`[APP:Server] ${logMessage}`, {
-      error: error?.message
-    })
+    // Client errors (4xx): Log as WARN without stack trace
+    logger.warn(`[APP:Server] ${logMessage}`, logMetadata)
   } else {
-    // Lỗi Server (500): Đánh log lỗi nghiêm trọng (error), CÓ in stack trace và payload để debug
-    // Redact sensitive fields from request body before logging
+    // Server errors (5xx): Log as ERROR with stack trace and redacted body
     logger.error(`[APP:Server] ${logMessage}`, {
+      ...logMetadata,
       message: error?.message,
       stack: error?.stack,
       body: redactSensitiveFields(req.body)
     })
+    captureSentryError(error, req, statusCode)
   }
 
-  // 7. Trả response về cho Client
-  res.status(statusCode).json(responseBody)
+  // 6. Send standardized error response to client
+  res.status(statusCode).json(errorResponse)
 }

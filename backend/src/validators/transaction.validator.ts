@@ -6,7 +6,10 @@ import {
 } from '../models/transaction.model'
 import { CurrencyEnum } from '../enums/currency.enum'
 
-export const transactionIdSchema = z.string().trim().min(1)
+export const transactionIdSchema = z
+  .string()
+  .trim()
+  .length(24, 'Invalid transaction ID format')
 
 export const baseTransactionSchema = z.object({
   title: z.string().min(1, 'Title is required'),

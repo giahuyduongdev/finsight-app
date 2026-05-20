@@ -182,3 +182,19 @@ BullMQ dashboard available at: `http://localhost:5000/admin/queues`
 ## 📄 License
 
 MIT
+
+## API Behavior
+
+- Versioned routes are available under `/api/v1`.
+- API routes are mounted only under `/api/v1`; old non-versioned API routes are not exposed.
+- Success responses use a consistent `{ data, meta?, links? }` shape.
+- Paginated responses include `meta.pagination` and HATEOAS links: `self`, `next`, `prev`, `first`, and `last`.
+- Error responses use `{ error: { code, message, userMessage, statusCode, requestId, timestamp, path, method, details? } }`.
+- `X-Correlation-ID` is returned on every request and appears in error responses as `requestId`.
+- Rate-limited responses return `429`, `Retry-After`, and the standardized error shape with `RATE_LIMIT_EXCEEDED`.
+- Rate limit metadata is exposed with `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
+- Health endpoints are public: `GET /health` for dependency health and `GET /ready` for readiness.
+
+## Optional Monitoring
+
+Sentry is optional. Set `SENTRY_DSN` to enable 5xx error capture. When unset, the app skips Sentry initialization and continues normally.

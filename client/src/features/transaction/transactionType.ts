@@ -61,17 +61,32 @@ export interface TransactionType {
   recurringSourceId?: string | null
 }
 
-export interface GetAllTransactionResponse {
-  message: string
-  transactions: TransactionType[]
-  pagination: {
-    pageSize: number
-    pageNumber: number
-    totalCount: number
-    totalPages: number
-    skip: number
-  }
+export interface PaginationMeta {
+  pageSize: number
+  pageNumber: number
+  totalCount: number
+  totalPages: number
 }
+
+export interface PaginationLinks {
+  self: string
+  next?: string
+  prev?: string
+  first: string
+  last: string
+}
+
+export interface SuccessResponse<T> {
+  data: T
+  meta?: {
+    message?: string
+    pagination?: PaginationMeta
+    [key: string]: unknown
+  }
+  links?: PaginationLinks
+}
+
+export type GetAllTransactionResponse = SuccessResponse<TransactionType[]>
 
 export interface AIScanReceiptData {
   title: string
@@ -86,15 +101,16 @@ export interface AIScanReceiptData {
 }
 
 export interface AIScanReceiptResponse {
-  message: string
-  data?: AIScanReceiptData
-  jobId?: string
+  data: {
+    jobId: string
+    receipt?: AIScanReceiptData
+  }
+  meta?: {
+    message?: string
+  }
 }
 
-export interface GetSingleTransactionResponse {
-  message: string
-  transaction: TransactionType
-}
+export type GetSingleTransactionResponse = SuccessResponse<TransactionType>
 
 export interface UpdateTransactionPayload {
   id: string
@@ -116,13 +132,4 @@ export interface BulkImportTransactionPayload {
   transactions: BulkTransactionType[]
 }
 
-export interface GetChildTransactionsResponse {
-  message: string
-  children: TransactionType[]
-  pagination: {
-    totalCount: number
-    pageSize: number
-    pageNumber: number
-    totalPages: number
-  }
-}
+export type GetChildTransactionsResponse = SuccessResponse<TransactionType[]>

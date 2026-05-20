@@ -9,11 +9,6 @@ import { appConfig } from './config/app.config'
 import { errorHandler } from './middlewares/errorHandler.middleware'
 import { passportAuthenticateJwt } from './config/passport.config'
 import { checkBlacklist } from './middlewares/blacklist.middleware'
-import authRoutes from './routes/auth.route'
-import userRoutes from './routes/user.route'
-import transactionRoutes from './routes/transaction.route'
-import reportRoutes from './routes/report.route'
-import analyticsRoutes from './routes/analytics.route'
 import helmet from 'helmet'
 import compression from 'compression'
 import { rateLimiter } from './config/redis.config'
@@ -22,8 +17,17 @@ import { setupBullBoard } from './config/bull/bull-board.config'
 import { logger } from './config/logger.config'
 import { correlationIdMiddleware } from './middlewares/correlationId.middleware'
 import { requestContextMiddleware } from './middlewares/requestContext.middleware'
+import { initSentry } from './config/sentry.config'
+import {
+  healthCheckController,
+  readinessCheckController
+} from './controllers/health.controller'
+import { rateLimitHeadersMiddleware } from './middlewares/rateLimitHeaders.middleware'
+import routes from './routes'
 
 const app = express()
+
+initSentry(app)
 
 // Request context must be set before logging
 app.use(correlationIdMiddleware)
@@ -47,6 +51,10 @@ app.use(cors(appConfig.cors))
 
 app.set('trust proxy', appConfig.trustProxy)
 app.use(rateLimiter)
+app.use(rateLimitHeadersMiddleware)
+
+app.get('/health', healthCheckController)
+app.get('/ready', readinessCheckController)
 
 if (appConfig.features.bullBoard) {
   // Bull Board - Protected in production, open in development
@@ -58,19 +66,7 @@ if (appConfig.features.bullBoard) {
   )
 }
 
-app.use(`${appConfig.basePath}/auth`, authRoutes)
-app.use(`${appConfig.basePath}/user`, passportAuthenticateJwt, userRoutes)
-app.use(
-  `${appConfig.basePath}/transaction`,
-  passportAuthenticateJwt,
-  transactionRoutes
-)
-app.use(`${appConfig.basePath}/report`, passportAuthenticateJwt, reportRoutes)
-app.use(
-  `${appConfig.basePath}/analytics`,
-  passportAuthenticateJwt,
-  analyticsRoutes
-)
+app.use(appConfig.basePath, routes)
 
 app.use(errorHandler)
 

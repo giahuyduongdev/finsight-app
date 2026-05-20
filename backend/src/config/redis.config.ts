@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit'
 import RedisStore, { RedisReply } from 'rate-limit-redis'
 import { redis } from '../databases/redis.database'
 import { isDevelopment } from './app.config'
+import { rateLimitExceededHandler } from '../middlewares/rateLimitHeaders.middleware'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -90,10 +91,7 @@ export const rateLimiter = rateLimit({
   skip: isDevelopment,
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    message: 'Too many requests, please try again later',
-    errorCode: 'RATE_LIMIT_EXCEEDED'
-  },
+  handler: rateLimitExceededHandler,
   store: makeRedisStore('rl:global:')
 })
 
@@ -103,9 +101,6 @@ export const authRateLimiter = rateLimit({
   skip: isDevelopment,
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    message: 'Too many auth attempts, please try again later',
-    errorCode: 'RATE_LIMIT_EXCEEDED'
-  },
+  handler: rateLimitExceededHandler,
   store: makeRedisStore('rl:auth:')
 })

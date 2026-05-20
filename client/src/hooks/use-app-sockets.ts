@@ -80,13 +80,13 @@ export const useAppSockets = () => {
       console.log('🚀 [Sync] Created:', newTx._id)
       updateAllTransactionQueries((draft, args) => {
         if (args.pageNumber === 1 || !args.pageNumber) {
-          if (!draft.transactions.some((t) => t._id === newTx._id)) {
-            draft.transactions.unshift(newTx)
-            if (draft.pagination) draft.pagination.totalCount += 1
+          if (!draft.data.some((t: TransactionType) => t._id === newTx._id)) {
+            draft.data.unshift(newTx)
+            if (draft.meta?.pagination) draft.meta.pagination.totalCount += 1
           }
         } else {
           // For non-first pages, just update the total count
-          if (draft.pagination) draft.pagination.totalCount += 1
+          if (draft.meta?.pagination) draft.meta.pagination.totalCount += 1
         }
       })
       dispatch(apiClient.util.invalidateTags(['analytics']))
@@ -95,17 +95,15 @@ export const useAppSockets = () => {
     socket.on('transaction:updated', (updatedTx: TransactionType) => {
       console.log('🔄 [Sync] Updated:', updatedTx._id)
       updateAllTransactionQueries((draft) => {
-        const index = draft.transactions.findIndex(
-          (t) => t._id === updatedTx._id
-        )
-        if (index !== -1) draft.transactions[index] = updatedTx
+        const index = draft.data.findIndex((t) => t._id === updatedTx._id)
+        if (index !== -1) draft.data[index] = updatedTx
       })
       dispatch(
         transactionApi.util.updateQueryData(
           'getSingleTransaction',
           updatedTx._id,
           (draft) => {
-            draft.transaction = updatedTx
+            draft.data = updatedTx
           }
         )
       )
@@ -115,10 +113,10 @@ export const useAppSockets = () => {
     socket.on('transaction:deleted', ({ _id }: { _id: string }) => {
       console.log('🗑️ [Sync] Deleted:', _id)
       updateAllTransactionQueries((draft) => {
-        const index = draft.transactions.findIndex((t) => t._id === _id)
+        const index = draft.data.findIndex((t) => t._id === _id)
         if (index !== -1) {
-          draft.transactions.splice(index, 1)
-          if (draft.pagination) draft.pagination.totalCount -= 1
+          draft.data.splice(index, 1)
+          if (draft.meta?.pagination) draft.meta.pagination.totalCount -= 1
         }
       })
       dispatch(apiClient.util.invalidateTags(['analytics']))
@@ -127,14 +125,12 @@ export const useAppSockets = () => {
     socket.on('transaction:bulk-deleted', ({ ids }: { ids: string[] }) => {
       console.log('🗑️ [Sync] Bulk Deleted:', ids.length)
       updateAllTransactionQueries((draft) => {
-        draft.transactions = draft.transactions.filter(
-          (t) => !ids.includes(t._id)
-        )
+        draft.data = draft.data.filter((t) => !ids.includes(t._id))
         // Use actual deletion count (ids.length) instead of page-only count
-        if (draft.pagination) {
-          draft.pagination.totalCount = Math.max(
+        if (draft.meta?.pagination) {
+          draft.meta.pagination.totalCount = Math.max(
             0,
-            (draft.pagination.totalCount ?? 0) - ids.length
+            (draft.meta.pagination.totalCount ?? 0) - ids.length
           )
         }
       })

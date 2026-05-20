@@ -10,7 +10,7 @@ export const reportApi = apiClient.injectEndpoints({
       query: (params) => {
         const { pageNumber = 1, pageSize = 20 } = params
         return {
-          url: '/report/all',
+          url: '/reports',
           method: 'GET',
           params: { pageNumber, pageSize }
         }
@@ -20,15 +20,15 @@ export const reportApi = apiClient.injectEndpoints({
 
     updateReportSetting: builder.mutation<void, UpdateReportSettingParams>({
       query: (payload) => ({
-        url: '/report/update-setting',
-        method: 'PUT',
+        url: '/reports/settings',
+        method: 'PATCH',
         body: payload
       }),
       invalidatesTags: ['report']
     }),
     resendReport: builder.mutation<{ message: string }, string>({
       query: (reportId) => ({
-        url: `/report/resend/${reportId}`,
+        url: `/reports/resend/${reportId}`,
         method: 'POST'
       }),
       invalidatesTags: ['report']

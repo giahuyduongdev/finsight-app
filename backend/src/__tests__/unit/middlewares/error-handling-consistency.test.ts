@@ -126,22 +126,24 @@ describe('Error Handling Consistency', () => {
         password: '123'
       })
 
-      // Verify response structure matches existing implementation
-      expect(response.body).toHaveProperty('message')
-      expect(response.body).toHaveProperty('errors')
-      expect(response.body).toHaveProperty('errorCode')
-      expect(response.body).toHaveProperty('requestId')
-      expect(response.body).toHaveProperty('timestamp')
-      expect(response.body).toHaveProperty('path')
-      expect(response.body).toHaveProperty('method')
-      expect(response.body).toHaveProperty('userMessage')
+      // Verify response structure matches new standardized ErrorResponse format
+      expect(response.body).toHaveProperty('error')
+      expect(response.body.error).toHaveProperty('code')
+      expect(response.body.error).toHaveProperty('message')
+      expect(response.body.error).toHaveProperty('userMessage')
+      expect(response.body.error).toHaveProperty('statusCode')
+      expect(response.body.error).toHaveProperty('requestId')
+      expect(response.body.error).toHaveProperty('timestamp')
+      expect(response.body.error).toHaveProperty('path')
+      expect(response.body.error).toHaveProperty('method')
+      expect(response.body.error).toHaveProperty('details')
 
       // Verify specific values
-      expect(response.body.message).toBe('Validation failed')
-      expect(response.body.errorCode).toBe(ErrorCodeEnum.VALIDATION_ERROR)
-      expect(response.body.requestId).toBe('test-correlation-id')
-      expect(response.body.path).toBe('/test')
-      expect(response.body.method).toBe('POST')
+      expect(response.body.error.message).toBe('Validation failed')
+      expect(response.body.error.code).toBe(ErrorCodeEnum.VALIDATION_ERROR)
+      expect(response.body.error.requestId).toBe('test-correlation-id')
+      expect(response.body.error.path).toBe('/test')
+      expect(response.body.error.method).toBe('POST')
     })
 
     it('should include timestamp in ISO format', async () => {
@@ -162,10 +164,10 @@ describe('Error Handling Consistency', () => {
         .post('/test')
         .send({ email: 'invalid' })
 
-      expect(response.body.timestamp).toBeDefined()
-      expect(() => new Date(response.body.timestamp)).not.toThrow()
-      expect(new Date(response.body.timestamp).toISOString()).toBe(
-        response.body.timestamp
+      expect(response.body.error.timestamp).toBeDefined()
+      expect(() => new Date(response.body.error.timestamp)).not.toThrow()
+      expect(new Date(response.body.error.timestamp).toISOString()).toBe(
+        response.body.error.timestamp
       )
     })
 
@@ -187,8 +189,8 @@ describe('Error Handling Consistency', () => {
         .post('/test')
         .send({ email: 'invalid' })
 
-      expect(response.body.userMessage).toBeDefined()
-      expect(typeof response.body.userMessage).toBe('string')
+      expect(response.body.error.userMessage).toBeDefined()
+      expect(typeof response.body.error.userMessage).toBe('string')
     })
   })
 
@@ -214,9 +216,9 @@ describe('Error Handling Consistency', () => {
       })
 
       // Verify ZodError was properly formatted
-      expect(response.body.message).toBe('Validation failed')
-      expect(response.body.errorCode).toBe(ErrorCodeEnum.VALIDATION_ERROR)
-      expect(Array.isArray(response.body.errors)).toBe(true)
+      expect(response.body.error.message).toBe('Validation failed')
+      expect(response.body.error.code).toBe(ErrorCodeEnum.VALIDATION_ERROR)
+      expect(Array.isArray(response.body.error.details)).toBe(true)
     })
 
     it('should handle ZodError with async refinements', async () => {
@@ -245,8 +247,8 @@ describe('Error Handling Consistency', () => {
       })
 
       expect(response.status).toBe(400)
-      expect(response.body.message).toBe('Validation failed')
-      expect(response.body.errors).toBeDefined()
+      expect(response.body.error.message).toBe('Validation failed')
+      expect(response.body.error.details).toBeDefined()
     })
   })
 
@@ -273,12 +275,12 @@ describe('Error Handling Consistency', () => {
         username: 'ab'
       })
 
-      expect(response.body.errors).toBeDefined()
-      expect(Array.isArray(response.body.errors)).toBe(true)
-      expect(response.body.errors.length).toBeGreaterThan(0)
+      expect(response.body.error.details).toBeDefined()
+      expect(Array.isArray(response.body.error.details)).toBe(true)
+      expect(response.body.error.details.length).toBeGreaterThan(0)
 
       // Verify each error has field and message
-      response.body.errors.forEach((error: ValidationError) => {
+      response.body.error.details.forEach((error: ValidationError) => {
         expect(error).toHaveProperty('field')
         expect(error).toHaveProperty('message')
         expect(typeof error.field).toBe('string')
@@ -308,17 +310,17 @@ describe('Error Handling Consistency', () => {
         age: 15
       })
 
-      expect(response.body.errors).toBeDefined()
-      expect(response.body.errors.length).toBe(3)
+      expect(response.body.error.details).toBeDefined()
+      expect(response.body.error.details.length).toBe(3)
 
       // Find specific field errors
-      const emailError = response.body.errors.find(
+      const emailError = response.body.error.details.find(
         (e: ValidationError) => e.field === 'email'
       )
-      const passwordError = response.body.errors.find(
+      const passwordError = response.body.error.details.find(
         (e: ValidationError) => e.field === 'password'
       )
-      const ageError = response.body.errors.find(
+      const ageError = response.body.error.details.find(
         (e: ValidationError) => e.field === 'age'
       )
 
@@ -362,10 +364,10 @@ describe('Error Handling Consistency', () => {
           }
         })
 
-      expect(response.body.errors).toBeDefined()
-      expect(response.body.errors.length).toBeGreaterThan(0)
+      expect(response.body.error.details).toBeDefined()
+      expect(response.body.error.details.length).toBeGreaterThan(0)
 
-      const emailError = response.body.errors.find(
+      const emailError = response.body.error.details.find(
         (e: ValidationError) => e.field === 'user.profile.email'
       )
       expect(emailError).toBeDefined()
@@ -394,11 +396,11 @@ describe('Error Handling Consistency', () => {
         password: 'abc'
       })
 
-      expect(response.body.errors).toBeDefined()
-      expect(response.body.errors.length).toBeGreaterThan(0)
+      expect(response.body.error.details).toBeDefined()
+      expect(response.body.error.details.length).toBeGreaterThan(0)
 
       // Should have at least one error for password field
-      const passwordErrors = response.body.errors.filter(
+      const passwordErrors = response.body.error.details.filter(
         (e: ValidationError) => e.field === 'password'
       )
       expect(passwordErrors.length).toBeGreaterThan(0)
@@ -425,10 +427,12 @@ describe('Error Handling Consistency', () => {
       const response = await request(app).post('/test').send({})
 
       expect(response.status).toBe(400)
-      expect(response.body.errors).toBeDefined()
-      expect(response.body.errors.length).toBe(3)
+      expect(response.body.error.details).toBeDefined()
+      expect(response.body.error.details.length).toBe(3)
 
-      const fields = response.body.errors.map((e: ValidationError) => e.field)
+      const fields = response.body.error.details.map(
+        (e: ValidationError) => e.field
+      )
       expect(fields).toContain('email')
       expect(fields).toContain('password')
       expect(fields).toContain('username')
@@ -436,7 +440,7 @@ describe('Error Handling Consistency', () => {
   })
 
   describe('Backward Compatibility', () => {
-    it('should maintain same error format as previous implementation', async () => {
+    it('should use new standardized ErrorResponse format', async () => {
       const schema = z.object({
         email: z.string().email()
       })
@@ -454,24 +458,29 @@ describe('Error Handling Consistency', () => {
         .post('/test')
         .send({ email: 'invalid' })
 
-      // Verify exact structure matches existing implementation
-      const expectedKeys = [
+      // Verify new standardized format with error wrapper
+      expect(response.body).toHaveProperty('error')
+      expect(Object.keys(response.body)).toEqual(['error'])
+
+      // Verify error object structure
+      const expectedErrorKeys = [
+        'code',
         'message',
-        'errors',
-        'errorCode',
+        'userMessage',
+        'statusCode',
         'requestId',
         'timestamp',
         'path',
         'method',
-        'userMessage'
+        'details'
       ]
 
-      const actualKeys = Object.keys(response.body).sort()
-      expect(actualKeys).toEqual(expectedKeys.sort())
+      const actualErrorKeys = Object.keys(response.body.error).sort()
+      expect(actualErrorKeys).toEqual(expectedErrorKeys.sort())
 
-      // Verify error array structure
-      expect(Array.isArray(response.body.errors)).toBe(true)
-      response.body.errors.forEach((error: ValidationError) => {
+      // Verify details array structure
+      expect(Array.isArray(response.body.error.details)).toBe(true)
+      response.body.error.details.forEach((error: ValidationError) => {
         expect(Object.keys(error).sort()).toEqual(['field', 'message'].sort())
       })
     })

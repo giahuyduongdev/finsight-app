@@ -11,6 +11,7 @@ import {
 } from '../types/repository.type'
 import { getDateRange } from '../utils/dates/index'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
+import { normalizeSearchKeyword } from '../utils/query-parser.util'
 
 /**
  * Transaction Repository Implementation
@@ -297,10 +298,11 @@ export class TransactionRepository implements ITransactionRepository {
     }
 
     // Keyword search on title and category
-    if (filters.keyword) {
+    const keyword = normalizeSearchKeyword(filters.keyword)
+    if (keyword) {
       conditions.$or = [
-        { title: { $regex: filters.keyword, $options: 'i' } },
-        { category: { $regex: filters.keyword, $options: 'i' } }
+        { title: { $regex: keyword, $options: 'i' } },
+        { category: { $regex: keyword, $options: 'i' } }
       ]
     }
 

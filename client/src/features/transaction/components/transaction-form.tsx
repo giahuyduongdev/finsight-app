@@ -132,7 +132,7 @@ const TransactionForm = (props: {
     transactionId || '',
     { skip: !transactionId }
   )
-  const editData = data?.transaction
+  const editData = data?.data
 
   // Kiểm tra xem đây có phải là giao dịch con không (dựa vào DB)
   const isChildTransaction = !!editData?.recurringSourceId

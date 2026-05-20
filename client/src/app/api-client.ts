@@ -8,8 +8,19 @@ import {
 import { RootState } from './store'
 import { logout, updateCredentials } from '@/features/auth/authSlice'
 
+const API_VERSION = '/v1'
+
+export const getApiBaseUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL
+
+  if (!apiUrl) return apiUrl
+  if (apiUrl.endsWith(API_VERSION)) return apiUrl
+
+  return `${apiUrl.replace(/\/$/, '')}${API_VERSION}`
+}
+
 const baseQuery = fetchBaseQuery({
-  baseUrl: import.meta.env.VITE_API_URL,
+  baseUrl: getApiBaseUrl(),
   credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
     const auth = (getState() as RootState).auth
@@ -70,7 +81,14 @@ const baseQueryWithReauth: BaseQueryFn<
         'data' in refreshResult &&
         refreshResult.data
       ) {
-        const { accessToken, expiresAt } = refreshResult.data as {
+        const refreshData =
+          typeof refreshResult.data === 'object' &&
+          refreshResult.data &&
+          'data' in refreshResult.data
+            ? (refreshResult.data as { data: unknown }).data
+            : refreshResult.data
+
+        const { accessToken, expiresAt } = refreshData as {
           accessToken: string
           expiresAt: number
         }

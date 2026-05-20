@@ -19,10 +19,10 @@ import {
   changeEmailRequestController,
   verifyChangeEmailOTPController,
   resendChangeEmailOTPController
-} from '../controllers/auth.controller'
-import { passportAuthenticateJwt } from '../config/passport.config'
-import { authRateLimiter } from '../config/redis.config'
-import { validate } from '../middlewares/validate.middleware'
+} from '../../controllers/auth.controller'
+import { passportAuthenticateJwt } from '../../config/passport.config'
+import { authRateLimiter } from '../../config/redis.config'
+import { validate } from '../../middlewares/validate.middleware'
 import {
   registerSchema,
   loginSchema,
@@ -36,7 +36,7 @@ import {
   changeEmailRequestSchema,
   verifyChangeEmailOTPSchema,
   refreshTokenSchema
-} from '../validators/auth.validator'
+} from '../../validators/auth.validator'
 
 const authRoutes = Router()
 
@@ -46,8 +46,6 @@ authRoutes.post(
   validate(loginSchema, 'body'),
   loginController
 )
-
-// authRoutes.post('/register', registerController)
 authRoutes.post(
   '/register',
   authRateLimiter,
@@ -66,7 +64,6 @@ authRoutes.post(
   validate(resendOTPSchema, 'body'),
   resendRegisterOTPController
 )
-
 authRoutes.post(
   '/password/forgot',
   authRateLimiter,
@@ -132,7 +129,6 @@ authRoutes.post(
   resendChangeEmailOTPController
 )
 
-// Conditional validation: only validate body if cookie is absent
 const validateRefreshTokenIfNeeded = (
   req: Request,
   res: Response,
@@ -149,10 +145,7 @@ authRoutes.post(
 )
 authRoutes.post('/logout', logoutController)
 authRoutes.post('/logout-all', passportAuthenticateJwt, logoutAllController)
-
-// Redirect sang Auth0
 authRoutes.get('/oauth/:provider', authRateLimiter, oauthRedirectController)
-//Auth0 callback về đây
 authRoutes.get('/callback', authRateLimiter, oauthCallbackController)
 
 export default authRoutes

@@ -4,7 +4,7 @@ import {
   chartAnalyticsController,
   expensePieChartBreakdownController,
   getExchangeRatesController
-} from '../controllers/analytics.controller'
+} from '../../controllers/analytics.controller'
 
 const analyticsRoutes = Router()
 

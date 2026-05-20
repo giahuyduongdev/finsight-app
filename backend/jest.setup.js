@@ -26,12 +26,13 @@ process.env.CLOUDINARY_API_SECRET = 'test-api-secret'
 
 // Resend
 process.env.RESEND_API_KEY = 'test-resend-api-key'
+process.env.SENTRY_DSN = ''
 
 // Auth0
 process.env.AUTH0_DOMAIN = 'test.auth0.com'
 process.env.AUTH0_CLIENT_ID = 'test-client-id'
 process.env.AUTH0_CLIENT_SECRET = 'test-client-secret'
-process.env.AUTH0_CALLBACK_URL = 'http://localhost:8000/api/auth/callback'
+process.env.AUTH0_CALLBACK_URL = 'http://localhost:8000/api/v1/auth/callback'
 
 // Upstash Redis
 process.env.UPSTASH_REDIS_URL = 'redis://localhost:6379'

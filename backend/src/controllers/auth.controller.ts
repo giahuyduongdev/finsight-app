@@ -27,22 +27,26 @@ import ms from 'ms'
 import { UnauthorizedException } from '../utils/errors/index'
 import {
   sanitizeUser,
-  toOTPResponse,
   toTokenRefreshResponse,
   toAuthSuccessResponse
 } from '../dtos'
 import { logger } from '../config/logger.config'
 import { getUserId } from '../utils/getUserId.util'
 import crypto from 'crypto'
+import { ResponseFormatter } from '../utils/responseFormatter.util'
+
+const messageOnlyResponse = (message: string) =>
+  ResponseFormatter.success(null, { message })
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await registerService(body)
-    return res.status(HTTPSTATUS.CREATED).json({
-      message: 'User registered successfully',
-      data: result
-    })
+    return res.status(HTTPSTATUS.CREATED).json(
+      ResponseFormatter.success(result, {
+        message: 'User registered successfully'
+      })
+    )
   }
 )
 
@@ -50,7 +54,9 @@ export const registerOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await registerOTPService(body)
-    return res.status(HTTPSTATUS.ACCEPTED).json(toOTPResponse(result.message))
+    return res
+      .status(HTTPSTATUS.ACCEPTED)
+      .json(messageOnlyResponse(result.message))
   }
 )
 
@@ -58,7 +64,10 @@ export const verifyRegisterOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await verifyRegisterOTPService(body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    const { message, ...data } = result
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(ResponseFormatter.success(data, { message }))
   }
 )
 
@@ -66,7 +75,7 @@ export const resendRegisterOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await resendRegisterVerifyOTPService(body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -74,7 +83,9 @@ export const forgotPasswordController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await forgotPasswordService(body)
-    return res.status(HTTPSTATUS.ACCEPTED).json(toOTPResponse(result.message))
+    return res
+      .status(HTTPSTATUS.ACCEPTED)
+      .json(messageOnlyResponse(result.message))
   }
 )
 
@@ -82,7 +93,10 @@ export const verifyForgotPasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await verifyForgotPasswordOTPService(body)
-    return res.status(HTTPSTATUS.CREATED).json(result)
+    const { message, ...data } = result
+    return res
+      .status(HTTPSTATUS.CREATED)
+      .json(ResponseFormatter.success(data, { message }))
   }
 )
 
@@ -90,7 +104,7 @@ export const resendForgotPasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await resendForgotPasswordOTPService(body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -100,7 +114,7 @@ export const resetPasswordController = asyncHandler(
 
     const result = await resetPasswordService(body)
 
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -120,14 +134,17 @@ export const loginController = asyncHandler(
       domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
-    return res.status(HTTPSTATUS.OK).json(
-      toAuthSuccessResponse({
-        user: sanitizeUser(user),
-        accessToken,
-        expiresAt,
-        reportSetting
-      })
-    )
+    const response = toAuthSuccessResponse({
+      user: sanitizeUser(user),
+      accessToken,
+      expiresAt,
+      reportSetting
+    })
+    const { message, ...data } = response
+
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(ResponseFormatter.success(data, { message }))
   }
 )
 
@@ -137,7 +154,12 @@ export const refreshTokenController = asyncHandler(
 
     const result = await refreshTokenService(refreshToken)
 
-    return res.status(HTTPSTATUS.OK).json(toTokenRefreshResponse(result))
+    const response = toTokenRefreshResponse(result)
+    const { message, ...data } = response
+
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(ResponseFormatter.success(data, { message }))
   }
 )
 
@@ -160,7 +182,7 @@ export const logoutController = asyncHandler(
 
     return res
       .status(HTTPSTATUS.OK)
-      .json(toOTPResponse('Logged out successfully'))
+      .json(messageOnlyResponse('Logged out successfully'))
   }
 )
 
@@ -183,7 +205,7 @@ export const logoutAllController = asyncHandler(
 
     return res
       .status(HTTPSTATUS.OK)
-      .json(toOTPResponse('Logged out from all devices successfully'))
+      .json(messageOnlyResponse('Logged out from all devices successfully'))
   }
 )
 
@@ -289,15 +311,7 @@ export const oauthCallbackController = asyncHandler(
       domain: Env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
-    // 6. Build URL Redirect dùng URLSearchParams cho an toàn
-    const queryParams = new URLSearchParams({
-      accessToken: result.accessToken,
-      expiresAt: result.expiresAt?.toString() || ''
-    })
-
-    res.redirect(
-      `${Env.FRONTEND_ORIGIN}/oauth-callback?${queryParams.toString()}`
-    )
+    res.redirect(`${Env.FRONTEND_ORIGIN}/oauth-callback`)
   }
 )
 
@@ -306,7 +320,7 @@ export const changePasswordRequestController = asyncHandler(
     const userId = getUserId(req)
     const body = req.body
     const result = await changePasswordRequestService(userId, body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -315,7 +329,7 @@ export const verifyChangePasswordOTPController = asyncHandler(
     const userId = getUserId(req)
     const body = req.body
     const result = await verifyChangePasswordOTPService(userId, body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -323,7 +337,7 @@ export const resendChangePasswordOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
     const result = await resendChangePasswordOTPService(userId)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -332,7 +346,7 @@ export const changeEmailRequestController = asyncHandler(
     const userId = getUserId(req)
     const body = req.body
     const result = await changeEmailRequestService(userId, body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -341,7 +355,7 @@ export const verifyChangeEmailOTPController = asyncHandler(
     const userId = getUserId(req)
     const body = req.body
     const result = await verifyChangeEmailOTPService(userId, body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )
 
@@ -349,6 +363,6 @@ export const resendChangeEmailOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
     const result = await resendChangeEmailOTPService(userId)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
   }
 )

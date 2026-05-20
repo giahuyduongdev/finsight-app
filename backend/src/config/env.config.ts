@@ -17,11 +17,11 @@ const envConfig = () => ({
   MONGO_MAX_POOL_SIZE_PER_CORE: getEnv('MONGO_MAX_POOL_SIZE_PER_CORE', '5'),
   MEMORY_THRESHOLD_MB: getEnv('MEMORY_THRESHOLD_MB', '500'),
 
-  JWT_SECRET: getEnv('JWT_SECRET', 'secert_jwt'),
+  JWT_SECRET: getEnv('JWT_SECRET'),
   JWT_EXPIRES_IN: getEnv('JWT_EXPIRES_IN', '15m') as string,
   JWT_ISSUER: getEnv('JWT_ISSUER', 'finsight-api'),
 
-  JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET', 'secert_jwt_refresh'),
+  JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET'),
   JWT_REFRESH_EXPIRES_IN: getEnv('JWT_REFRESH_EXPIRES_IN', '7d') as string,
 
   GEMINI_API_KEY: getEnv('GEMINI_API_KEY'),
@@ -33,6 +33,8 @@ const envConfig = () => ({
   RESEND_API_KEY: getEnv('RESEND_API_KEY'),
   RESEND_MAILER_SENDER: getEnv('RESEND_MAILER_SENDER', ''),
 
+  SENTRY_DSN: getEnv('SENTRY_DSN', ''),
+
   REDIS_URL: getEnv('REDIS_URL', 'redis://localhost:6379'),
   UPSTASH_REDIS_URL: getEnv('UPSTASH_REDIS_URL'),
 
@@ -41,10 +43,11 @@ const envConfig = () => ({
   AUTH0_CLIENT_SECRET: getEnv('AUTH0_CLIENT_SECRET'),
   AUTH0_CALLBACK_URL: getEnv('AUTH0_CALLBACK_URL'),
 
-  EXCHANGE_RATE_API_URL: getEnv(
-    'EXCHANGE_RATE_API_URL',
-    ' https://v6.exchangerate-api.com/v6/5b0010792044552642b6b98b'
+  EXCHANGE_RATE_PRIMARY_API_URL: getEnv(
+    'EXCHANGE_RATE_PRIMARY_API_URL',
+    'https://api.exchangerate-api.com/v4/latest'
   ),
+  EXCHANGE_RATE_FALLBACK_API_URL: getEnv('EXCHANGE_RATE_FALLBACK_API_URL', ''),
 
   FRONTEND_ORIGIN: getEnv('FRONTEND_ORIGIN', 'localhost')
 })

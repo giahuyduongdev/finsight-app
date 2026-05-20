@@ -73,5 +73,11 @@ jobs:
       - name: Run Type Check
         run: npm run type-check
 
+      - name: Run Unit Tests
+        run: npm run test:unit
+
+      - name: Run Integration Tests
+        run: npm run test:integration
+
       - name: Test Build
         run: npm run build

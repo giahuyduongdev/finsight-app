@@ -1,6 +1,26 @@
 import { apiClient } from '@/app/api-client'
 import { GetCurrentUserResponse } from '@/@types/user.type'
 
+type ApiSuccessResponse<T> = {
+  data: T
+  meta?: {
+    message?: string
+  }
+}
+
+type AuthCredentials = {
+  accessToken: string
+  expiresAt: number
+  user: unknown
+  reportSetting?: unknown
+  timezone?: string
+}
+
+type RefreshCredentials = {
+  accessToken: string
+  expiresAt: number
+}
+
 export const authApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
     // ─── Login / Logout ───────────────────────────────────────────────────────
@@ -9,7 +29,9 @@ export const authApi = apiClient.injectEndpoints({
         url: '/auth/login',
         method: 'POST',
         body: credentials
-      })
+      }),
+      transformResponse: (response: ApiSuccessResponse<AuthCredentials>) =>
+        response.data
     }),
 
     logout: builder.mutation({
@@ -23,16 +45,20 @@ export const authApi = apiClient.injectEndpoints({
       query: () => ({
         url: '/auth/refresh-token',
         method: 'POST'
-      })
+      }),
+      transformResponse: (response: ApiSuccessResponse<RefreshCredentials>) =>
+        response.data
     }),
 
     getMe: builder.query({
       query: (token?: string) => ({
-        url: '/user/current-user',
+        url: '/users/me',
         method: 'GET',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       }),
-      transformResponse: (response: GetCurrentUserResponse) => response.user
+      transformResponse: (
+        response: GetCurrentUserResponse | ApiSuccessResponse<unknown>
+      ) => ('data' in response ? response.data : response.user)
     }),
 
     // ─── Đăng ký với OTP ─────────────────────────────────────────────────────
