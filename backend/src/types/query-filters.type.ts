@@ -65,7 +65,7 @@ export interface DateRangeQuery {
  * @example
  * From query string:
  * ```typescript
- * // GET /api/transactions?pageSize=20&pageNumber=2
+ * // GET /api/v1/transactions?pageSize=20&pageNumber=2
  * const query: PaginationQuery = {
  *   pageSize: '20',
  *   pageNumber: '2'

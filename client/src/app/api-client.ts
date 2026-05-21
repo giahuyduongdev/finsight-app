@@ -8,8 +8,41 @@ import {
 import { RootState } from './store'
 import { logout, updateCredentials } from '@/features/auth/authSlice'
 
+const API_VERSION = '/v1'
+
+export const getApiBaseUrl = (options?: { allowLocalFallback?: boolean }) => {
+  const allowLocalFallback = options?.allowLocalFallback ?? import.meta.env.DEV
+  const configuredApiUrl = import.meta.env.VITE_API_URL
+  if (!configuredApiUrl && !allowLocalFallback) return undefined
+
+  const apiUrl = (configuredApiUrl || 'http://localhost:8000/api').replace(
+    /\/+$/,
+    ''
+  )
+
+  if (apiUrl.endsWith(API_VERSION)) return apiUrl
+
+  return `${apiUrl}${API_VERSION}`
+}
+
+const resolvedBaseUrl = getApiBaseUrl()
+
+if (!resolvedBaseUrl) {
+  throw new Error('VITE_API_URL is required in non-development environments.')
+}
+
+const isRefreshPayload = (
+  value: unknown
+): value is { accessToken: string; expiresAt: number } =>
+  typeof value === 'object' &&
+  value !== null &&
+  'accessToken' in value &&
+  'expiresAt' in value &&
+  typeof value.accessToken === 'string' &&
+  typeof value.expiresAt === 'number'
+
 const baseQuery = fetchBaseQuery({
-  baseUrl: import.meta.env.VITE_API_URL,
+  baseUrl: resolvedBaseUrl,
   credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
     const auth = (getState() as RootState).auth
@@ -70,10 +103,19 @@ const baseQueryWithReauth: BaseQueryFn<
         'data' in refreshResult &&
         refreshResult.data
       ) {
-        const { accessToken, expiresAt } = refreshResult.data as {
-          accessToken: string
-          expiresAt: number
+        const refreshData =
+          typeof refreshResult.data === 'object' &&
+          refreshResult.data &&
+          'data' in refreshResult.data
+            ? (refreshResult.data as { data: unknown }).data
+            : refreshResult.data
+
+        if (!isRefreshPayload(refreshData)) {
+          api.dispatch(logout())
+          return result
         }
+
+        const { accessToken, expiresAt } = refreshData
         api.dispatch(updateCredentials({ accessToken, expiresAt }))
 
         // GỬI LẠI request gốc

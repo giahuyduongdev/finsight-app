@@ -10,16 +10,16 @@ import {
   bulkTransactionController,
   scanReceiptController,
   getChildTransactionsController
-} from '../controllers/transaction.controller'
-import { uploadMemory } from '../config/cloudinary.config'
-import { validate } from '../middlewares/validate.middleware'
+} from '../../controllers/transaction.controller'
+import { uploadMemory } from '../../config/cloudinary.config'
+import { validate } from '../../middlewares/validate.middleware'
 import {
   createTransactionSchema,
   updateTransactionSchema,
   transactionIdSchema,
   bulkDeleteTransactionSchema,
   bulkTransactionSchema
-} from '../validators/transaction.validator'
+} from '../../validators/transaction.validator'
 
 const transactionRoutes = Router()
 
@@ -28,19 +28,16 @@ transactionRoutes.post(
   validate(createTransactionSchema, 'body'),
   createTransactionController
 )
-
 transactionRoutes.post(
   '/scan-receipt',
   uploadMemory.single('receipt'),
   scanReceiptController
 )
-
 transactionRoutes.post(
   '/bulk',
   validate(bulkTransactionSchema, 'body'),
   bulkTransactionController
 )
-
 transactionRoutes.post(
   '/:id/duplicate',
   validate(transactionIdSchema, 'params'),
@@ -52,7 +49,6 @@ transactionRoutes.put(
   validate(updateTransactionSchema, 'body'),
   updateTransactionController
 )
-
 transactionRoutes.get('/all', getAllTransactionController)
 transactionRoutes.get(
   '/:id/children',

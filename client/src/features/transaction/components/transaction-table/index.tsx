@@ -99,14 +99,11 @@ const TransactionTable = (props: {
     timezone
   })
 
-  const transactions = useMemo(
-    () => data?.transactions || [],
-    [data?.transactions]
-  )
+  const transactions = useMemo(() => data?.data || [], [data?.data])
 
   const pagination = {
-    totalItems: data?.pagination?.totalCount || 0,
-    totalPages: data?.pagination?.totalPages || 0,
+    totalItems: data?.meta?.pagination?.totalCount || 0,
+    totalPages: data?.meta?.pagination?.totalPages || 0,
     pageNumber: filter.pageNumber,
     pageSize: filter.pageSize
   }
@@ -163,9 +160,9 @@ const TransactionTable = (props: {
       if (loadingParentsRef.current.has(parentId)) return
 
       const cached = childrenMap[parentId]
-      if (!cached || !cached.pagination) return
+      if (!cached?.meta?.pagination) return
 
-      const { pageNumber, totalPages } = cached.pagination
+      const { pageNumber, totalPages } = cached.meta.pagination
       if (pageNumber >= totalPages) return
 
       loadingParentsRef.current.add(parentId)
@@ -187,7 +184,7 @@ const TransactionTable = (props: {
             ...prev,
             [parentId]: {
               ...result,
-              children: [...oldCache.children, ...result.children]
+              data: [...oldCache.data, ...result.data]
             }
           }
         })
@@ -231,7 +228,7 @@ const TransactionTable = (props: {
           } as DisplayTransaction)
         }
 
-        const sortedChildren = [...cached.children].sort((a, b) => {
+        const sortedChildren = [...cached.data].sort((a, b) => {
           return new Date(b.date).getTime() - new Date(a.date).getTime()
         })
 
@@ -243,15 +240,15 @@ const TransactionTable = (props: {
         }
 
         if (
-          cached.pagination &&
-          cached.children.length < cached.pagination.totalCount
+          cached.meta?.pagination &&
+          cached.data.length < cached.meta.pagination.totalCount
         ) {
           parentTx.subRows.push({
             ...tx,
             _id: `load-more-${tx._id}`,
             parentId: tx._id, // Add parentId used in handleLoadMore
             _rowType: 'load-more',
-            title: `Load more (${cached.pagination.totalCount - cached.children.length} remaining)`
+            title: `Load more (${cached.meta.pagination.totalCount - cached.data.length} remaining)`
           } as DisplayTransaction)
         }
       }
@@ -381,8 +378,7 @@ const TransactionTable = (props: {
           // Chỉ fetch lại nếu dòng cha đó vẫn nằm trong danh sách đang hiển thị
           if (transactions.some((tx) => tx._id === id)) {
             // Lấy số lượng đã load hiện tại để refresh đúng bấy nhiêu
-            const currentCount =
-              childrenMapRef.current[id]?.children?.length || 10
+            const currentCount = childrenMapRef.current[id]?.data?.length || 10
 
             // Backend giới hạn 50, nếu xem nhiều hơn thì phải fetch nhiều trang
             const CHUNK_SIZE = 50
@@ -399,18 +395,26 @@ const TransactionTable = (props: {
             )
               .then((results) => {
                 const mergedChildren = results
-                  .flatMap((r) => r.children)
+                  .flatMap((r) => r.data)
                   .slice(0, currentCount)
                 const latest = results[results.length - 1]
                 setChildrenMap((prev: ChildrenMapType) => ({
                   ...prev,
                   [id]: {
                     ...latest,
-                    children: mergedChildren,
-                    pagination: {
-                      ...latest.pagination,
-                      pageNumber: Math.ceil(mergedChildren.length / 10), // Reset to match 10-item pages
-                      pageSize: 10
+                    data: mergedChildren,
+                    meta: {
+                      ...latest.meta,
+                      pagination: latest.meta?.pagination
+                        ? {
+                            ...latest.meta.pagination,
+                            pageNumber: Math.ceil(mergedChildren.length / 10),
+                            pageSize: 10,
+                            totalPages: Math.ceil(
+                              latest.meta.pagination.totalCount / 10
+                            )
+                          }
+                        : childrenMapRef.current[id]?.meta?.pagination
                     }
                   }
                 }))
@@ -430,7 +434,7 @@ const TransactionTable = (props: {
 
   useEffect(() => {
     if (!isFetching && data) {
-      const totalPages = data.pagination?.totalPages || 0
+      const totalPages = data.meta?.pagination?.totalPages || 0
       const currentPage = filter.pageNumber || 1
       if (currentPage < totalPages) {
         prefetchTransactions({

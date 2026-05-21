@@ -22,6 +22,7 @@ import {
   useVerifyRegisterOTPMutation,
   useResendRegisterOTPMutation
 } from '@/features/auth/authAPI'
+import { getApiBaseUrl } from '@/app/api-client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,11 @@ type OtpValues = z.infer<typeof otpSchema>
 
 const handleOAuth = (provider: 'github' | 'google') => {
   const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  const backendUrl = getApiBaseUrl({ allowLocalFallback: import.meta.env.DEV })
+  if (!backendUrl) {
+    toast.error('OAuth is temporarily unavailable. Please try again later.')
+    return
+  }
   window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
 }
 

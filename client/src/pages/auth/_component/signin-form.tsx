@@ -21,6 +21,7 @@ import { useAppDispatch } from '@/app/hook'
 import { useLoginMutation } from '@/features/auth/authAPI'
 import { setCredentials } from '@/features/auth/authSlice'
 import { TIMEZONE_ALIAS_MAPPING } from '@/constant'
+import { getApiBaseUrl } from '@/app/api-client'
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
@@ -46,8 +47,14 @@ const SignInForm = ({
 
   const handleOAuth = (provider: 'github' | 'google') => {
     const currentTz = getInitialTimezone()
-    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-    window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${currentTz}`
+    const backendUrl = getApiBaseUrl({
+      allowLocalFallback: import.meta.env.DEV
+    })
+    if (!backendUrl) {
+      toast.error('OAuth is temporarily unavailable. Please try again later.')
+      return
+    }
+    window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
   }
 
   // const isLoading = false

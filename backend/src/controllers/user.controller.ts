@@ -4,6 +4,8 @@ import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { container } from '../container'
 import { sanitizeUser } from '../dtos/user.dto'
 import { getUserId } from '../utils/getUserId.util'
+import { ResponseFormatter } from '../utils/responseFormatter.util'
+import { NotFoundException } from '../utils/errors'
 
 // Get UserService instance from DI container
 const userService = container.getUserService()
@@ -15,15 +17,14 @@ export const getCurrentUserController = asyncHandler(
     const user = await userService.findById(userId)
 
     if (!user) {
-      return res
-        .status(HTTPSTATUS.NOT_FOUND)
-        .json({ message: 'User not found' })
+      throw new NotFoundException('User not found')
     }
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'User fetched successfully',
-      user: sanitizeUser(user)
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(sanitizeUser(user), {
+        message: 'User fetched successfully'
+      })
+    )
   }
 )
 
@@ -35,10 +36,11 @@ export const updateUserController = asyncHandler(
 
     const user = await userService.update(userId, body, profilePic)
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'User profile updated successfully',
-      data: sanitizeUser(user)
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(sanitizeUser(user), {
+        message: 'User profile updated successfully'
+      })
+    )
   }
 )
 
@@ -47,6 +49,8 @@ export const changeUserPasswordController = asyncHandler(
     const body = req.body
     const userId = getUserId(req)
     const result = await userService.changePassword(userId, body)
-    return res.status(HTTPSTATUS.OK).json(result)
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(ResponseFormatter.success(null, { message: result.message }))
   }
 )

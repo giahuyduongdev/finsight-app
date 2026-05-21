@@ -18,6 +18,7 @@ export type ProcessReportJobData = {
   preferredCurrency?: string
   frequency: keyof typeof ReportFrequencyEnum
   dueDate: string
+  correlationId?: string
 }
 
 // ─── Queue ────────────────────────────────────────────────────────────────────

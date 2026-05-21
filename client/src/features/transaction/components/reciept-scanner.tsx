@@ -203,8 +203,12 @@ const ReceiptScanner = ({
     aiScanReceipt(formData)
       .unwrap()
       .then((res) => {
-        if (res.jobId) {
-          pendingJobIdRef.current = res.jobId
+        if (res.data?.receipt) {
+          onScanComplete(res.data.receipt)
+          toast.success('Receipt scanned successfully')
+          completeSuccess()
+        } else if (res.data?.jobId) {
+          pendingJobIdRef.current = res.data.jobId
           toast.info('Receipt is being processed in background')
 
           // [CodeRabbit] Safety Timeout: Fallback if socket event never arrives
@@ -215,11 +219,9 @@ const ReceiptScanner = ({
             )
             resetState()
           }, 60000) // 60 seconds
-        } else if (res.data) {
-          // Sync mode fallback: Populate immediately
-          onScanComplete(res.data)
-          toast.success('Receipt scanned successfully')
-          completeSuccess()
+        } else {
+          toast.error('Unexpected scan response')
+          resetState()
         }
       })
       .catch((error) => {

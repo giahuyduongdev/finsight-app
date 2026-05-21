@@ -5,8 +5,8 @@ export const userApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
     updateUser: builder.mutation<UpdateUserResponse, FormData>({
       query: (formData) => ({
-        url: '/user/update-user',
-        method: 'PUT',
+        url: '/users/me',
+        method: 'PATCH',
         body: formData
       }),
       invalidatesTags: ['analytics', 'user']

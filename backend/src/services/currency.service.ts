@@ -1,10 +1,10 @@
-import axios from 'axios'
 import { redis } from '../config/redis.config'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 import { CurrencyEnum } from '../enums/currency.enum'
 import { BadRequestException, InternalServerException } from '../utils/errors'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
+import { fetchExchangeRatesWithFallback } from '../lib/exchange-rate-currency'
 
 const CACHE_KEY_PREFIX = 'rate:'
 const BROADCAST_EVENT = 'currency:rates_updated'
@@ -20,12 +20,7 @@ export class CurrencyService {
 
       // Lấy VND làm gốc để dễ tính toán cho người dùng VN
       const baseCurrency = CurrencyEnum.VND
-      const response = await axios.get(
-        `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`,
-        {
-          timeout: 10000 // 10 second timeout
-        }
-      )
+      const response = await fetchExchangeRatesWithFallback(baseCurrency)
 
       const rates = response.data.rates
       if (!rates) {

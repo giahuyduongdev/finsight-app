@@ -1,5 +1,6 @@
 import { Env } from '../config/env.config'
 import { resend } from '../config/resend.config'
+import { resendCircuitBreaker } from '../utils/circuitBreaker.util'
 
 type Params = {
   to: string | string[]
@@ -18,11 +19,15 @@ export const sendEmail = async ({
   text,
   html
 }: Params) => {
-  return await resend.emails.send({
-    from,
-    to: Array.isArray(to) ? to : [to],
-    text,
-    subject,
-    html
-  })
+  return await resendCircuitBreaker.execute(
+    () =>
+      resend.emails.send({
+        from,
+        to: Array.isArray(to) ? to : [to],
+        text,
+        subject,
+        html
+      }),
+    'Resend Email'
+  )
 }

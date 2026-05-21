@@ -3,19 +3,19 @@ import {
   changeUserPasswordController,
   getCurrentUserController,
   updateUserController
-} from '../controllers/user.controller'
-import { upload } from '../config/cloudinary.config'
-import { validate } from '../middlewares/validate.middleware'
+} from '../../controllers/user.controller'
+import { upload } from '../../config/cloudinary.config'
+import { validate } from '../../middlewares/validate.middleware'
 import {
   updateUserSchema,
   changePasswordSchema
-} from '../validators/user.validator'
+} from '../../validators/user.validator'
 
 const userRoutes = Router()
 
-userRoutes.get('/current-user', getCurrentUserController)
-userRoutes.put(
-  '/update-user',
+userRoutes.get('/me', getCurrentUserController)
+userRoutes.patch(
+  '/me',
   upload.single('profilePicture'),
   validate(updateUserSchema, 'body'),
   updateUserController

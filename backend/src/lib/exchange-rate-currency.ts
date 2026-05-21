@@ -2,6 +2,36 @@ import axios from 'axios'
 import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
 import { logger } from '../config/logger.config'
+import { Env } from '../config/env.config'
+
+const buildRateUrl = (baseUrl: string, currency: CurrencyType | string) =>
+  `${baseUrl.replace(/\/$/, '')}/${currency}`
+
+export const fetchExchangeRatesWithFallback = async (
+  currency: CurrencyType | string
+) => {
+  try {
+    return await axios.get(
+      buildRateUrl(Env.EXCHANGE_RATE_PRIMARY_API_URL, currency),
+      { timeout: 10000 }
+    )
+  } catch (error) {
+    if (!Env.EXCHANGE_RATE_FALLBACK_API_URL) throw error
+
+    logger.warn(
+      '[APP:Currency] Primary exchange rate API failed, trying fallback',
+      {
+        error: error instanceof Error ? error.message : String(error),
+        currency
+      }
+    )
+
+    return await axios.get(
+      buildRateUrl(Env.EXCHANGE_RATE_FALLBACK_API_URL, currency),
+      { timeout: 10000 }
+    )
+  }
+}
 
 export const getExchangeRate = async (
   from: CurrencyType | string,
@@ -16,10 +46,7 @@ export const getExchangeRate = async (
   if (cached) return parseFloat(cached)
 
   try {
-    // Gọi API lấy tỉ giá mới (Fallback)
-    const res = await axios.get(
-      `https://api.exchangerate-api.com/v4/latest/${from}`
-    )
+    const res = await fetchExchangeRatesWithFallback(from)
     const rate = res.data.rates[to]
 
     if (!rate) throw new Error(`Exchange rate not found for ${from} to ${to}`)

@@ -4,14 +4,23 @@
 # Force LF for source code files
 *.ts text eol=lf
 *.js text eol=lf
+*.jsx text eol=lf
+*.tsx text eol=lf
 *.json text eol=lf
 *.md text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.env text eol=lf
+*.sh text eol=lf
+.husky/* text eol=lf
 
 # Force CRLF for Windows-specific files
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.ps1 text eol=crlf
 
 # Binary files
 *.png binary
@@ -20,3 +29,8 @@
 *.gif binary
 *.ico binary
 *.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.mp4 binary
+*.zip binary

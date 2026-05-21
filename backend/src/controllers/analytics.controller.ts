@@ -7,6 +7,8 @@ import TransactionModel from '../models/transaction.model'
 import { getUserId } from '../utils/getUserId.util'
 import { container } from '../container'
 import { parseDateQuery } from '../utils/query-parser.util'
+import { ResponseFormatter } from '../utils/responseFormatter.util'
+import { BadRequestException } from '../utils/errors'
 
 // Get AnalyticsService instance from DI container
 const analyticsService = container.getAnalyticsService()
@@ -24,15 +26,11 @@ export const summaryAnalyticsController = asyncHandler(
     const customTo = parseDateQuery(to)
 
     if (from && !customFrom) {
-      return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: 'Invalid "from" date parameter'
-      })
+      throw new BadRequestException('Invalid "from" date parameter')
     }
 
     if (to && !customTo) {
-      return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: 'Invalid "to" date parameter'
-      })
+      throw new BadRequestException('Invalid "to" date parameter')
     }
 
     const stats = await analyticsService.getAnalytics(
@@ -44,10 +42,11 @@ export const summaryAnalyticsController = asyncHandler(
       preferredCurrency
     )
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Summary fetched successfully',
-      data: stats
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(stats, {
+        message: 'Summary fetched successfully'
+      })
+    )
   }
 )
 
@@ -64,15 +63,11 @@ export const chartAnalyticsController = asyncHandler(
     const customTo = parseDateQuery(to)
 
     if (from && !customFrom) {
-      return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: 'Invalid "from" date parameter'
-      })
+      throw new BadRequestException('Invalid "from" date parameter')
     }
 
     if (to && !customTo) {
-      return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: 'Invalid "to" date parameter'
-      })
+      throw new BadRequestException('Invalid "to" date parameter')
     }
 
     const chartData = await analyticsService.getChartAnalytics(
@@ -84,10 +79,11 @@ export const chartAnalyticsController = asyncHandler(
       preferredCurrency
     )
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Chart fetched successfully',
-      data: chartData
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(chartData, {
+        message: 'Chart fetched successfully'
+      })
+    )
   }
 )
 
@@ -104,15 +100,11 @@ export const expensePieChartBreakdownController = asyncHandler(
     const customTo = parseDateQuery(to)
 
     if (from && !customFrom) {
-      return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: 'Invalid "from" date parameter'
-      })
+      throw new BadRequestException('Invalid "from" date parameter')
     }
 
     if (to && !customTo) {
-      return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: 'Invalid "to" date parameter'
-      })
+      throw new BadRequestException('Invalid "to" date parameter')
     }
 
     const pieChartData = await analyticsService.getCategoryBreakdown(
@@ -124,10 +116,11 @@ export const expensePieChartBreakdownController = asyncHandler(
       preferredCurrency
     )
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Expense breakdown fetched successfully',
-      data: pieChartData
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(pieChartData, {
+        message: 'Expense breakdown fetched successfully'
+      })
+    )
   }
 )
 
@@ -143,12 +136,14 @@ export const getExchangeRatesController = asyncHandler(
       userId
     })
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Exchange rates fetched successfully',
-      data: {
-        ...rates,
-        usedCurrencies
-      }
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(
+        {
+          ...rates,
+          usedCurrencies
+        },
+        { message: 'Exchange rates fetched successfully' }
+      )
+    )
   }
 )

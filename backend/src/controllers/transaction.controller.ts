@@ -12,6 +12,7 @@ import { container } from '../container'
 import { toTransactionDTO, toTransactionDTOArray } from '../dtos'
 import { TransactionFilterQuery } from '../types/query-filters.type'
 import { parsePaginationQuery } from '../utils/query-parser.util'
+import { ResponseFormatter } from '../utils/responseFormatter.util'
 
 // Get TransactionService instance from DI container
 const transactionService = container.getTransactionService()
@@ -26,10 +27,11 @@ export const createTransactionController = asyncHandler(
     const io = getIO()
     io.to(userId).emit('transaction:created', transaction)
 
-    return res.status(HTTPSTATUS.CREATED).json({
-      message: 'Transaction created successfully',
-      transaction: toTransactionDTO(transaction)
-    })
+    return res.status(HTTPSTATUS.CREATED).json(
+      ResponseFormatter.success(toTransactionDTO(transaction), {
+        message: 'Transaction created successfully'
+      })
+    )
   }
 )
 
@@ -58,11 +60,15 @@ export const getAllTransactionController = asyncHandler(
       filters,
       pagination
     )
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Transaction fetched successfully',
-      transactions: toTransactionDTOArray(result.data),
-      pagination: result.pagination
-    })
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(
+        ResponseFormatter.paginated(
+          toTransactionDTOArray(result.data),
+          result.pagination,
+          req
+        )
+      )
   }
 )
 
@@ -73,10 +79,11 @@ export const getTransactionByIdController = asyncHandler(
 
     const transaction = await transactionService.findById(userId, transactionId)
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Transaction fetched successfully',
-      transaction: toTransactionDTO(transaction)
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(toTransactionDTO(transaction), {
+        message: 'Transaction fetched successfully'
+      })
+    )
   }
 )
 
@@ -101,11 +108,15 @@ export const getChildTransactionsController = asyncHandler(
       pageSize
     )
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Child transactions fetched successfully',
-      children: toTransactionDTOArray(result.data),
-      pagination: result.pagination
-    })
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(
+        ResponseFormatter.paginated(
+          toTransactionDTOArray(result.data),
+          result.pagination,
+          req
+        )
+      )
   }
 )
 
@@ -122,10 +133,16 @@ export const duplicateTransactionController = asyncHandler(
     const io = getIO()
     io.to(userId).emit('transaction:created', transaction)
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Transaction fetched successfully',
-      data: toTransactionDTO(transaction)
-    })
+    const duplicatedTransaction = toTransactionDTO(transaction)
+
+    return res
+      .status(HTTPSTATUS.CREATED)
+      .location(`/api/v1/transactions/${duplicatedTransaction._id}`)
+      .json(
+        ResponseFormatter.success(duplicatedTransaction, {
+          message: 'Transaction duplicated successfully'
+        })
+      )
   }
 )
 
@@ -144,10 +161,11 @@ export const updateTransactionController = asyncHandler(
     const io = getIO()
     io.to(userId).emit('transaction:updated', updatedTransaction)
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Transaction updated successfully',
-      data: toTransactionDTO(updatedTransaction)
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(toTransactionDTO(updatedTransaction), {
+        message: 'Transaction updated successfully'
+      })
+    )
   }
 )
 
@@ -161,9 +179,7 @@ export const deleteTransactionController = asyncHandler(
     const io = getIO()
     io.to(userId).emit('transaction:deleted', { _id: transactionId })
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Transaction deleted successfully'
-    })
+    return res.status(HTTPSTATUS.NO_CONTENT).send()
   }
 )
 
@@ -172,15 +188,12 @@ export const bulkDeleteTransactionController = asyncHandler(
     const userId = getUserId(req)
     const { transactionIds } = req.body
 
-    const result = await transactionService.bulkDelete(userId, transactionIds)
+    await transactionService.bulkDelete(userId, transactionIds)
 
     const io = getIO()
     io.to(userId).emit('transaction:bulk-deleted', { ids: transactionIds })
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Transactions deleted successfully',
-      ...result
-    })
+    return res.status(HTTPSTATUS.NO_CONTENT).send()
   }
 )
 
@@ -211,11 +224,15 @@ export const bulkTransactionController = asyncHandler(
     )
 
     // 3. TRẢ KẾT QUẢ CHO FE
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Bulk import is being processed',
-      batchId: batch._id, // Trả cái này về để FE có thể làm chức năng "Kiểm tra tiến độ"
-      jobId: job.id
-    })
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(
+        {
+          batchId: batch._id, // Trả cái này về để FE có thể làm chức năng "Kiểm tra tiến độ"
+          jobId: job.id
+        },
+        { message: 'Bulk import is being processed' }
+      )
+    )
   }
 )
 
@@ -267,13 +284,18 @@ export const scanReceiptController = asyncHandler(
         userId,
         fileBuffer: base64String,
         fileName: file.originalname,
-        fileSize: file.size
+        fileSize: file.size,
+        correlationId: req.correlationId
       })
 
-      return res.status(HTTPSTATUS.ACCEPTED).json({
-        message: 'Receipt is being processed',
-        jobId: job.id?.toString() || 'unknown'
-      })
+      return res.status(HTTPSTATUS.ACCEPTED).json(
+        ResponseFormatter.success(
+          {
+            jobId: job.id?.toString() || 'unknown'
+          },
+          { message: 'Receipt is being processed' }
+        )
+      )
     } catch (error) {
       const err = error as Error
       logger.error('[APP:Transaction] Failed to process receipt image', {

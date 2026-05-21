@@ -5,12 +5,10 @@ import { generateReportService } from '../services/report.service'
 import { fromZonedTime } from 'date-fns-tz'
 import { getUserId } from '../utils/getUserId.util'
 import { container } from '../container'
-import {
-  toReportSettingResponse,
-  toGenerateReportResponse,
-  toOTPResponse
-} from '../dtos'
+import { toReportSettingResponse, toGenerateReportResponse } from '../dtos'
 import { parsePaginationQuery } from '../utils/query-parser.util'
+import { ResponseFormatter } from '../utils/responseFormatter.util'
+import { BadRequestException, NotFoundException } from '../utils/errors'
 
 // Get ReportService instance from DI container
 const reportService = container.getReportService()
@@ -23,10 +21,9 @@ export const getAllReportsController = asyncHandler(
 
     const result = await reportService.findByUserId(userId, pagination)
 
-    return res.status(HTTPSTATUS.OK).json({
-      message: 'Reports history fetched successfully',
-      ...result
-    })
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(ResponseFormatter.paginated(result.data, result.pagination, req))
   }
 )
 
@@ -40,9 +37,13 @@ export const updateReportSettingController = asyncHandler(
       body
     )
 
+    const response = toReportSettingResponse(updatedReportSetting)
+
     return res
       .status(HTTPSTATUS.OK)
-      .json(toReportSettingResponse(updatedReportSetting))
+      .json(
+        ResponseFormatter.success(response.data, { message: response.message })
+      )
   }
 )
 
@@ -64,12 +65,17 @@ export const generateReportController = asyncHandler(
     )
 
     if (!result) {
-      return res
-        .status(HTTPSTATUS.NOT_FOUND)
-        .json(toOTPResponse('No transactions found for the specified period'))
+      throw new NotFoundException(
+        'No transactions found for the specified period'
+      )
     }
 
-    return res.status(HTTPSTATUS.OK).json(toGenerateReportResponse(result))
+    const response = toGenerateReportResponse(result)
+    const { message, ...data } = response
+
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(ResponseFormatter.success(data, { message }))
   }
 )
 
@@ -80,13 +86,13 @@ export const resendReportController = asyncHandler(
 
     // Validate reportId format
     if (!reportId || !/^[0-9a-fA-F]{24}$/.test(reportId)) {
-      return res
-        .status(HTTPSTATUS.BAD_REQUEST)
-        .json(toOTPResponse('Invalid report ID format'))
+      throw new BadRequestException('Invalid report ID format')
     }
 
     const result = await reportService.resendReport(userId, reportId)
 
-    return res.status(HTTPSTATUS.OK).json(toOTPResponse(result.message))
+    return res
+      .status(HTTPSTATUS.OK)
+      .json(ResponseFormatter.success(null, { message: result.message }))
   }
 )

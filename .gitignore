@@ -52,3 +52,6 @@ client/.env
 
 # Kiro specs
 .kiro/
+
+# Agent instructions
+AGENTS.md
