@@ -3,11 +3,13 @@ import { ResponseFormatter } from '../../utils/responseFormatter.util'
 
 const createMockRequest = (
   path = '/api/v1/transactions',
-  query: Request['query'] = {}
+  query: Request['query'] = {},
+  originalUrl = `${path}${Object.keys(query).length ? '?existing=true' : ''}`
 ): Request =>
   ({
     protocol: 'https',
     path,
+    originalUrl,
     query,
     get: jest.fn((header: string) =>
       header.toLowerCase() === 'host' ? 'api.example.com' : undefined
@@ -175,6 +177,27 @@ describe('ResponseFormatter', () => {
 
       expect(response.links?.self).toBe(
         '/api/v1/transactions?pageNumber=1&pageSize=10'
+      )
+    })
+
+    it('uses originalUrl path without query params for mounted routes', () => {
+      const response = ResponseFormatter.paginated(
+        [],
+        {
+          pageNumber: 1,
+          pageSize: 10,
+          totalCount: 20,
+          totalPages: 2
+        },
+        createMockRequest(
+          '/transactions',
+          { keyword: 'rent' },
+          '/api/v1/transactions?keyword=rent&pageNumber=1'
+        )
+      )
+
+      expect(response.links?.next).toBe(
+        '/api/v1/transactions?keyword=rent&pageNumber=2&pageSize=10'
       )
     })
   })

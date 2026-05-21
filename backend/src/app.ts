@@ -54,6 +54,12 @@ app.set('trust proxy', appConfig.trustProxy)
 app.get('/health', healthCheckController)
 app.get('/ready', readinessCheckController)
 
+if (appConfig.nodeEnv === 'development') {
+  app.get('/debug-sentry', () => {
+    throw new Error('Sentry test error')
+  })
+}
+
 app.use(rateLimiter)
 app.use(rateLimitHeadersMiddleware)
 

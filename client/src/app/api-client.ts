@@ -11,7 +11,7 @@ import { logout, updateCredentials } from '@/features/auth/authSlice'
 const API_VERSION = '/v1'
 
 export const getApiBaseUrl = (options?: { allowLocalFallback?: boolean }) => {
-  const allowLocalFallback = options?.allowLocalFallback ?? true
+  const allowLocalFallback = options?.allowLocalFallback ?? import.meta.env.DEV
   const configuredApiUrl = import.meta.env.VITE_API_URL
   if (!configuredApiUrl && !allowLocalFallback) return undefined
 
@@ -25,6 +25,12 @@ export const getApiBaseUrl = (options?: { allowLocalFallback?: boolean }) => {
   return `${apiUrl}${API_VERSION}`
 }
 
+const resolvedBaseUrl = getApiBaseUrl()
+
+if (!resolvedBaseUrl) {
+  throw new Error('VITE_API_URL is required in non-development environments.')
+}
+
 const isRefreshPayload = (
   value: unknown
 ): value is { accessToken: string; expiresAt: number } =>
@@ -36,7 +42,7 @@ const isRefreshPayload = (
   typeof value.expiresAt === 'number'
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: getApiBaseUrl(),
+  baseUrl: resolvedBaseUrl,
   credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
     const auth = (getState() as RootState).auth

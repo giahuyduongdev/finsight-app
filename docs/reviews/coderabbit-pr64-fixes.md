@@ -13,6 +13,8 @@ Fixed CodeRabbit review comments for API resilience, OAuth hardening, response f
 - `client/src/app/api-client.ts`
   - Normalized trailing slashes before checking/appending `/v1`.
   - Added an option to disable localhost fallback for browser OAuth redirects.
+  - Changed the default API URL fallback to development only.
+  - Added an explicit startup error when `VITE_API_URL` is missing outside development.
 
 - `client/src/pages/auth/_component/signin-form.tsx`
 - `client/src/pages/auth/_component/signup-form.tsx`
@@ -49,6 +51,7 @@ Fixed CodeRabbit review comments for API resilience, OAuth hardening, response f
 
 - `backend/src/utils/responseFormatter.util.ts`
   - Changed pagination links from request-host absolute URLs to safe relative URLs.
+  - Preserved mounted route prefixes by building pagination links from `originalUrl` without query parameters.
 
 - `backend/.env.example`
   - Added examples/comments for optional `SENTRY_DSN`.
@@ -92,7 +95,9 @@ Fixed CodeRabbit review comments for API resilience, OAuth hardening, response f
 ## CI And Tooling Fixes
 
 - `.github/workflows/ci.yml`
-  - Removed backend `npm ci --legacy-peer-deps`.
+  - Pinned GitHub Actions used by CI to commit SHAs.
+  - Disabled persisted checkout credentials with `persist-credentials: false`.
+  - Kept backend `npm ci --legacy-peer-deps` because the current lockfile still fails `npm ci` without it.
   - Added scheduled backend performance smoke test job with `RUN_PERF_TESTS=true`.
 
 - `.husky/pre-push`
@@ -149,6 +154,12 @@ npm.cmd run test:integration
 Result: 4 integration suites passed, 19 tests passed.
 
 ```sh
+npm.cmd run build
+```
+
+Result: passed in `backend/`. In `client/`, `tsc -b` passed but Vite build was blocked by the local Windows sandbox with `Cannot read directory "../../..": Access is denied` while loading `client/vite.config.ts`.
+
+```sh
 git diff --check
 ```
 
@@ -158,3 +169,5 @@ Result: passed.
 
 - `coderabbit` CLI was not available locally, so the review was fetched from GitHub PR #64 comments.
 - `npm ci --dry-run --ignore-scripts --no-audit --no-fund` in `backend/` timed out after 120 seconds in this environment, so it was not counted as a successful verification step.
+- GitHub Actions failed after removing backend `--legacy-peer-deps` because `backend/package-lock.json` is still missing npm's auto-installed peer dependency entries. The workflow keeps the flag until the backend lockfile can be regenerated in an environment with registry access.
+- Latest CodeRabbit review on 2026-05-21 reported 3 actionable comments; all three were addressed in the workflow, client API base URL, and backend pagination formatter.

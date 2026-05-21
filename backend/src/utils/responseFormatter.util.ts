@@ -44,7 +44,7 @@ export class ResponseFormatter {
     pagination: PaginationMeta,
     req: Request
   ): PaginationLinks {
-    const baseUrl = req.path
+    const baseUrl = (req.originalUrl || req.path).split('?')[0]
     const { pageNumber, pageSize, totalPages } = pagination
     const buildLink = (targetPage: number) => {
       const query = new URLSearchParams()
