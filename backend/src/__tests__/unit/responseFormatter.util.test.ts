@@ -1,10 +1,14 @@
 import { Request } from 'express'
 import { ResponseFormatter } from '../../utils/responseFormatter.util'
 
-const createMockRequest = (path = '/api/v1/transactions'): Request =>
+const createMockRequest = (
+  path = '/api/v1/transactions',
+  query: Request['query'] = {}
+): Request =>
   ({
     protocol: 'https',
     path,
+    query,
     get: jest.fn((header: string) =>
       header.toLowerCase() === 'host' ? 'api.example.com' : undefined
     )
@@ -135,6 +139,26 @@ describe('ResponseFormatter', () => {
 
       expect(response.links?.last).toBe(
         'https://api.example.com/api/v1/transactions?pageNumber=1&pageSize=10'
+      )
+    })
+
+    it('should preserve existing query params in pagination links', () => {
+      const response = ResponseFormatter.paginated(
+        [],
+        {
+          pageNumber: 1,
+          pageSize: 10,
+          totalCount: 20,
+          totalPages: 2
+        },
+        createMockRequest('/api/v1/transactions', {
+          keyword: 'rent',
+          type: 'EXPENSE'
+        })
+      )
+
+      expect(response.links?.next).toBe(
+        'https://api.example.com/api/v1/transactions?keyword=rent&type=EXPENSE&pageNumber=2&pageSize=10'
       )
     })
   })

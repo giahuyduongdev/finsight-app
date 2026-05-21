@@ -50,11 +50,12 @@ app.use(checkBlacklist)
 app.use(cors(appConfig.cors))
 
 app.set('trust proxy', appConfig.trustProxy)
-app.use(rateLimiter)
-app.use(rateLimitHeadersMiddleware)
 
 app.get('/health', healthCheckController)
 app.get('/ready', readinessCheckController)
+
+app.use(rateLimiter)
+app.use(rateLimitHeadersMiddleware)
 
 if (appConfig.features.bullBoard) {
   // Bull Board - Protected in production, open in development

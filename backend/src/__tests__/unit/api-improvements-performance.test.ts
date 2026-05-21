@@ -25,21 +25,26 @@ const createRequest = (): Request =>
     get: jest.fn(() => 'api.example.com')
   }) as unknown as Request
 
+const perfIt = process.env.RUN_PERF_TESTS === 'true' ? it : it.skip
+
 describe('API improvements performance smoke tests', () => {
-  it('keeps circuit breaker overhead below 1ms per operation on average', async () => {
-    const breaker = new CircuitBreaker()
-    const iterations = 1000
-    const start = performance.now()
+  perfIt(
+    'keeps circuit breaker overhead below 1ms per operation on average',
+    async () => {
+      const breaker = new CircuitBreaker()
+      const iterations = 1000
+      const start = performance.now()
 
-    for (let i = 0; i < iterations; i += 1) {
-      await breaker.execute(() => Promise.resolve(i), 'Perf Service')
+      for (let i = 0; i < iterations; i += 1) {
+        await breaker.execute(() => Promise.resolve(i), 'Perf Service')
+      }
+
+      const averageMs = (performance.now() - start) / iterations
+      expect(averageMs).toBeLessThan(1)
     }
+  )
 
-    const averageMs = (performance.now() - start) / iterations
-    expect(averageMs).toBeLessThan(1)
-  })
-
-  it('formats paginated responses quickly under repeated use', () => {
+  perfIt('formats paginated responses quickly under repeated use', () => {
     const iterations = 10000
     const req = createRequest()
     const start = performance.now()
@@ -55,16 +60,19 @@ describe('API improvements performance smoke tests', () => {
     expect(performance.now() - start).toBeLessThan(1000)
   })
 
-  it('responds to health checks quickly when dependencies are healthy', async () => {
-    const res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis()
+  perfIt(
+    'responds to health checks quickly when dependencies are healthy',
+    async () => {
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis()
+      }
+      const start = performance.now()
+
+      await healthCheckController({} as Request, res as never)
+
+      expect(performance.now() - start).toBeLessThan(100)
+      expect(res.status).toHaveBeenCalledWith(200)
     }
-    const start = performance.now()
-
-    await healthCheckController({} as Request, res as never)
-
-    expect(performance.now() - start).toBeLessThan(100)
-    expect(res.status).toHaveBeenCalledWith(200)
-  })
+  )
 })

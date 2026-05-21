@@ -65,7 +65,8 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Install Dependencies
-        run: npm ci
+        # Use --legacy-peer-deps to keep npm from failing on optional peer dependency lockfile resolution
+        run: npm ci --legacy-peer-deps
 
       - name: Run Lint
         run: npm run lint

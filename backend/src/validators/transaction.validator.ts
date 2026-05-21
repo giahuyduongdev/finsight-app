@@ -9,7 +9,7 @@ import { CurrencyEnum } from '../enums/currency.enum'
 export const transactionIdSchema = z
   .string()
   .trim()
-  .length(24, 'Invalid transaction ID format')
+  .regex(/^[a-fA-F0-9]{24}$/, 'Invalid transaction ID format')
 
 export const baseTransactionSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -54,7 +54,7 @@ export const baseTransactionSchema = z.object({
 
 export const bulkDeleteTransactionSchema = z.object({
   transactionIds: z
-    .array(z.string().length(24, 'Invalid transaction ID format'))
+    .array(transactionIdSchema)
     .min(1, 'At least one transaction ID must be provided')
 })
 

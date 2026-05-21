@@ -7,10 +7,13 @@ import { Env } from '../config/env.config'
 const buildRateUrl = (baseUrl: string, currency: CurrencyType | string) =>
   `${baseUrl.replace(/\/$/, '')}/${currency}`
 
-const fetchRates = async (currency: CurrencyType | string) => {
+export const fetchExchangeRatesWithFallback = async (
+  currency: CurrencyType | string
+) => {
   try {
     return await axios.get(
-      buildRateUrl(Env.EXCHANGE_RATE_PRIMARY_API_URL, currency)
+      buildRateUrl(Env.EXCHANGE_RATE_PRIMARY_API_URL, currency),
+      { timeout: 10000 }
     )
   } catch (error) {
     if (!Env.EXCHANGE_RATE_FALLBACK_API_URL) throw error
@@ -24,7 +27,8 @@ const fetchRates = async (currency: CurrencyType | string) => {
     )
 
     return await axios.get(
-      buildRateUrl(Env.EXCHANGE_RATE_FALLBACK_API_URL, currency)
+      buildRateUrl(Env.EXCHANGE_RATE_FALLBACK_API_URL, currency),
+      { timeout: 10000 }
     )
   }
 }
@@ -42,7 +46,7 @@ export const getExchangeRate = async (
   if (cached) return parseFloat(cached)
 
   try {
-    const res = await fetchRates(from)
+    const res = await fetchExchangeRatesWithFallback(from)
     const rate = res.data.rates[to]
 
     if (!rate) throw new Error(`Exchange rate not found for ${from} to ${to}`)

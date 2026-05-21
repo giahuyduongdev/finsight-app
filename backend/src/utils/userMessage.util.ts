@@ -90,7 +90,10 @@ export const getUserMessage = (error: unknown, statusCode: number): string => {
   }
 
   // Map error code to user-friendly message
-  if (err.errorCode && err.errorCode in ErrorCodeEnum) {
+  if (
+    err.errorCode &&
+    Object.prototype.hasOwnProperty.call(ErrorCodeEnum, err.errorCode)
+  ) {
     const errorCode = err.errorCode as ErrorCodeEnumType
     return USER_MESSAGE_MAP[errorCode]
   }

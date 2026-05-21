@@ -25,7 +25,7 @@ export type ProcessReportJobData = {
 
 const defaultJobOptions = {
   attempts: 3,
-  backoff: { type: 'exponential', delay: 1000 },
+  backoff: { type: 'exponential', delay: 5000 },
   removeOnComplete: {
     count: 100,
     age: 24 * 3600 // xóa sau 24 giờ dù chưa đủ 100

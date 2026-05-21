@@ -11,8 +11,8 @@ export const scrubSentryEvent = (
   const headers = event.request?.headers
   if (!headers) return event
 
-  for (const header of SENSITIVE_HEADERS) {
-    if (header in headers) {
+  for (const header of Object.keys(headers)) {
+    if (SENSITIVE_HEADERS.includes(header.toLowerCase())) {
       delete headers[header]
     }
   }

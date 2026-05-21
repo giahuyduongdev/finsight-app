@@ -300,9 +300,16 @@ export class TransactionRepository implements ITransactionRepository {
     // Keyword search on title and category
     const keyword = normalizeSearchKeyword(filters.keyword)
     if (keyword) {
-      conditions.$or = [
-        { title: { $regex: keyword, $options: 'i' } },
-        { category: { $regex: keyword, $options: 'i' } }
+      const rootOnlyConditions = conditions.$or
+      delete conditions.$or
+      conditions.$and = [
+        { $or: rootOnlyConditions },
+        {
+          $or: [
+            { title: { $regex: keyword, $options: 'i' } },
+            { category: { $regex: keyword, $options: 'i' } }
+          ]
+        }
       ]
     }
 

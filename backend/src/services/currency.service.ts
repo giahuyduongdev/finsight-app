@@ -1,45 +1,13 @@
-import axios from 'axios'
 import { redis } from '../config/redis.config'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 import { CurrencyEnum } from '../enums/currency.enum'
 import { BadRequestException, InternalServerException } from '../utils/errors'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
-import { Env } from '../config/env.config'
+import { fetchExchangeRatesWithFallback } from '../lib/exchange-rate-currency'
 
 const CACHE_KEY_PREFIX = 'rate:'
 const BROADCAST_EVENT = 'currency:rates_updated'
-
-const buildRateUrl = (baseUrl: string, currency: CurrencyEnum) =>
-  `${baseUrl.replace(/\/$/, '')}/${currency}`
-
-const fetchLatestRates = async (baseCurrency: CurrencyEnum) => {
-  try {
-    return await axios.get(
-      buildRateUrl(Env.EXCHANGE_RATE_PRIMARY_API_URL, baseCurrency),
-      {
-        timeout: 10000
-      }
-    )
-  } catch (error) {
-    if (!Env.EXCHANGE_RATE_FALLBACK_API_URL) throw error
-
-    logger.warn(
-      '[APP:Currency] Primary exchange rate API failed, trying fallback',
-      {
-        error: error instanceof Error ? error.message : String(error),
-        baseCurrency
-      }
-    )
-
-    return await axios.get(
-      buildRateUrl(Env.EXCHANGE_RATE_FALLBACK_API_URL, baseCurrency),
-      {
-        timeout: 10000
-      }
-    )
-  }
-}
 
 export class CurrencyService {
   /**
@@ -52,7 +20,7 @@ export class CurrencyService {
 
       // Lấy VND làm gốc để dễ tính toán cho người dùng VN
       const baseCurrency = CurrencyEnum.VND
-      const response = await fetchLatestRates(baseCurrency)
+      const response = await fetchExchangeRatesWithFallback(baseCurrency)
 
       const rates = response.data.rates
       if (!rates) {

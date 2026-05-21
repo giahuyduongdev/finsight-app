@@ -1,3 +1,5 @@
+import { Request } from 'express'
+
 const initMock = jest.fn()
 const expressIntegrationMock = jest.fn(() => ({ name: 'express' }))
 const withScopeMock = jest.fn()
@@ -21,6 +23,13 @@ jest.mock('../../config/logger.config', () => ({
 
 describe('sentry.config', () => {
   const originalDsn = process.env.SENTRY_DSN
+  const createRequest = (overrides: Partial<Request> = {}): Request =>
+    ({
+      correlationId: 'req-123',
+      path: '/api/test',
+      method: 'GET',
+      ...overrides
+    }) as unknown as Request
 
   beforeEach(() => {
     jest.resetModules()
@@ -76,14 +85,9 @@ describe('sentry.config', () => {
     )
     const { captureSentryError } = await import('../../config/sentry.config')
     const error = new Error('database down')
-    const req = {
-      correlationId: 'req-123',
-      path: '/api/test',
-      method: 'GET',
-      user: { id: 'user-1' }
-    }
+    const req = createRequest({ user: { id: 'user-1' } as Request['user'] })
 
-    captureSentryError(error, req as never, 500)
+    captureSentryError(error, req, 500)
 
     expect(withScopeMock).toHaveBeenCalledTimes(1)
     expect(setTag).toHaveBeenCalledWith('requestId', 'req-123')
@@ -101,7 +105,7 @@ describe('sentry.config', () => {
 
     captureSentryError(
       new Error('bad request'),
-      { correlationId: 'req-123', path: '/api/test', method: 'POST' } as never,
+      createRequest({ method: 'POST' }),
       400
     )
 
@@ -116,11 +120,7 @@ describe('sentry.config', () => {
     const { captureSentryError } = await import('../../config/sentry.config')
 
     expect(() =>
-      captureSentryError(
-        new Error('server error'),
-        { correlationId: 'req-123', path: '/api/test', method: 'GET' } as never,
-        500
-      )
+      captureSentryError(new Error('server error'), createRequest(), 500)
     ).not.toThrow()
   })
 })

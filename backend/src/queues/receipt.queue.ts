@@ -29,7 +29,7 @@ export type ScanReceiptJobData = {
 
 const defaultJobOptions = {
   attempts: 3,
-  backoff: { type: 'exponential', delay: 1000 },
+  backoff: { type: 'exponential', delay: 10000 },
   removeOnComplete: {
     count: 100,
     age: 24 * 3600 // remove after 24 hours even if not 100 jobs

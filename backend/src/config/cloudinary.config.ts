@@ -21,21 +21,38 @@ const STORAGE_PARAMS = {
 
 const storage: multer.StorageEngine = {
   _handleFile(_req, file, cb) {
+    let callbackCalled = false
+
+    const done = (
+      error?: Error | null,
+      info?: Partial<Express.Multer.File>
+    ) => {
+      if (callbackCalled) return
+      callbackCalled = true
+      cb(error, info)
+    }
+
     const uploadStream = cloudinary.uploader.upload_stream(
       STORAGE_PARAMS,
       (error, result?: UploadApiResponse) => {
         if (error || !result) {
-          cb(error || new Error('Cloudinary upload failed'))
+          done(error || new Error('Cloudinary upload failed'))
           return
         }
 
-        cb(null, {
+        done(null, {
           path: result.secure_url,
           filename: result.public_id,
           size: result.bytes
         })
       }
     )
+
+    file.stream.once('error', (error) => {
+      uploadStream.destroy(error)
+      done(error)
+    })
+    uploadStream.once('error', done)
 
     file.stream.pipe(uploadStream)
   },

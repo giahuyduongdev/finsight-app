@@ -178,12 +178,12 @@ describe('transaction.controller', () => {
           }
         },
         links: {
-          self: 'http://localhost:5000/api/v1/transactions?pageNumber=2&pageSize=10',
-          next: 'http://localhost:5000/api/v1/transactions?pageNumber=3&pageSize=10',
-          prev: 'http://localhost:5000/api/v1/transactions?pageNumber=1&pageSize=10',
+          self: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=2&pageSize=10',
+          next: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=3&pageSize=10',
+          prev: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=1&pageSize=10',
           first:
-            'http://localhost:5000/api/v1/transactions?pageNumber=1&pageSize=10',
-          last: 'http://localhost:5000/api/v1/transactions?pageNumber=3&pageSize=10'
+            'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=1&pageSize=10',
+          last: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=3&pageSize=10'
         }
       })
       expect(nextMock).not.toHaveBeenCalled()

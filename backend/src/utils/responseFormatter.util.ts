@@ -46,17 +46,35 @@ export class ResponseFormatter {
   ): PaginationLinks {
     const baseUrl = `${req.protocol}://${req.get('host')}${req.path}`
     const { pageNumber, pageSize, totalPages } = pagination
+    const buildLink = (targetPage: number) => {
+      const query = new URLSearchParams()
+
+      for (const [key, value] of Object.entries(req.query)) {
+        if (key === 'pageNumber' || key === 'pageSize') continue
+        if (value === undefined) continue
+        if (Array.isArray(value)) {
+          value.forEach((item) => query.append(key, String(item)))
+          continue
+        }
+        query.set(key, String(value))
+      }
+
+      query.set('pageNumber', String(targetPage))
+      query.set('pageSize', String(pageSize))
+
+      return `${baseUrl}?${query.toString()}`
+    }
 
     return {
-      self: `${baseUrl}?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+      self: buildLink(pageNumber),
       ...(pageNumber < totalPages && {
-        next: `${baseUrl}?pageNumber=${pageNumber + 1}&pageSize=${pageSize}`
+        next: buildLink(pageNumber + 1)
       }),
       ...(pageNumber > 1 && {
-        prev: `${baseUrl}?pageNumber=${pageNumber - 1}&pageSize=${pageSize}`
+        prev: buildLink(pageNumber - 1)
       }),
-      first: `${baseUrl}?pageNumber=1&pageSize=${pageSize}`,
-      last: `${baseUrl}?pageNumber=${Math.max(totalPages, 1)}&pageSize=${pageSize}`
+      first: buildLink(1),
+      last: buildLink(Math.max(totalPages, 1))
     }
   }
 }

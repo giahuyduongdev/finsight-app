@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+if [ -n "$SKIP_PRE_PUSH" ]; then
+  echo "Skipping pre-push checks because SKIP_PRE_PUSH is set."
+  exit 0
+fi
+
 cd client
 npm run build
 

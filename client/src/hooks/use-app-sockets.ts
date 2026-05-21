@@ -79,6 +79,8 @@ export const useAppSockets = () => {
     socket.on('transaction:created', (newTx: TransactionType) => {
       console.log('🚀 [Sync] Created:', newTx._id)
       updateAllTransactionQueries((draft, args) => {
+        if (!Array.isArray(draft.data)) return
+
         if (args.pageNumber === 1 || !args.pageNumber) {
           if (!draft.data.some((t: TransactionType) => t._id === newTx._id)) {
             draft.data.unshift(newTx)
@@ -95,6 +97,8 @@ export const useAppSockets = () => {
     socket.on('transaction:updated', (updatedTx: TransactionType) => {
       console.log('🔄 [Sync] Updated:', updatedTx._id)
       updateAllTransactionQueries((draft) => {
+        if (!Array.isArray(draft.data)) return
+
         const index = draft.data.findIndex((t) => t._id === updatedTx._id)
         if (index !== -1) draft.data[index] = updatedTx
       })
@@ -113,6 +117,8 @@ export const useAppSockets = () => {
     socket.on('transaction:deleted', ({ _id }: { _id: string }) => {
       console.log('🗑️ [Sync] Deleted:', _id)
       updateAllTransactionQueries((draft) => {
+        if (!Array.isArray(draft.data)) return
+
         const index = draft.data.findIndex((t) => t._id === _id)
         if (index !== -1) {
           draft.data.splice(index, 1)
@@ -125,6 +131,8 @@ export const useAppSockets = () => {
     socket.on('transaction:bulk-deleted', ({ ids }: { ids: string[] }) => {
       console.log('🗑️ [Sync] Bulk Deleted:', ids.length)
       updateAllTransactionQueries((draft) => {
+        if (!Array.isArray(draft.data)) return
+
         draft.data = draft.data.filter((t) => !ids.includes(t._id))
         // Use actual deletion count (ids.length) instead of page-only count
         if (draft.meta?.pagination) {

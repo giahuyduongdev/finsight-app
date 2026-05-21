@@ -21,6 +21,7 @@ export class CircuitBreaker {
   private state = CircuitState.CLOSED
   private failureCount = 0
   private lastFailureTime: number | null = null
+  private probeInProgress = false
   private readonly failureThreshold: number
   private readonly resetTimeoutMs: number
 
@@ -60,6 +61,19 @@ export class CircuitBreaker {
       }
     }
 
+    const isHalfOpenProbe = this.state === CircuitState.HALF_OPEN
+    if (isHalfOpenProbe) {
+      if (this.probeInProgress) {
+        throw new AppError(
+          `${serviceName} circuit breaker is half-open`,
+          HTTPSTATUS.SERVICE_UNAVAILABLE,
+          ErrorCodeEnum.CIRCUIT_BREAKER_OPEN,
+          { serviceName, state: this.state }
+        )
+      }
+      this.probeInProgress = true
+    }
+
     try {
       const result = await operation()
       this.recordSuccess(serviceName)
@@ -67,6 +81,10 @@ export class CircuitBreaker {
     } catch (error) {
       this.recordFailure(serviceName, error)
       throw error
+    } finally {
+      if (isHalfOpenProbe) {
+        this.probeInProgress = false
+      }
     }
   }
 

@@ -411,7 +411,7 @@ const TransactionTable = (props: {
                             pageNumber: Math.ceil(mergedChildren.length / 10),
                             pageSize: 10
                           }
-                        : undefined
+                        : childrenMapRef.current[id]?.meta?.pagination
                     }
                   }
                 }))

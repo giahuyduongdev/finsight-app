@@ -111,7 +111,7 @@ describe('BullMQ backoff integration', () => {
       expect.objectContaining({
         defaultJobOptions: expect.objectContaining({
           attempts: 3,
-          backoff: { type: 'exponential', delay: 1000 },
+          backoff: { type: 'exponential', delay: 10000 },
           removeOnComplete: { count: 100, age: 24 * 3600 },
           removeOnFail: { count: 50, age: 7 * 24 * 3600 }
         })
@@ -122,7 +122,7 @@ describe('BullMQ backoff integration', () => {
       expect.objectContaining({
         defaultJobOptions: expect.objectContaining({
           attempts: 3,
-          backoff: { type: 'exponential', delay: 1000 },
+          backoff: { type: 'exponential', delay: 5000 },
           removeOnComplete: { count: 100, age: 24 * 3600 },
           removeOnFail: { count: 50, age: 7 * 24 * 3600 }
         })
@@ -144,7 +144,7 @@ describe('BullMQ backoff integration', () => {
       },
       opts: {
         attempts: 3,
-        backoff: { type: 'exponential', delay: 1000 }
+        backoff: { type: 'exponential', delay: 10000 }
       }
     }
 
@@ -159,7 +159,7 @@ describe('BullMQ backoff integration', () => {
         correlationId: 'correlation-123',
         attemptsMade: 1,
         maxAttempts: 3,
-        nextRetryDelayMs: 1000
+        nextRetryDelayMs: 10000
       })
     )
     expect(mockLoggerWarn).toHaveBeenNthCalledWith(
@@ -169,7 +169,7 @@ describe('BullMQ backoff integration', () => {
         correlationId: 'correlation-123',
         attemptsMade: 2,
         maxAttempts: 3,
-        nextRetryDelayMs: 2000
+        nextRetryDelayMs: 20000
       })
     )
     expect(mockLoggerError).toHaveBeenCalledWith(
@@ -195,7 +195,7 @@ describe('BullMQ backoff integration', () => {
       },
       opts: {
         attempts: 20,
-        backoff: { type: 'exponential', delay: 1000 }
+        backoff: { type: 'exponential', delay: 5000 }
       }
     }
 
@@ -210,7 +210,7 @@ describe('BullMQ backoff integration', () => {
       expect.objectContaining({
         correlationId: 'correlation-456',
         attemptsMade: 1,
-        nextRetryDelayMs: 1000
+        nextRetryDelayMs: 5000
       })
     )
     expect(mockLoggerWarn).toHaveBeenNthCalledWith(
@@ -219,7 +219,7 @@ describe('BullMQ backoff integration', () => {
       expect.objectContaining({
         correlationId: 'correlation-456',
         attemptsMade: 2,
-        nextRetryDelayMs: 2000
+        nextRetryDelayMs: 10000
       })
     )
     expect(mockLoggerWarn).toHaveBeenNthCalledWith(
@@ -228,7 +228,7 @@ describe('BullMQ backoff integration', () => {
       expect.objectContaining({
         correlationId: 'correlation-456',
         attemptsMade: 3,
-        nextRetryDelayMs: 4000
+        nextRetryDelayMs: 20000
       })
     )
     expect(mockLoggerWarn).toHaveBeenNthCalledWith(

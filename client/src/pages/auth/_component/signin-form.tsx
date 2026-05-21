@@ -47,8 +47,8 @@ const SignInForm = ({
 
   const handleOAuth = (provider: 'github' | 'google') => {
     const currentTz = getInitialTimezone()
-    const backendUrl = getApiBaseUrl() || 'http://localhost:8000/api/v1'
-    window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${currentTz}`
+    const backendUrl = getApiBaseUrl()
+    window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
   }
 
   // const isLoading = false

@@ -11,13 +11,22 @@ import { logout, updateCredentials } from '@/features/auth/authSlice'
 const API_VERSION = '/v1'
 
 export const getApiBaseUrl = () => {
-  const apiUrl = import.meta.env.VITE_API_URL
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
-  if (!apiUrl) return apiUrl
   if (apiUrl.endsWith(API_VERSION)) return apiUrl
 
   return `${apiUrl.replace(/\/$/, '')}${API_VERSION}`
 }
+
+const isRefreshPayload = (
+  value: unknown
+): value is { accessToken: string; expiresAt: number } =>
+  typeof value === 'object' &&
+  value !== null &&
+  'accessToken' in value &&
+  'expiresAt' in value &&
+  typeof value.accessToken === 'string' &&
+  typeof value.expiresAt === 'number'
 
 const baseQuery = fetchBaseQuery({
   baseUrl: getApiBaseUrl(),
@@ -88,10 +97,12 @@ const baseQueryWithReauth: BaseQueryFn<
             ? (refreshResult.data as { data: unknown }).data
             : refreshResult.data
 
-        const { accessToken, expiresAt } = refreshData as {
-          accessToken: string
-          expiresAt: number
+        if (!isRefreshPayload(refreshData)) {
+          api.dispatch(logout())
+          return result
         }
+
+        const { accessToken, expiresAt } = refreshData
         api.dispatch(updateCredentials({ accessToken, expiresAt }))
 
         // GỬI LẠI request gốc

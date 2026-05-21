@@ -24,7 +24,11 @@ export const checkMongoDB = async (): Promise<HealthStatus> =>
       throw new Error('MongoDB is not connected')
     }
 
-    await mongoose.connection.db?.admin().ping()
+    if (!mongoose.connection.db) {
+      throw new Error('MongoDB database handle is not available')
+    }
+
+    await mongoose.connection.db.admin().ping()
   })
 
 export const checkRedis = async (): Promise<HealthStatus> =>
