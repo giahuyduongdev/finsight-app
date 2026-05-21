@@ -31,6 +31,8 @@ jest.mock('../../utils/healthCheck.util', () => ({
 
 const createApp = () => {
   const app = express()
+  const resetTime = new Date(Date.now() + 60_000)
+
   app.use(express.json())
   app.use(correlationIdMiddleware)
   app.use(requestContextMiddleware)
@@ -39,7 +41,7 @@ const createApp = () => {
       limit: 100,
       used: 1,
       remaining: 99,
-      resetTime: new Date('2026-01-01T00:01:00.000Z'),
+      resetTime,
       key: 'test-client'
     }
     next()

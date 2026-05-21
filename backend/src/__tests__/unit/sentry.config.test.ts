@@ -23,6 +23,7 @@ jest.mock('../../config/logger.config', () => ({
 
 describe('sentry.config', () => {
   const originalDsn = process.env.SENTRY_DSN
+  const originalNodeEnv = process.env.NODE_ENV
   const createRequest = (overrides: Partial<Request> = {}): Request =>
     ({
       correlationId: 'req-123',
@@ -40,6 +41,7 @@ describe('sentry.config', () => {
 
   afterEach(() => {
     process.env.SENTRY_DSN = originalDsn
+    process.env.NODE_ENV = originalNodeEnv
   })
 
   it('initializes Sentry when SENTRY_DSN is configured', async () => {
@@ -68,12 +70,19 @@ describe('sentry.config', () => {
           authorization: 'Bearer token',
           cookie: 'sid=123',
           'set-cookie': 'sid=456',
+          'x-api-key': 'secret-key',
           accept: 'application/json'
         }
       }
     })
 
-    expect(event.request?.headers).toEqual({ accept: 'application/json' })
+    expect(event.request?.headers).toEqual({
+      authorization: '[REDACTED]',
+      cookie: '[REDACTED]',
+      'set-cookie': '[REDACTED]',
+      'x-api-key': '[REDACTED]',
+      accept: 'application/json'
+    })
   })
 
   it('captures 5xx errors with request context', async () => {

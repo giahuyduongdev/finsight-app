@@ -198,3 +198,7 @@ MIT
 ## Optional Monitoring
 
 Sentry is optional. Set `SENTRY_DSN` to enable 5xx error capture. When unset, the app skips Sentry initialization and continues normally.
+
+## Git Hooks
+
+The pre-push hook runs fast local checks: client type-check, backend type-check, and backend unit tests. CI runs the full build and integration tests. Set `SKIP_PRE_PUSH=1` to bypass the hook when needed.

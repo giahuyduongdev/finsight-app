@@ -100,15 +100,15 @@ export interface AIScanReceiptData {
   receiptUrl: string
 }
 
-export interface AIScanReceiptResponse {
-  data: {
-    jobId: string
-    receipt?: AIScanReceiptData
-  }
-  meta?: {
-    message?: string
-  }
-}
+export type AIScanReceiptResponse =
+  | {
+      data: { jobId: string; receipt?: never }
+      meta?: { message?: string }
+    }
+  | {
+      data: { receipt: AIScanReceiptData; jobId?: never }
+      meta?: { message?: string }
+    }
 
 export type GetSingleTransactionResponse = SuccessResponse<TransactionType>
 

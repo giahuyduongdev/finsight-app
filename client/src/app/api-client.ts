@@ -10,12 +10,19 @@ import { logout, updateCredentials } from '@/features/auth/authSlice'
 
 const API_VERSION = '/v1'
 
-export const getApiBaseUrl = () => {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+export const getApiBaseUrl = (options?: { allowLocalFallback?: boolean }) => {
+  const allowLocalFallback = options?.allowLocalFallback ?? true
+  const configuredApiUrl = import.meta.env.VITE_API_URL
+  if (!configuredApiUrl && !allowLocalFallback) return undefined
+
+  const apiUrl = (configuredApiUrl || 'http://localhost:8000/api').replace(
+    /\/+$/,
+    ''
+  )
 
   if (apiUrl.endsWith(API_VERSION)) return apiUrl
 
-  return `${apiUrl.replace(/\/$/, '')}${API_VERSION}`
+  return `${apiUrl}${API_VERSION}`
 }
 
 const isRefreshPayload = (

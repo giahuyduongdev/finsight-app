@@ -59,7 +59,11 @@ type OtpValues = z.infer<typeof otpSchema>
 
 const handleOAuth = (provider: 'github' | 'google') => {
   const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const backendUrl = getApiBaseUrl() || 'http://localhost:8000/api/v1'
+  const backendUrl = getApiBaseUrl({ allowLocalFallback: import.meta.env.DEV })
+  if (!backendUrl) {
+    toast.error('OAuth is temporarily unavailable. Please try again later.')
+    return
+  }
   window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
 }
 

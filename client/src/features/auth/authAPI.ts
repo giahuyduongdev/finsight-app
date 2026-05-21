@@ -21,6 +21,10 @@ type RefreshCredentials = {
   expiresAt: number
 }
 
+const unwrapRefreshCredentials = (
+  response: RefreshCredentials | ApiSuccessResponse<RefreshCredentials>
+): RefreshCredentials => ('data' in response ? response.data : response)
+
 export const authApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
     // ─── Login / Logout ───────────────────────────────────────────────────────
@@ -46,8 +50,7 @@ export const authApi = apiClient.injectEndpoints({
         url: '/auth/refresh-token',
         method: 'POST'
       }),
-      transformResponse: (response: ApiSuccessResponse<RefreshCredentials>) =>
-        response.data
+      transformResponse: unwrapRefreshCredentials
     }),
 
     getMe: builder.query({

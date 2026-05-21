@@ -5,6 +5,8 @@ on:
     branches: [main, develop, 'feature/**', 'fix/**', 'refactor/**', 'chore/**']
   pull_request:
     branches: [main, develop]
+  schedule:
+    - cron: '0 19 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -65,8 +67,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Install Dependencies
-        # Use --legacy-peer-deps to keep npm from failing on optional peer dependency lockfile resolution
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Run Lint
         run: npm run lint
@@ -82,3 +83,30 @@ jobs:
 
       - name: Test Build
         run: npm run build
+
+  backend-performance:
+    name: Backend Performance Smoke Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Performance Tests
+        run: npm run test:unit -- api-improvements-performance
+        env:
+          RUN_PERF_TESTS: true

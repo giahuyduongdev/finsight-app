@@ -178,12 +178,11 @@ describe('transaction.controller', () => {
           }
         },
         links: {
-          self: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=2&pageSize=10',
-          next: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=3&pageSize=10',
-          prev: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=1&pageSize=10',
-          first:
-            'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=1&pageSize=10',
-          last: 'http://localhost:5000/api/v1/transactions?keyword=coffee&pageNumber=3&pageSize=10'
+          self: '/api/v1/transactions?keyword=coffee&pageNumber=2&pageSize=10',
+          next: '/api/v1/transactions?keyword=coffee&pageNumber=3&pageSize=10',
+          prev: '/api/v1/transactions?keyword=coffee&pageNumber=1&pageSize=10',
+          first: '/api/v1/transactions?keyword=coffee&pageNumber=1&pageSize=10',
+          last: '/api/v1/transactions?keyword=coffee&pageNumber=3&pageSize=10'
         }
       })
       expect(nextMock).not.toHaveBeenCalled()
@@ -246,9 +245,9 @@ describe('transaction.controller', () => {
           }
         },
         links: {
-          self: `http://localhost:5000/api/v1/transactions/${parentId}/children?pageNumber=1&pageSize=10`,
-          first: `http://localhost:5000/api/v1/transactions/${parentId}/children?pageNumber=1&pageSize=10`,
-          last: `http://localhost:5000/api/v1/transactions/${parentId}/children?pageNumber=1&pageSize=10`
+          self: `/api/v1/transactions/${parentId}/children?pageNumber=1&pageSize=10`,
+          first: `/api/v1/transactions/${parentId}/children?pageNumber=1&pageSize=10`,
+          last: `/api/v1/transactions/${parentId}/children?pageNumber=1&pageSize=10`
         }
       })
       expect(nextMock).not.toHaveBeenCalled()

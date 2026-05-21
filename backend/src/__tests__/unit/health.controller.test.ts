@@ -100,6 +100,26 @@ describe('health controller', () => {
     )
   })
 
+  it('returns 503 unhealthy with all failed dependency details', async () => {
+    healthChecks.checkMongoDB.mockResolvedValue(down)
+    healthChecks.checkRedis.mockResolvedValue(down)
+    const res = createResponse()
+
+    await healthCheckController({} as Request, res)
+
+    expect(res.status).toHaveBeenCalledWith(503)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'unhealthy',
+        checks: {
+          mongodb: down,
+          redis: down,
+          bullmq: up
+        }
+      })
+    )
+  })
+
   it('returns readiness status', async () => {
     const res = createResponse()
 

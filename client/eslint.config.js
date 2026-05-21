@@ -6,6 +6,16 @@ import tseslint from 'typescript-eslint'
 import prettierPlugin from 'eslint-plugin-prettier'
 import prettierConfig from 'eslint-config-prettier'
 
+const prettierOptions = {
+  semi: false,
+  singleQuote: true,
+  tabWidth: 2,
+  trailingComma: 'none',
+  printWidth: 80,
+  arrowParens: 'always',
+  endOfLine: 'lf'
+}
+
 export default tseslint.config(
   { ignores: ['dist'] },
   {
@@ -27,7 +37,7 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true }
       ],
-      'prettier/prettier': 'error'
+      'prettier/prettier': ['error', prettierOptions]
     }
   },
   // Disable react-refresh warnings for shadcn/ui components

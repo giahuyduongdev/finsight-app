@@ -203,7 +203,11 @@ const ReceiptScanner = ({
     aiScanReceipt(formData)
       .unwrap()
       .then((res) => {
-        if (res.data?.jobId) {
+        if (res.data?.receipt) {
+          onScanComplete(res.data.receipt)
+          toast.success('Receipt scanned successfully')
+          completeSuccess()
+        } else if (res.data?.jobId) {
           pendingJobIdRef.current = res.data.jobId
           toast.info('Receipt is being processed in background')
 
@@ -215,11 +219,9 @@ const ReceiptScanner = ({
             )
             resetState()
           }, 60000) // 60 seconds
-        } else if (res.data?.receipt) {
-          // Sync mode fallback: Populate immediately
-          onScanComplete(res.data.receipt)
-          toast.success('Receipt scanned successfully')
-          completeSuccess()
+        } else {
+          toast.error('Unexpected scan response')
+          resetState()
         }
       })
       .catch((error) => {

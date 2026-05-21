@@ -3,7 +3,8 @@ import type { Express, Request } from 'express'
 import { Env } from './env.config'
 import { logger } from './logger.config'
 
-const SENSITIVE_HEADERS = ['authorization', 'cookie', 'set-cookie']
+const SENSITIVE_HEADER_PATTERN =
+  /^(authorization|authentication|cookie|set-cookie|x-.*(token|key|auth)|.*(token|key|auth).*)$/i
 
 export const scrubSentryEvent = (
   event: Sentry.ErrorEvent
@@ -12,8 +13,8 @@ export const scrubSentryEvent = (
   if (!headers) return event
 
   for (const header of Object.keys(headers)) {
-    if (SENSITIVE_HEADERS.includes(header.toLowerCase())) {
-      delete headers[header]
+    if (SENSITIVE_HEADER_PATTERN.test(header)) {
+      headers[header] = '[REDACTED]'
     }
   }
 

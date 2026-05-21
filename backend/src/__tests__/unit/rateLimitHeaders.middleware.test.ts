@@ -54,34 +54,36 @@ describe('rateLimitHeaders.middleware', () => {
   it('returns standardized 429 response with Retry-After', () => {
     jest.useFakeTimers()
     jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
-    const req = {
-      correlationId: 'req-123',
-      path: '/api/v1/transactions',
-      method: 'GET',
-      rateLimit: {
-        limit: 100,
-        used: 101,
-        remaining: 0,
-        resetTime: new Date('2026-01-01T00:00:30.000Z'),
-        key: 'client'
-      }
-    } as Request
-    const res = createResponse()
-
-    rateLimitExceededHandler(req, res)
-
-    expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '30')
-    expect(res.status).toHaveBeenCalledWith(429)
-    expect(res.json).toHaveBeenCalledWith({
-      error: expect.objectContaining({
-        code: ErrorCodeEnum.RATE_LIMIT_EXCEEDED,
-        statusCode: 429,
-        requestId: 'req-123',
+    try {
+      const req = {
+        correlationId: 'req-123',
         path: '/api/v1/transactions',
-        method: 'GET'
-      })
-    })
+        method: 'GET',
+        rateLimit: {
+          limit: 100,
+          used: 101,
+          remaining: 0,
+          resetTime: new Date('2026-01-01T00:00:30.000Z'),
+          key: 'client'
+        }
+      } as Request
+      const res = createResponse()
 
-    jest.useRealTimers()
+      rateLimitExceededHandler(req, res)
+
+      expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '30')
+      expect(res.status).toHaveBeenCalledWith(429)
+      expect(res.json).toHaveBeenCalledWith({
+        error: expect.objectContaining({
+          code: ErrorCodeEnum.RATE_LIMIT_EXCEEDED,
+          statusCode: 429,
+          requestId: 'req-123',
+          path: '/api/v1/transactions',
+          method: 'GET'
+        })
+      })
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })

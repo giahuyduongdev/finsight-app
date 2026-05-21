@@ -19,18 +19,35 @@ jest.mock('../../config/bull/bullmq.config', () => ({
   }
 }))
 
+type MockMongooseConnection = Pick<mongoose.Connection, 'readyState' | 'db'>
+
+const createMockConnection = (
+  readyState: number,
+  ping?: jest.Mock
+): MockMongooseConnection =>
+  ({
+    readyState,
+    db: ping
+      ? {
+          admin: () => ({ ping })
+        }
+      : undefined
+  }) as MockMongooseConnection
+
 describe('healthCheck.util', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
   it('returns MongoDB up when connection is ready and ping succeeds', async () => {
-    jest.spyOn(mongoose, 'connection', 'get').mockReturnValue({
-      readyState: 1,
-      db: {
-        admin: () => ({ ping: jest.fn().mockResolvedValue(undefined) })
-      }
-    } as never)
+    jest
+      .spyOn(mongoose, 'connection', 'get')
+      .mockReturnValue(
+        createMockConnection(
+          1,
+          jest.fn().mockResolvedValue(undefined)
+        ) as mongoose.Connection
+      )
 
     const result = await checkMongoDB()
 
@@ -39,9 +56,9 @@ describe('healthCheck.util', () => {
   })
 
   it('returns MongoDB down when connection is not ready', async () => {
-    jest.spyOn(mongoose, 'connection', 'get').mockReturnValue({
-      readyState: 0
-    } as never)
+    jest
+      .spyOn(mongoose, 'connection', 'get')
+      .mockReturnValue(createMockConnection(0) as mongoose.Connection)
 
     const result = await checkMongoDB()
 

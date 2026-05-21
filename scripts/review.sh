@@ -7,6 +7,11 @@ cd "$REPO_ROOT"
 # Tạo thư mục reviews nếu chưa có
 mkdir -p docs/reviews
 
+if ! command -v cr >/dev/null 2>&1; then
+  echo "Error: 'cr' CLI is not installed or not in PATH." >&2
+  exit 1
+fi
+
 # Tạo tên file theo timestamp
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 

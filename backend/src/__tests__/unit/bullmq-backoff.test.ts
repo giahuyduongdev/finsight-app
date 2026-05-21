@@ -8,6 +8,9 @@ jest.mock('../../config/bull/bullmq.config', () => ({
   bullMQConnection: {}
 }))
 
+const DAY_SECONDS = 24 * 3600
+const WEEK_SECONDS = 7 * DAY_SECONDS
+
 describe('BullMQ backoff configuration', () => {
   beforeEach(() => {
     jest.resetModules()
@@ -26,11 +29,11 @@ describe('BullMQ backoff configuration', () => {
           backoff: { type: 'exponential', delay: 10000 },
           removeOnComplete: {
             count: 100,
-            age: 24 * 3600
+            age: DAY_SECONDS
           },
           removeOnFail: {
             count: 50,
-            age: 7 * 24 * 3600
+            age: WEEK_SECONDS
           }
         }
       })
@@ -48,11 +51,11 @@ describe('BullMQ backoff configuration', () => {
           backoff: { type: 'exponential', delay: 5000 },
           removeOnComplete: {
             count: 100,
-            age: 24 * 3600
+            age: DAY_SECONDS
           },
           removeOnFail: {
             count: 50,
-            age: 7 * 24 * 3600
+            age: WEEK_SECONDS
           }
         }
       })

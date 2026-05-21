@@ -61,12 +61,11 @@ describe('ResponseFormatter', () => {
           }
         },
         links: {
-          self: 'https://api.example.com/api/v1/transactions?pageNumber=2&pageSize=10',
-          next: 'https://api.example.com/api/v1/transactions?pageNumber=3&pageSize=10',
-          prev: 'https://api.example.com/api/v1/transactions?pageNumber=1&pageSize=10',
-          first:
-            'https://api.example.com/api/v1/transactions?pageNumber=1&pageSize=10',
-          last: 'https://api.example.com/api/v1/transactions?pageNumber=3&pageSize=10'
+          self: '/api/v1/transactions?pageNumber=2&pageSize=10',
+          next: '/api/v1/transactions?pageNumber=3&pageSize=10',
+          prev: '/api/v1/transactions?pageNumber=1&pageSize=10',
+          first: '/api/v1/transactions?pageNumber=1&pageSize=10',
+          last: '/api/v1/transactions?pageNumber=3&pageSize=10'
         }
       })
     })
@@ -85,7 +84,7 @@ describe('ResponseFormatter', () => {
 
       expect(response.links).not.toHaveProperty('prev')
       expect(response.links?.next).toBe(
-        'https://api.example.com/api/v1/reports?pageNumber=2&pageSize=20'
+        '/api/v1/reports?pageNumber=2&pageSize=20'
       )
     })
 
@@ -103,7 +102,7 @@ describe('ResponseFormatter', () => {
 
       expect(response.links).not.toHaveProperty('next')
       expect(response.links?.prev).toBe(
-        'https://api.example.com/api/v1/transactions?pageNumber=2&pageSize=5'
+        '/api/v1/transactions?pageNumber=2&pageSize=5'
       )
     })
 
@@ -121,7 +120,7 @@ describe('ResponseFormatter', () => {
 
       expect(response.meta?.pagination?.totalPages).toBe(3)
       expect(response.links?.last).toBe(
-        'https://api.example.com/api/v1/transactions?pageNumber=3&pageSize=10'
+        '/api/v1/transactions?pageNumber=3&pageSize=10'
       )
     })
 
@@ -138,7 +137,7 @@ describe('ResponseFormatter', () => {
       )
 
       expect(response.links?.last).toBe(
-        'https://api.example.com/api/v1/transactions?pageNumber=1&pageSize=10'
+        '/api/v1/transactions?pageNumber=1&pageSize=10'
       )
     })
 
@@ -158,7 +157,24 @@ describe('ResponseFormatter', () => {
       )
 
       expect(response.links?.next).toBe(
-        'https://api.example.com/api/v1/transactions?keyword=rent&type=EXPENSE&pageNumber=2&pageSize=10'
+        '/api/v1/transactions?keyword=rent&type=EXPENSE&pageNumber=2&pageSize=10'
+      )
+    })
+
+    it('does not trust host headers when building pagination links', () => {
+      const response = ResponseFormatter.paginated(
+        [],
+        {
+          pageNumber: 1,
+          pageSize: 10,
+          totalCount: 20,
+          totalPages: 2
+        },
+        createMockRequest('/api/v1/transactions')
+      )
+
+      expect(response.links?.self).toBe(
+        '/api/v1/transactions?pageNumber=1&pageSize=10'
       )
     })
   })
