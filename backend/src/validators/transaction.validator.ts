@@ -4,12 +4,8 @@ import {
   RecurringIntervalEnum,
   TransactionTypeEnum
 } from '../models/transaction.model'
-import { CurrencyEnum } from '../enums/currency.enum'
 
-export const transactionIdSchema = z
-  .string()
-  .trim()
-  .regex(/^[a-fA-F0-9]{24}$/, 'Invalid transaction ID format')
+export const transactionIdSchema = z.string().trim().min(1)
 
 export const baseTransactionSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -19,9 +15,6 @@ export const baseTransactionSchema = z.object({
     })
   }),
   amount: z.number().positive('Amount must be postive').min(1),
-  currency: z
-    .enum(Object.values(CurrencyEnum) as [string, ...string[]])
-    .default(CurrencyEnum.USD),
   category: z.string().min(1, 'Category is required'),
   date: z
     .union([z.string().datetime({ message: 'Invalid date string' }), z.date()])
@@ -48,13 +41,12 @@ export const baseTransactionSchema = z.object({
       PaymentMethodEnum.CASH,
       PaymentMethodEnum.OTHER
     ])
-    .default(PaymentMethodEnum.CASH),
-  status: z.enum(['COMPLETED', 'PENDING', 'FAILED']).default('COMPLETED')
+    .default(PaymentMethodEnum.CASH)
 })
 
 export const bulkDeleteTransactionSchema = z.object({
   transactionIds: z
-    .array(transactionIdSchema)
+    .array(z.string().length(24, 'Invalid transaction ID format'))
     .min(1, 'At least one transaction ID must be provided')
 })
 
@@ -62,7 +54,7 @@ export const bulkTransactionSchema = z.object({
   transactions: z
     .array(baseTransactionSchema)
     .min(1, 'At least one transaction is required')
-    .max(1000, 'Must not be more than 1000 transactions')
+    .max(300, 'Must not be more than 300 transactions')
     .refine(
       (txs) =>
         txs.every((tx) => {
@@ -75,15 +67,12 @@ export const bulkTransactionSchema = z.object({
     )
 })
 
-export const createTransactionSchema = baseTransactionSchema.extend({
-  status: z.enum(['COMPLETED', 'PENDING']).default('COMPLETED'),
-  backfill: z.boolean().optional().default(false)
-})
+export const createTransactionSchema = baseTransactionSchema
 export const updateTransactionSchema = baseTransactionSchema.partial()
 
 export type CreateTransactionType = z.infer<typeof createTransactionSchema>
 
 export type UpdateTransactionType = z.infer<typeof updateTransactionSchema>
-export type BulkDeleteTransactionType = z.infer<
+export type BulkDelteTransactionType = z.infer<
   typeof bulkDeleteTransactionSchema
 >

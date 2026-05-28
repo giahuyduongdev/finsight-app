@@ -1,20 +1,12 @@
-import { logger } from '../config/logger.config'
 import { startJobs } from './scheduler'
-import { ScheduledTask } from 'node-cron'
-
-let jobs: ScheduledTask[] = []
 
 export const initializeCrons = async () => {
   try {
-    jobs = startJobs()
-    logger.info(`[JOB:Cron] ${jobs.length} Cron jobs initialized`)
+    const jobs = startJobs()
+    console.log(`⏰ ${jobs.length} cron jobs intialized`)
+    return jobs
   } catch (error) {
-    logger.error('[JOB:Cron] INIT ERROR:', error)
+    console.error('CRON INIT ERROR:', error)
+    return []
   }
-}
-
-export const stopCrons = () => {
-  jobs.forEach((job) => job.stop())
-  jobs = []
-  logger.info('[JOB:Cron] Cron jobs stopped')
 }

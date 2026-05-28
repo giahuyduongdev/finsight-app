@@ -1,221 +1,86 @@
-import { generateWithFallback } from '../config/google-ai.config'
-import ReportModel, { ReportStatusEnum } from '../models/report.model'
-import { NotFoundException } from '../utils/errors/index'
-
-import { calculateNextReportDate } from '../utils/dates/index'
-import { reportInsightPrompt } from '../lib/prompts/report.prompt'
+import { createUserContent } from '@google/genai'
+import { genAI, genAIModel } from '../config/google-ai.config'
+import ReportSettingModel from '../models/report-setting.model'
+import ReportModel from '../models/report.model'
+import { NotFoundException } from '../utils/app-error'
+import { convertToDollarUnit } from '../utils/format-currency'
+import { calculateNextReportDate } from '../utils/helper'
+import { reportInsightPrompt } from '../utils/prompt'
 import { UpdateReportSettingType } from '../validators/report.validator'
-import { endOfMonth, startOfMonth, subMonths } from 'date-fns'
+import { format } from 'date-fns'
 import TransactionModel, {
   TransactionTypeEnum
 } from '../models/transaction.model'
 import mongoose from 'mongoose'
-import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
-import { getExchangeRate } from '../lib/exchange-rate-currency'
-import { sendReportEmail } from '../mailers/report.mailer'
-import UserModel from '../models/user.model'
-import { logger } from '../config/logger.config'
-import { IReportRepository } from '../repositories/interfaces/report-repository.interface'
-import { IReportSettingRepository } from '../repositories/interfaces/report-setting-repository.interface'
-import { GeneratedReport, InsightsGenerationInput } from '../types/report.type'
+import { formatInTimeZone } from 'date-fns-tz'
 
-// ─── ReportService Class (New - DI-based) ────────────────────────────────────
+export const getAllReportsService = async (
+  userId: string,
+  pagination: { pageSize: number; pageNumber: number }
+) => {
+  const query: Record<string, any> = { userId }
 
-/**
- * ReportService Class
- * Handles report-related business logic with dependency injection
- */
-export class ReportService {
-  constructor(
-    private readonly reportRepository: IReportRepository,
-    private readonly reportSettingRepository: IReportSettingRepository
-  ) {}
+  const { pageSize, pageNumber } = pagination
+  const skip = (pageNumber - 1) * pageSize
 
-  /**
-   * Get all reports for a user with pagination
-   * @param userId - User ID
-   * @param pagination - Pagination parameters
-   * @returns Paginated reports
-   */
-  async findByUserId(
-    userId: string,
-    pagination: { pageSize: number; pageNumber: number }
-  ) {
-    return await this.reportRepository.findByUserId(userId, pagination)
-  }
+  const [reports, totalCount] = await Promise.all([
+    ReportModel.find(query).skip(skip).limit(pageSize).sort({ createdAt: -1 }),
+    ReportModel.countDocuments(query)
+  ])
 
-  /**
-   * Get report settings for a user
-   * @param userId - User ID
-   * @returns Report settings or null
-   */
-  async getSettings(userId: string) {
-    return await this.reportSettingRepository.findByUserId(userId)
-  }
-
-  /**
-   * Update report settings
-   * @param userId - User ID
-   * @param body - Update data
-   * @returns Updated report settings
-   * @throws NotFoundException if settings not found
-   */
-  async updateSettings(userId: string, body: UpdateReportSettingType) {
-    const { isEnabled } = body
-    let nextReportDate: Date | undefined
-
-    const existingReportSetting =
-      await this.reportSettingRepository.findByUserId(userId)
-    if (!existingReportSetting)
-      throw new NotFoundException('Report setting not found')
-
-    if (isEnabled) {
-      const currentNextReportDate = existingReportSetting.nextReportDate
-      const now = new Date()
-      if (!currentNextReportDate || currentNextReportDate <= now) {
-        nextReportDate = calculateNextReportDate(
-          existingReportSetting.lastSentDate,
-          existingReportSetting.frequency
-        )
-      } else {
-        nextReportDate = currentNextReportDate
-      }
+  const totalPages = Math.ceil(totalCount / pageSize)
+  return {
+    reports,
+    pagination: {
+      pageSize,
+      pageNumber,
+      totalCount,
+      totalPages,
+      skip
     }
-
-    const updated = await this.reportSettingRepository.update(userId, {
-      ...body,
-      nextReportDate
-    })
-
-    if (!updated) throw new NotFoundException('Report setting not found')
-
-    return updated
-  }
-
-  /**
-   * Find report by period
-   * @param userId - User ID
-   * @param period - Report period
-   * @returns Report or null
-   */
-  async findByPeriod(userId: string, period: string) {
-    return await this.reportRepository.findByPeriod(userId, period)
-  }
-
-  /**
-   * Update report status
-   * @param reportId - Report ID
-   * @param status - New status
-   * @returns Updated report
-   * @throws NotFoundException if report not found
-   */
-  async updateStatus(reportId: string, status: ReportStatusEnum) {
-    const updated = await this.reportRepository.updateStatus(reportId, status)
-    if (!updated) throw new NotFoundException('Report not found')
-    return updated
-  }
-
-  /**
-   * Resend a report
-   * @param userId - User ID
-   * @param reportId - Report ID
-   * @returns Success message
-   * @throws NotFoundException if report or user not found
-   */
-  async resendReport(userId: string, reportId: string) {
-    // 1. Find report by ID (using repository would be better, but we need to check userId)
-    const report = await ReportModel.findOne({
-      _id: reportId,
-      userId
-    })
-    if (!report) throw new NotFoundException('Report not found')
-
-    // 2. Get user info
-    const user = await UserModel.findById(userId)
-    if (!user) throw new NotFoundException('User not found')
-
-    // 3. Get report setting for frequency
-    const reportSetting =
-      await this.reportSettingRepository.findByUserId(userId)
-
-    // 4. Calculate time period from old report
-    const timezone = user.timezone || 'UTC'
-    const now = new Date()
-
-    const sentDate = new Date(report.sentDate)
-
-    const from = fromZonedTime(
-      startOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
-      timezone
-    )
-    const to = fromZonedTime(
-      endOfMonth(subMonths(toZonedTime(sentDate, timezone), 1)),
-      timezone
-    )
-
-    // 5. Generate report data
-    const reportData = await generateReportService(
-      userId,
-      from,
-      to,
-      timezone,
-      user.preferredCurrency
-    )
-
-    if (!reportData) {
-      throw new NotFoundException('No activity found for this period')
-    }
-
-    // 6. Validate user data
-    if (!user.email || !user.name) {
-      throw new NotFoundException('User email or name not found')
-    }
-
-    // 7. Send email
-    await sendReportEmail({
-      email: user.email,
-      username: user.name,
-      report: {
-        period: reportData.period,
-        totalIncome: reportData.summary.income,
-        totalExpenses: reportData.summary.expenses,
-        availableBalance: reportData.summary.balance,
-        savingsRate: reportData.summary.savingsRate,
-        topSpendingCategories: reportData.summary.topCategories,
-        insights: reportData.insights,
-        currency: reportData.currency || user.preferredCurrency || 'USD'
-      },
-      frequency: reportSetting?.frequency || 'MONTHLY'
-    })
-
-    // 8. Update database
-    await Promise.all([
-      // Update Report
-      this.reportRepository.updateStatus(reportId, ReportStatusEnum.SENT),
-
-      // Update ReportSetting - only lastSentDate, keep nextReportDate unchanged
-      this.reportSettingRepository.update(userId, {
-        lastSentDate: now
-      })
-    ])
-
-    return { message: 'Report resent successfully' }
   }
 }
 
-// ─── Old Service Functions (Deprecated - Keep for backward compatibility) ────
+export const updateReportSettingService = async (
+  userId: string,
+  body: UpdateReportSettingType
+) => {
+  const { isEnabled } = body
+  let nextReportDate: Date | null = null
 
-/**
- * @internal - Helper function for generating report data
- * Used by ReportService, report worker, and report controller
- */
+  const existingReportSetting = await ReportSettingModel.findOne({ userId })
+  if (!existingReportSetting)
+    throw new NotFoundException('Report setting not found"')
+
+  if (isEnabled) {
+    const currentNextReportDate = existingReportSetting.nextReportDate
+    const now = new Date()
+    if (!currentNextReportDate || currentNextReportDate <= now) {
+      nextReportDate = calculateNextReportDate(
+        existingReportSetting.lastSentDate
+      )
+    } else {
+      nextReportDate = currentNextReportDate
+    }
+  }
+
+  console.log(nextReportDate, 'nextReportDate')
+
+  existingReportSetting.set({
+    ...body,
+    nextReportDate
+  })
+
+  await existingReportSetting.save()
+  return existingReportSetting
+}
+
 export const generateReportService = async (
   userId: string,
   fromDate: Date,
   toDate: Date,
-  timezone: string,
-  preferredCurrency: string = 'USD'
-): Promise<GeneratedReport | null> => {
+  timezone: string
+) => {
   const results = await TransactionModel.aggregate([
     {
       $match: {
@@ -225,25 +90,25 @@ export const generateReportService = async (
     },
     {
       $facet: {
-        // Group theo currency
         summary: [
           {
             $group: {
-              _id: '$currency',
+              _id: null,
               totalIncome: {
                 $sum: {
                   $cond: [
                     { $eq: ['$type', TransactionTypeEnum.INCOME] },
-                    '$amount',
+                    { $abs: '$amount' },
                     0
                   ]
                 }
               },
+
               totalExpenses: {
                 $sum: {
                   $cond: [
                     { $eq: ['$type', TransactionTypeEnum.EXPENSE] },
-                    '$amount',
+                    { $abs: '$amount' },
                     0
                   ]
                 }
@@ -251,158 +116,128 @@ export const generateReportService = async (
             }
           }
         ],
-        // Group category theo currency
+
         categories: [
-          { $match: { type: TransactionTypeEnum.EXPENSE } },
+          {
+            $match: { type: TransactionTypeEnum.EXPENSE }
+          },
           {
             $group: {
-              _id: { category: '$category', currency: '$currency' },
-              total: { $sum: '$amount' }
+              _id: '$category',
+              total: { $sum: { $abs: '$amount' } }
             }
           },
-          { $sort: { total: -1 } }
+          {
+            $sort: { total: -1 }
+          },
+          {
+            $limit: 5
+          }
         ]
+      }
+    },
+    {
+      $project: {
+        totalIncome: {
+          $arrayElemAt: ['$summary.totalIncome', 0]
+        },
+        totalExpenses: {
+          $arrayElemAt: ['$summary.totalExpenses', 0]
+        },
+        categories: 1
       }
     }
   ])
 
-  if (!results?.length) return null
+  if (
+    !results?.length ||
+    (results[0]?.totalIncome === 0 && results[0]?.totalExpenses === 0)
+  )
+    return null
 
-  const { summary = [], categories = [] } = results[0] || {}
+  const {
+    totalIncome = 0,
+    totalExpenses = 0,
+    categories = []
+  } = results[0] || {}
 
-  if (!summary.length) return null
+  console.log(results[0], 'results')
 
-  // Types for aggregation results
-  type SummaryItem = {
-    _id: string
-    totalIncome: number
-    totalExpenses: number
-  }
-
-  type CategoryItem = {
-    _id: { category: string; currency: string }
-    total: number
-  }
-
-  // Collect unique currencies
-  const uniqueCurrencies = new Set<string>()
-  summary.forEach((item: SummaryItem) => {
-    uniqueCurrencies.add(item._id || 'USD')
-  })
-  categories.forEach((item: CategoryItem) => {
-    uniqueCurrencies.add(item._id.currency || 'USD')
-  })
-
-  // Fetch rates once per unique currency
-  const ratePromises = Array.from(uniqueCurrencies).map(async (currency) => ({
-    currency,
-    rate: await getExchangeRate(currency, preferredCurrency)
-  }))
-  const rates = await Promise.all(ratePromises)
-  const rateMap = new Map(rates.map((r) => [r.currency, r.rate]))
-
-  // Convert summary using rate map
-  let convertedIncome = 0
-  let convertedExpenses = 0
-
-  summary.forEach((item: SummaryItem) => {
-    const fromCurrency = item._id || 'USD'
-    const rate = rateMap.get(fromCurrency) || 1
-    convertedIncome += item.totalIncome * rate
-    convertedExpenses += item.totalExpenses * rate
-  })
-
-  if (convertedIncome === 0 && convertedExpenses === 0) return null
-
-  // Convert categories using rate map
-  const categoryMap: Record<string, number> = {}
-  categories.forEach((item: CategoryItem) => {
-    const { category, currency } = item._id
-    const fromCurrency = currency || 'USD'
-    const rate = rateMap.get(fromCurrency) || 1
-    const convertedTotal = item.total * rate
-    categoryMap[category] = (categoryMap[category] || 0) + convertedTotal
-  })
-
-  // Sort và limit top 5
-  const top5Categories = Object.entries(categoryMap)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-
-  const byCategory = top5Categories.reduce(
-    (acc, [name, amount]) => {
-      acc[name] = {
-        amount,
+  const byCategory = categories.reduce(
+    (acc: any, { _id, total }: any) => {
+      acc[_id] = {
+        amount: convertToDollarUnit(total),
         percentage:
-          convertedExpenses > 0
-            ? Math.round((amount / convertedExpenses) * 100)
-            : 0
+          totalExpenses > 0 ? Math.round((total / totalExpenses) * 100) : 0
       }
       return acc
     },
     {} as Record<string, { amount: number; percentage: number }>
   )
 
-  const availableBalance = convertedIncome - convertedExpenses
-  const savingsRate = calculateSavingRate(convertedIncome, convertedExpenses)
+  const availableBalance = totalIncome - totalExpenses
+  const savingsRate = calculateSavingRate(totalIncome, totalExpenses)
 
   const periodLabel = `${formatInTimeZone(fromDate, timezone, 'MMMM d')} - ${formatInTimeZone(toDate, timezone, 'd, yyyy')}`
 
   const insights = await generateInsightsAI({
-    totalIncome: convertedIncome,
-    totalExpenses: convertedExpenses,
+    totalIncome,
+    totalExpenses,
     availableBalance,
     savingsRate,
     categories: byCategory,
-    periodLabel,
-    currency: preferredCurrency
+    periodLabel: periodLabel
   })
 
   return {
     period: periodLabel,
     summary: {
-      income: convertedIncome,
-      expenses: convertedExpenses,
-      balance: availableBalance,
+      income: convertToDollarUnit(totalIncome),
+      expenses: convertToDollarUnit(totalExpenses),
+      balance: convertToDollarUnit(availableBalance),
       savingsRate: Number(savingsRate.toFixed(1)),
-      topCategories: Object.entries(byCategory).map(([name, cat]) => ({
+      topCategories: Object.entries(byCategory)?.map(([name, cat]: any) => ({
         name,
         amount: cat.amount,
         percent: cat.percentage
       }))
     },
-    currency: preferredCurrency,
     insights
   }
 }
 
-async function generateInsightsAI(
-  input: InsightsGenerationInput
-): Promise<string[]> {
-  const {
-    totalIncome,
-    totalExpenses,
-    availableBalance,
-    savingsRate,
-    categories,
-    periodLabel,
-    currency = 'USD'
-  } = input
+async function generateInsightsAI({
+  totalIncome,
+  totalExpenses,
+  availableBalance,
+  savingsRate,
+  categories,
+  periodLabel
+}: {
+  totalIncome: number
+  totalExpenses: number
+  availableBalance: number
+  savingsRate: number
+  categories: Record<string, { amount: number; percentage: number }>
+  periodLabel: string
+}) {
   try {
     const prompt = reportInsightPrompt({
-      totalIncome,
-      totalExpenses,
-      availableBalance,
+      totalIncome: convertToDollarUnit(totalIncome),
+      totalExpenses: convertToDollarUnit(totalExpenses),
+      availableBalance: convertToDollarUnit(availableBalance),
       savingsRate: Number(savingsRate.toFixed(1)),
       categories,
-      periodLabel,
-      currency
+      periodLabel
     })
 
-    const result = await generateWithFallback(
-      [{ role: 'user', parts: [{ text: prompt }] }],
-      { responseMimeType: 'application/json' }
-    )
+    const result = await genAI.models.generateContent({
+      model: genAIModel,
+      contents: [createUserContent([prompt])],
+      config: {
+        responseMimeType: 'application/json'
+      }
+    })
 
     const response = result.text
     const cleanedText = response?.replace(/```(?:json)?\n?/g, '').trim()
@@ -410,32 +245,8 @@ async function generateInsightsAI(
     if (!cleanedText) return []
 
     const data = JSON.parse(cleanedText)
-
-    // Validate AI output structure
-    if (!Array.isArray(data)) {
-      logger.warn('[APP:Report] AI returned non-array insights', { data })
-      return []
-    }
-
-    // Validate each insight is a string
-    const validInsights = data.filter((item) => typeof item === 'string')
-    if (validInsights.length !== data.length) {
-      logger.warn('[APP:Report] Some AI insights were not strings', {
-        total: data.length,
-        valid: validInsights.length
-      })
-    }
-
-    return validInsights
+    return data
   } catch (error) {
-    logger.error('[APP:Report] Failed to generate AI insights', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      cause:
-        error instanceof Error && 'cause' in error
-          ? (error as Error & { cause?: unknown }).cause
-          : undefined
-    })
     return []
   }
 }

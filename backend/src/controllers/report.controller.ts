@@ -1,58 +1,51 @@
 import { Request, Response } from 'express'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { HTTPSTATUS } from '../config/http.config'
-import { generateReportService } from '../services/report.service'
+import {
+  generateReportService,
+  getAllReportsService,
+  updateReportSettingService
+} from '../services/report.service'
+import { updateReportSettingSchema } from '../validators/report.validator'
 import { fromZonedTime } from 'date-fns-tz'
-import { getUserId } from '../utils/getUserId.util'
-import { container } from '../container'
-import { toReportSettingResponse, toGenerateReportResponse } from '../dtos'
-import { parsePaginationQuery } from '../utils/query-parser.util'
-import { ResponseFormatter } from '../utils/responseFormatter.util'
-import { BadRequestException, NotFoundException } from '../utils/errors'
-
-// Get ReportService instance from DI container
-const reportService = container.getReportService()
 
 export const getAllReportsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = getUserId(req)
+    const userId = req.user?._id
 
-    const pagination = parsePaginationQuery(req.query)
+    const pagination = {
+      pageSize: parseInt(req.query.pageSize as string) || 20,
+      pageNumber: parseInt(req.query.pageNumber as string) || 1
+    }
 
-    const result = await reportService.findByUserId(userId, pagination)
+    const result = await getAllReportsService(userId, pagination)
 
-    return res
-      .status(HTTPSTATUS.OK)
-      .json(ResponseFormatter.paginated(result.data, result.pagination, req))
+    return res.status(HTTPSTATUS.OK).json({
+      message: 'Reports history fetched successfully',
+      ...result
+    })
   }
 )
 
 export const updateReportSettingController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = getUserId(req)
-    const body = req.body
+    const userId = req.user?._id
+    const body = updateReportSettingSchema.parse(req.body)
 
-    const updatedReportSetting = await reportService.updateSettings(
-      userId,
-      body
-    )
+    const updatedReportSetting = await updateReportSettingService(userId, body)
 
-    const response = toReportSettingResponse(updatedReportSetting)
-
-    return res
-      .status(HTTPSTATUS.OK)
-      .json(
-        ResponseFormatter.success(response.data, { message: response.message })
-      )
+    return res.status(HTTPSTATUS.OK).json({
+      message: 'Reports setting updated successfully',
+      data: updatedReportSetting
+    })
   }
 )
 
 export const generateReportController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = getUserId(req)
+    const userId = req.user?._id
     const { from, to } = req.query
     const timezone = req.user?.timezone || 'UTC'
-    const preferredCurrency = req.user?.preferredCurrency || 'USD'
     const fromDate = fromZonedTime(`${from}T00:00:00`, timezone as string)
     const toDate = fromZonedTime(`${to}T23:59:59`, timezone as string)
 
@@ -60,39 +53,12 @@ export const generateReportController = asyncHandler(
       userId,
       fromDate,
       toDate,
-      timezone as string,
-      preferredCurrency
+      timezone as string
     )
 
-    if (!result) {
-      throw new NotFoundException(
-        'No transactions found for the specified period'
-      )
-    }
-
-    const response = toGenerateReportResponse(result)
-    const { message, ...data } = response
-
-    return res
-      .status(HTTPSTATUS.OK)
-      .json(ResponseFormatter.success(data, { message }))
-  }
-)
-
-export const resendReportController = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userId = getUserId(req)
-    const reportId = req.params.reportId as string
-
-    // Validate reportId format
-    if (!reportId || !/^[0-9a-fA-F]{24}$/.test(reportId)) {
-      throw new BadRequestException('Invalid report ID format')
-    }
-
-    const result = await reportService.resendReport(userId, reportId)
-
-    return res
-      .status(HTTPSTATUS.OK)
-      .json(ResponseFormatter.success(null, { message: result.message }))
+    return res.status(HTTPSTATUS.OK).json({
+      message: 'Report generated successfully',
+      ...result
+    })
   }
 )
