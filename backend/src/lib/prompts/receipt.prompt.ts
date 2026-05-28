@@ -3,7 +3,14 @@ import { CurrencyEnum } from '../../enums/currency.enum'
 
 export const receiptPrompt = `
 You are a financial assistant that helps users analyze and extract transaction details from receipt image (base64 encoded)
-Analyze this receipt image (base64 encoded) and extract transaction details matching this exact JSON format:
+First determine whether the image is a real receipt, invoice, bill, payment slip, or transaction proof.
+
+If the image is not clearly a receipt-like financial document, return exactly:
+{}
+
+Do not infer or invent transaction data from non-receipt images such as selfies, animals, scenery, product photos, screenshots without payment details, memes, documents unrelated to purchases, or random objects.
+
+If it is a receipt-like image, analyze it and extract transaction details matching this exact JSON format:
 {
   "title": "string",          // Merchant/store name or brief description
   "amount": number,           // Total amount (positive number, without currency symbol)
@@ -17,13 +24,15 @@ Analyze this receipt image (base64 encoded) and extract transaction details matc
 }
 
 Rules:
+0. If the image is not clearly a receipt, invoice, bill, payment slip, or transaction proof, return exactly {} and nothing else
 1. Amount must be positive
 2. Date must be valid and in ISO format
 3. Category must be lowercase. Prefer matching the suggested list, but if none fit use a short descriptive word — never use "other"
 4. Currency must be one of: ${Object.values(CurrencyEnum).join(',')}
 5. If currency symbol not found on receipt, default to USD
-6. If uncertain about any field (except paymentMethod), omit it. For paymentMethod, ALWAYS provide a value based on inference or defaults.
-7. If not a receipt, return {}
+6. If uncertain about whether the image is a receipt, return {}
+7. If uncertain about any field (except paymentMethod), omit it. For paymentMethod, ALWAYS provide a value based on inference or defaults.
+8. Return only valid JSON. Do not include markdown, explanations, or extra text.
 
 Example valid response:
 {

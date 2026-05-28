@@ -2,7 +2,7 @@ import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import { appConfig } from './app.config'
 import { getRequestContext } from '../utils/asyncContext'
-import { redactSensitiveFields } from '../utils/redact.util'
+import { redactSensitiveFields } from '../utils/logging/redact.util'
 
 // ─── Custom Levels ────────────────────────────────────────────────────────────
 
@@ -41,29 +41,38 @@ const enhancedFormat = winston.format((info) => {
 
 // Redacted format: Remove sensitive fields from logs
 const redactedFormat = winston.format((info) => {
-  if (info.body) {
-    info.body = redactSensitiveFields(info.body)
+  for (const key of Object.keys(info)) {
+    if (['level', 'message', 'timestamp'].includes(key)) continue
+    info[key] = redactSensitiveFields(info[key])
   }
-  if (info.meta) {
-    info.meta = redactSensitiveFields(info.meta)
-  }
+
   return info
 })
 
-const devFormat = winston.format.combine(
+const prettyPrint = winston.format.printf(
+  ({ timestamp, level, message, ...meta }) =>
+    `[${timestamp}] ${level}: ${message} ${
+      Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
+    }`
+)
+
+const devConsoleFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   enhancedFormat(),
   redactedFormat(),
   winston.format.colorize({ all: true }),
-  winston.format.printf(
-    ({ timestamp, level, message, ...meta }) =>
-      `[${timestamp}] ${level}: ${message} ${
-        Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
-      }`
-  )
+  prettyPrint
 )
 
 const prodFormat = winston.format.combine(
+  winston.format.timestamp(),
+  winston.format.errors({ stack: true }),
+  enhancedFormat(),
+  redactedFormat(),
+  winston.format.json()
+)
+
+const fileFormat = winston.format.combine(
   winston.format.timestamp(),
   winston.format.errors({ stack: true }),
   enhancedFormat(),
@@ -75,7 +84,9 @@ const prodFormat = winston.format.combine(
 
 const transports: winston.transport[] = [
   // Console — luôn bật
-  new winston.transports.Console(),
+  new winston.transports.Console({
+    format: appConfig.logging.style === 'json' ? prodFormat : devConsoleFormat
+  }),
 
   // Error log — lưu file, rotate mỗi ngày
   new DailyRotateFile({
@@ -84,7 +95,8 @@ const transports: winston.transport[] = [
     level: 'error',
     maxSize: '20m',
     maxFiles: '30d', // giữ 30 ngày
-    zippedArchive: true
+    zippedArchive: true,
+    format: fileFormat
   }),
 
   // Combined log — tất cả level
@@ -93,7 +105,8 @@ const transports: winston.transport[] = [
     datePattern: 'YYYY-MM-DD',
     maxSize: '20m',
     maxFiles: '14d', // giữ 14 ngày
-    zippedArchive: true
+    zippedArchive: true,
+    format: fileFormat
   })
 ]
 
@@ -102,7 +115,6 @@ const transports: winston.transport[] = [
 export const logger = winston.createLogger({
   level: appConfig.logging.level,
   levels,
-  format: appConfig.logging.style === 'json' ? prodFormat : devFormat,
   transports,
   exitOnError: false
 })

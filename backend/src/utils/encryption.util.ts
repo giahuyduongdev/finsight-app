@@ -20,11 +20,8 @@ export const encrypt = async (text: string): Promise<string> => {
 
   // Derive key from secret using PBKDF2 (async)
   // OWASP recommends 600,000 iterations for PBKDF2-SHA256
-  // NOTE: Key derivation depends on JWT_SECRET. Encrypted data becomes
-  // unrecoverable if JWT_SECRET rotates. This is acceptable since this
-  // utility is only used for short-lived Redis storage (OTP flows).
   const key = await pbkdf2Async(
-    Env.JWT_SECRET, // Use existing secret as base
+    Env.ENCRYPTION_SECRET,
     salt,
     600000, // iterations (OWASP recommendation)
     32, // key length
@@ -78,7 +75,13 @@ export const decrypt = async (encryptedData: string): Promise<string> => {
   const authTag = Buffer.from(authTagHex, 'hex')
 
   // Derive key using same parameters (async)
-  const key = await pbkdf2Async(Env.JWT_SECRET, salt, 600000, 32, 'sha256')
+  const key = await pbkdf2Async(
+    Env.ENCRYPTION_SECRET,
+    salt,
+    600000,
+    32,
+    'sha256'
+  )
 
   // Create decipher
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)

@@ -215,7 +215,7 @@ const ReceiptScanner = ({
           stopSafetyTimeout()
           timeoutRef.current = setTimeout(() => {
             toast.error(
-              'Processing timed out. Please check your internet or try again.'
+              'Processing timed out. Please check your internet or try again'
             )
             resetState()
           }, 60000) // 60 seconds

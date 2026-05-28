@@ -5,7 +5,8 @@ import {
   deleteTransactionController,
   duplicateTransactionController,
   getAllTransactionController,
-  getChildTransactionsController
+  getChildTransactionsController,
+  scanReceiptController
 } from '../../controllers/transaction.controller'
 import { HTTPSTATUS } from '../../config/http.config'
 import { NotFoundException } from '../../utils/errors'
@@ -15,6 +16,12 @@ import {
   bulkDeleteTransactionSchema,
   transactionIdSchema
 } from '../../validators/transaction.validator'
+import sharp from 'sharp'
+import { redis } from '../../config/redis.config'
+import {
+  getReceiptScanCacheKey,
+  hashReceiptImage
+} from '../../utils/receipt/scan-cache.util'
 
 const mockDeleteById = jest.fn()
 const mockBulkDelete = jest.fn()
@@ -23,6 +30,8 @@ const mockFindByUserId = jest.fn()
 const mockFindChildTransactions = jest.fn()
 const mockEmit = jest.fn()
 const mockTo = jest.fn(() => ({ emit: mockEmit }))
+const mockExtractReceiptDataFromBase64 = jest.fn()
+const mockUploadReceiptImageToCloudinary = jest.fn()
 
 jest.mock('../../container', () => ({
   container: {
@@ -69,6 +78,17 @@ jest.mock('../../models/import-batch.model', () => ({
 
 jest.mock('sharp', () => jest.fn())
 
+jest.mock('../../utils/receipt/ai.util', () => ({
+  extractReceiptDataFromBase64: (...args: unknown[]) =>
+    mockExtractReceiptDataFromBase64(...args),
+  NonReceiptImageError: class NonReceiptImageError extends Error {}
+}))
+
+jest.mock('../../utils/receipt/upload.util', () => ({
+  uploadReceiptImageToCloudinary: (...args: unknown[]) =>
+    mockUploadReceiptImageToCloudinary(...args)
+}))
+
 jest.mock('../../config/socket.config', () => ({
   getIO: () => ({
     to: mockTo
@@ -111,6 +131,11 @@ describe('transaction.controller', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+
+    const toBufferMock = jest.fn().mockResolvedValue(Buffer.from('compressed'))
+    const jpegMock = jest.fn().mockReturnValue({ toBuffer: toBufferMock })
+    const resizeMock = jest.fn().mockReturnValue({ jpeg: jpegMock })
+    ;(sharp as unknown as jest.Mock).mockReturnValue({ resize: resizeMock })
 
     sendMock = jest.fn()
     jsonMock = jest.fn()
@@ -438,6 +463,125 @@ describe('transaction.controller', () => {
       expect(statusMock).not.toHaveBeenCalled()
       expect(sendMock).not.toHaveBeenCalled()
       expect(jsonMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('scanReceiptController', () => {
+    const createReceiptRequest = (): Partial<Request> => ({
+      file: {
+        buffer: Buffer.from('original image'),
+        mimetype: 'image/jpeg',
+        size: 1024,
+        originalname: 'receipt.jpg'
+      } as Express.Multer.File,
+      correlationId: 'correlation-123'
+    })
+
+    it('should return cached receipt immediately when scan cache hits', async () => {
+      const compressedBuffer = Buffer.from('compressed')
+      const imageHash = hashReceiptImage(compressedBuffer)
+      const cachedReceipt = {
+        data: {
+          title: 'Coffee',
+          amount: 5,
+          currency: 'USD',
+          date: '2026-05-25',
+          description: 'Morning coffee',
+          category: 'Food',
+          paymentMethod: 'CASH',
+          type: 'EXPENSE',
+          status: 'COMPLETED',
+          receiptUrl: 'https://res.cloudinary.com/demo/receipt.jpg'
+        },
+        cachedAt: '2026-05-25T00:00:00.000Z'
+      }
+      ;(redis.get as jest.Mock).mockResolvedValue(JSON.stringify(cachedReceipt))
+
+      await scanReceiptController(
+        createReceiptRequest() as Request,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(redis.get).toHaveBeenCalledWith(
+        getReceiptScanCacheKey('user-123', imageHash)
+      )
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(jsonMock).toHaveBeenCalledWith({
+        data: {
+          receipt: cachedReceipt.data
+        },
+        meta: { message: 'Receipt scan loaded from cache' }
+      })
+      expect(mockExtractReceiptDataFromBase64).not.toHaveBeenCalled()
+      expect(mockUploadReceiptImageToCloudinary).not.toHaveBeenCalled()
+      expect(redis.set).not.toHaveBeenCalled()
+    })
+
+    it('should return a job id on cache miss and cache the background scan result', async () => {
+      const compressedBuffer = Buffer.from('compressed')
+      const imageHash = hashReceiptImage(compressedBuffer)
+      const extractedReceipt = {
+        title: 'Coffee',
+        amount: 5,
+        currency: 'USD',
+        date: '2026-05-25',
+        description: 'Morning coffee',
+        category: 'Food',
+        paymentMethod: 'CASH',
+        type: 'EXPENSE',
+        status: 'COMPLETED'
+      }
+      ;(redis.get as jest.Mock).mockResolvedValue(null)
+      mockExtractReceiptDataFromBase64.mockResolvedValue(extractedReceipt)
+      mockUploadReceiptImageToCloudinary.mockResolvedValue({
+        secure_url: 'https://res.cloudinary.com/demo/new-receipt.jpg',
+        public_id: `receipts/user-123/${imageHash}`
+      })
+
+      await scanReceiptController(
+        createReceiptRequest() as Request,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.ACCEPTED)
+      expect(jsonMock).toHaveBeenCalledWith({
+        data: {
+          jobId: expect.stringMatching(/^receipt-scan-/)
+        },
+        meta: { message: 'Receipt is being processed' }
+      })
+
+      await new Promise((resolve) => setImmediate(resolve))
+
+      const jobId = jsonMock.mock.calls[0][0].data.jobId
+      const receiptData = {
+        ...extractedReceipt,
+        receiptUrl: 'https://res.cloudinary.com/demo/new-receipt.jpg'
+      }
+      expect(mockExtractReceiptDataFromBase64).toHaveBeenCalledWith(
+        compressedBuffer.toString('base64')
+      )
+      expect(mockUploadReceiptImageToCloudinary).toHaveBeenCalledWith(
+        compressedBuffer,
+        {
+          publicId: `receipts/user-123/${imageHash}`
+        }
+      )
+      expect(redis.set).toHaveBeenCalledWith(
+        getReceiptScanCacheKey('user-123', imageHash),
+        expect.stringContaining(
+          '"receiptUrl":"https://res.cloudinary.com/demo/new-receipt.jpg"'
+        ),
+        'EX',
+        86400
+      )
+      expect(mockTo).toHaveBeenCalledWith('user-123')
+      expect(mockEmit).toHaveBeenCalledWith('receipt:scan-completed', {
+        jobId,
+        data: receiptData
+      })
     })
   })
 

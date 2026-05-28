@@ -1,0 +1,283 @@
+# Tóm tắt cơ chế mã hóa, hash và token trong Finsight
+
+Tài liệu này giải thích dự án đang dùng cơ chế nào, dùng ở chỗ nào, flow chạy ra sao, và điểm nào nên cải thiện về bảo mật.
+
+## Bảng tổng quan nhanh
+
+| Cơ chế                           | Dùng cho                                   | File chính                                                             | Nhận xét ngắn                                                        |
+| -------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `AES-256-GCM`                    | Mã hóa dữ liệu cần giải mã lại trong Redis | `backend/src/utils/encryption.util.ts`                                 | Thuật toán tốt, có kiểm tra toàn vẹn dữ liệu                         |
+| `PBKDF2-SHA256`                  | Derive key cho AES                         | `backend/src/utils/encryption.util.ts`                                 | Tham số ổn, nhưng đang dùng `JWT_SECRET` thay vì `ENCRYPTION_SECRET` |
+| `bcrypt`                         | Hash mật khẩu user                         | `backend/src/utils/bcrypt.util.ts`, `backend/src/models/user.model.ts` | Đúng hướng cho password storage                                      |
+| JWT `HS256`                      | Access token, refresh token                | `backend/src/utils/jwt.util.ts`                                        | Dùng được, nên pin algorithm khi verify                              |
+| `SHA-256`                        | Hash OTP và reset token                    | `backend/src/services/auth.service.ts`                                 | Ổn cho flow ngắn hạn, nhưng OTP nên dùng HMAC tốt hơn                |
+| Plaintext refresh token trong DB | Lưu session refresh token                  | `backend/src/models/refresh-token.model.ts`                            | Nên đổi sang lưu hash/HMAC                                           |
+| Redux Persist không mã hóa       | Lưu một phần state frontend                | `client/src/app/store.ts`                                              | Chấp nhận được vì access token bị blacklist                          |
+
+## 1. Mật khẩu user: bcrypt
+
+### Dùng ở đâu
+
+- Hash/compare helper: `backend/src/utils/bcrypt.util.ts`.
+- Tự động hash trước khi lưu user: `backend/src/models/user.model.ts`.
+- Đổi mật khẩu: `backend/src/services/user.service.ts` và `backend/src/services/auth.service.ts`.
+- Đăng nhập: service lấy user theo email rồi gọi `user.comparePassword()`.
+
+### Flow đăng ký tài khoản
+
+1. Client gọi `POST /api/v1/auth/register`.
+2. Backend tạo OTP đăng ký và lưu tạm thông tin user trong Redis.
+3. Client gọi `POST /api/v1/auth/register/verify-otp`.
+4. Nếu OTP đúng, backend tạo `UserModel`.
+5. Trước khi user được lưu vào MongoDB, hook `userSchema.pre('save')` chạy.
+6. Hook gọi `hashValue(password)`.
+7. `hashValue()` dùng `bcrypt.hash(value, saltRounds)`, mặc định `saltRounds = 10`.
+8. MongoDB chỉ lưu bcrypt hash, không lưu mật khẩu gốc.
+
+### Flow đăng nhập
+
+1. Client gọi `POST /api/v1/auth/login` với email/password.
+2. Backend tìm user theo email.
+3. Backend gọi `user.comparePassword(password)`.
+4. `comparePassword()` gọi `bcrypt.compare(plainPassword, hashedPassword)`.
+5. Nếu đúng, backend tạo access token và refresh token.
+
+### Nhận xét bảo mật
+
+- Đây là cách đúng để lưu mật khẩu: hash một chiều, không giải mã lại được.
+- `saltRounds = 10` vẫn dùng được, nhưng nên benchmark và cân nhắc tăng lên `12` nếu hiệu năng cho phép.
+
+## 2. Access token và refresh token: JWT HS256
+
+### Dùng ở đâu
+
+- Tạo và verify JWT: `backend/src/utils/jwt.util.ts`.
+- Login: `loginService()` trong `backend/src/services/auth.service.ts`.
+- Refresh token: `refreshTokenService()` trong `backend/src/services/auth.service.ts`.
+- OAuth callback: `oauthCallbackService()` và `createRefreshToken()`.
+- Bảo vệ route: `passportAuthenticateJwt` trong `backend/src/config/passport.config.ts`.
+- Socket auth: `backend/src/config/socket.config.ts`.
+
+### Flow login
+
+1. Client gọi `POST /api/v1/auth/login`.
+2. Backend xác thực mật khẩu bằng bcrypt.
+3. Backend gọi `signAccessToken({ userId })`.
+4. Access token được ký bằng `JWT_SECRET`, thuật toán `HS256`, có `audience: user` và `issuer`.
+5. Backend gọi `signRefreshToken({ userId })`.
+6. Refresh token được ký bằng `JWT_REFRESH_SECRET`, thuật toán mặc định theo config sign là `HS256`, có `audience: refresh` khi tạo.
+7. Backend lưu refresh token vào MongoDB.
+8. Backend trả access token trong response JSON.
+9. Backend set refresh token vào cookie `httpOnly`.
+
+### Flow gọi API đã đăng nhập
+
+1. Client gửi access token trong header `Authorization: Bearer <token>`.
+2. Middleware Passport JWT lấy token từ header.
+3. Backend verify token bằng `JWT_SECRET`.
+4. Nếu chữ ký, issuer, audience hợp lệ thì request được đi tiếp.
+
+### Flow refresh token
+
+1. Client gọi `POST /api/v1/auth/refresh-token`.
+2. Backend lấy refresh token từ cookie `refreshToken`, nếu không có thì lấy từ body.
+3. Backend verify refresh token bằng `JWT_REFRESH_SECRET`.
+4. Backend tìm refresh token trong MongoDB, kiểm tra chưa bị revoke và chưa hết hạn.
+5. Nếu hợp lệ, backend tạo access token mới và trả về client.
+
+### Nhận xét bảo mật
+
+- Tách `JWT_SECRET` và `JWT_REFRESH_SECRET` là tốt.
+- JWT là token được ký, không phải được mã hóa. Payload có thể decode để đọc, nhưng không thể sửa hợp lệ nếu không biết secret.
+- Nên pin thuật toán khi verify, ví dụ `algorithms: ['HS256']`, để tăng defense-in-depth.
+
+## 3. Refresh token lưu trong MongoDB
+
+### Dùng ở đâu
+
+- Model: `backend/src/models/refresh-token.model.ts`.
+- Tạo/lưu token: `loginService()` và `createRefreshToken()`.
+- Refresh access token: `refreshTokenService()`.
+- Logout một thiết bị: `logoutService()`.
+- Logout toàn bộ thiết bị: `logoutAllService()`.
+
+### Flow lưu refresh token
+
+1. Backend tạo refresh token bằng JWT.
+2. Backend xóa các token đã revoke hoặc hết hạn của user.
+3. Backend lưu refresh token vào MongoDB ở field `token`.
+4. Backend lưu thêm `userId`, `expiresAt`, `userAgent`, `isRevoked`.
+
+### Flow logout
+
+1. Client gọi `POST /api/v1/auth/logout`.
+2. Backend lấy refresh token từ cookie hoặc body.
+3. Backend tìm document có `token = refreshToken` và `isRevoked = false`.
+4. Backend update `isRevoked = true`.
+5. Backend clear cookie `refreshToken`.
+
+### Nhận xét bảo mật
+
+- Hiện refresh token đang được lưu plaintext trong MongoDB.
+- Nếu database bị leak, attacker có thể dùng refresh token còn hạn để lấy access token mới.
+- Nên đổi sang lưu hash/HMAC của refresh token. Khi client gửi token, backend hash/HMAC token đó rồi tìm trong DB.
+
+## 4. OTP đăng ký, quên mật khẩu, đổi mật khẩu, đổi email: SHA-256
+
+### Dùng ở đâu
+
+- Tạo OTP: `backend/src/utils/generate-otp.util.ts`.
+- Hash OTP: nhiều flow trong `backend/src/services/auth.service.ts`.
+- Redis key/TTL/attempt limit: `backend/src/config/redis.config.ts`.
+- Endpoint đăng ký:
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/register/verify-otp`
+  - `POST /api/v1/auth/register/resend`
+- Endpoint quên mật khẩu:
+  - `POST /api/v1/auth/password/forgot`
+  - `POST /api/v1/auth/password/verify-otp`
+  - `POST /api/v1/auth/password/resend`
+  - `POST /api/v1/auth/password/reset`
+- Endpoint đổi mật khẩu:
+  - `POST /api/v1/auth/password/change-request`
+  - `POST /api/v1/auth/password/change-verify`
+  - `POST /api/v1/auth/password/change-resend`
+- Endpoint đổi email:
+  - `POST /api/v1/auth/email/change-request`
+  - `POST /api/v1/auth/email/change-verify`
+  - `POST /api/v1/auth/email/change-resend`
+
+### Flow OTP đăng ký
+
+1. Client gọi `POST /api/v1/auth/register`.
+2. Backend tạo OTP bằng `generateSecureOTP()`.
+3. `generateSecureOTP()` dùng `crypto.randomInt()`, mặc định OTP 6 chữ số.
+4. Backend hash OTP bằng `crypto.createHash('sha256').update(otp).digest('hex')`.
+5. Backend lưu hash OTP vào Redis, không lưu OTP gốc.
+6. Backend lưu thông tin user pending trong Redis.
+7. Backend gửi OTP qua email.
+8. Client gọi `POST /api/v1/auth/register/verify-otp`.
+9. Backend hash OTP user nhập bằng SHA-256.
+10. Backend so sánh hash vừa tạo với hash trong Redis.
+11. Nếu đúng, backend tạo user thật trong MongoDB.
+
+### Flow quên mật khẩu
+
+1. Client gọi `POST /api/v1/auth/password/forgot`.
+2. Backend tạo OTP, hash OTP bằng SHA-256, lưu Redis và gửi email.
+3. Client gọi `POST /api/v1/auth/password/verify-otp`.
+4. Backend hash OTP user nhập và so sánh với Redis.
+5. Nếu đúng, backend tạo `resetToken`, hash `resetToken` bằng SHA-256 rồi lưu Redis.
+6. Client gọi `POST /api/v1/auth/password/reset` với `resetToken` và mật khẩu mới.
+7. Backend hash `resetToken` user gửi lên rồi so sánh với Redis.
+8. Nếu đúng, backend cập nhật mật khẩu mới cho user.
+9. Khi user được lưu, bcrypt hash mật khẩu mới trước khi ghi MongoDB.
+10. Backend xóa refresh token cũ để đăng xuất các phiên cũ.
+
+### Flow đổi mật khẩu khi đã đăng nhập
+
+1. Client gọi `POST /api/v1/auth/password/change-request`.
+2. Route yêu cầu access token hợp lệ qua `passportAuthenticateJwt`.
+3. Backend kiểm tra mật khẩu hiện tại.
+4. Backend tạo OTP và hash OTP bằng SHA-256.
+5. Backend mã hóa mật khẩu mới bằng `encrypt(newPassword)`.
+6. Backend lưu hash OTP và mật khẩu mới đã mã hóa vào Redis.
+7. Client gọi `POST /api/v1/auth/password/change-verify`.
+8. Backend hash OTP user nhập và so sánh với Redis.
+9. Nếu đúng, backend lấy encrypted password từ Redis và gọi `decrypt()`.
+10. Backend cập nhật mật khẩu mới cho user.
+11. Hook user model hash mật khẩu mới bằng bcrypt trước khi lưu MongoDB.
+12. Backend xóa refresh token cũ để đăng xuất các phiên cũ.
+
+### Flow đổi email
+
+1. Client gọi `POST /api/v1/auth/email/change-request`.
+2. Route yêu cầu access token hợp lệ.
+3. Backend tạo hai OTP: một cho email cũ, một cho email mới.
+4. Backend hash cả hai OTP bằng SHA-256 rồi lưu Redis.
+5. Backend lưu pending new email trong Redis.
+6. Client gọi `POST /api/v1/auth/email/change-verify`.
+7. Backend hash hai OTP user nhập và so sánh với hash trong Redis.
+8. Nếu đúng, backend đổi email user.
+9. Backend xóa toàn bộ refresh token cũ vì email là định danh đăng nhập đã thay đổi.
+
+### Nhận xét bảo mật
+
+- `crypto.randomInt()` là lựa chọn tốt để tạo OTP.
+- Redis TTL và giới hạn số lần thử giúp chống online brute force.
+- OTP 6 số chỉ có tối đa 1 triệu khả năng. Nếu Redis bị dump, hash SHA-256 có thể bị brute force offline rất nhanh.
+- Nên dùng `HMAC-SHA256` với server secret thay vì SHA-256 trần cho OTP và reset token.
+
+## 5. AES-256-GCM cho mật khẩu mới trong flow đổi mật khẩu
+
+### Dùng ở đâu
+
+- Helper mã hóa/giải mã: `backend/src/utils/encryption.util.ts`.
+- Gọi mã hóa: `changePasswordRequestService()` trong `backend/src/services/auth.service.ts`.
+- Gọi giải mã: `verifyChangePasswordOTPService()` trong `backend/src/services/auth.service.ts`.
+
+### Flow chi tiết
+
+1. User đã đăng nhập và gọi `POST /api/v1/auth/password/change-request`.
+2. Backend kiểm tra mật khẩu hiện tại.
+3. Backend nhận mật khẩu mới nhưng chưa đổi ngay, vì còn cần xác nhận OTP.
+4. Backend gọi `encrypt(newPassword)`.
+5. `encrypt()` tạo salt random `64` bytes.
+6. `encrypt()` derive AES key bằng `PBKDF2-SHA256`, `600000` iterations, key length `32` bytes.
+7. Hiện tại secret đầu vào để derive key là `Env.JWT_SECRET`.
+8. `encrypt()` tạo IV random `16` bytes.
+9. `encrypt()` mã hóa bằng `aes-256-gcm`.
+10. Kết quả lưu theo format: `salt + iv + authTag + encrypted`.
+11. Backend lưu chuỗi encrypted password vào Redis.
+12. Khi user nhập OTP đúng ở `POST /api/v1/auth/password/change-verify`, backend gọi `decrypt(encryptedPassword)`.
+13. `decrypt()` tách salt, IV, auth tag, ciphertext.
+14. `decrypt()` derive lại key từ `Env.JWT_SECRET` và salt cũ.
+15. `decrypt()` verify auth tag rồi giải mã mật khẩu mới.
+16. Backend lưu mật khẩu mới vào user; hook bcrypt sẽ hash trước khi ghi MongoDB.
+
+### Nhận xét bảo mật
+
+- `AES-256-GCM` là lựa chọn tốt vì vừa mã hóa vừa kiểm tra toàn vẹn.
+- PBKDF2 với `600000` iterations là cấu hình mạnh hơn hash nhanh thông thường.
+- Điểm cần sửa: không nên dùng `JWT_SECRET` làm secret cho encryption.
+- Nên dùng `ENCRYPTION_SECRET` riêng, đúng với biến đã có trong `.env.example` và sample.
+
+## 6. Frontend Redux Persist
+
+### Dùng ở đâu
+
+- File chính: `client/src/app/store.ts`.
+- Package liên quan: `redux-persist-transform-encrypt` có trong dependency nhưng phần dùng đang comment.
+
+### Flow hiện tại
+
+1. Redux Persist lưu một phần Redux state xuống localStorage.
+2. Auth reducer có persist config riêng.
+3. Các field `accessToken`, `expiresAt`, `isInitialized` bị blacklist khỏi auth persist.
+4. Root persist cũng blacklist `auth` và RTK Query cache ở cấp root.
+5. Transform mã hóa localStorage đang bị comment nên không chạy.
+
+### Nhận xét bảo mật
+
+- Không mã hóa Redux Persist không phải vấn đề lớn nếu không lưu token nhạy cảm trong localStorage.
+- Mã hóa localStorage bằng secret nằm trong frontend thường không bảo vệ được nhiều trước XSS.
+- Việc quan trọng hơn là không persist access token, và config hiện tại đang làm điều này.
+
+## Ưu tiên cải thiện
+
+1. Dùng `ENCRYPTION_SECRET` riêng cho AES/PBKDF2, không dùng `JWT_SECRET`.
+2. Lưu refresh token dạng hash/HMAC thay vì plaintext.
+3. Pin `algorithms: ['HS256']` khi verify JWT.
+4. Đổi OTP và reset token hash từ SHA-256 thường sang HMAC-SHA256.
+5. Benchmark bcrypt và tăng `saltRounds` lên `12` nếu hiệu năng cho phép.
+
+## Kết luận
+
+Dự án đang chọn đúng nhóm công cụ chính: bcrypt cho mật khẩu, JWT cho token, AES-GCM cho dữ liệu cần giải mã lại, OTP có TTL và attempt limit.
+
+Các vấn đề quan trọng nhất hiện tại là cách quản lý secret và dữ liệu nhạy cảm khi lưu trữ:
+
+- Secret mã hóa đang bị dùng chung với secret JWT.
+- Refresh token đang lưu plaintext trong database.
+- OTP/reset token đang dùng SHA-256 trần, dễ brute force offline nếu Redis bị lộ.
+- JWT verify nên pin algorithm rõ ràng.

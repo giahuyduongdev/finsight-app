@@ -47,7 +47,7 @@ const OAuthCallback = () => {
       <div className="text-center space-y-4">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-green-600 border-t-transparent mx-auto" />
         <h2 className="text-xl font-semibold">Synchronizing accounts...</h2>
-        <p className="text-sm text-muted-foreground">Please wait a moment.</p>
+        <p className="text-sm text-muted-foreground">Please wait a moment</p>
       </div>
     </div>
   )

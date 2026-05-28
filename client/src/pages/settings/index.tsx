@@ -31,7 +31,7 @@ const Settings = () => {
             className="flex flex-col space-y-8 lg:flex-row lg:space-x-12
          lg:space-y-0 pb-10 pt-2"
           >
-            <aside className="mr-4 lg:w-1/5">
+            <aside className="lg:mr-4 lg:w-1/5">
               <SidebarNav items={sidebarNavItems} />
             </aside>
             {/* <Separator orientation="vertical" className=" !h-[500px] !border-gray-200" /> */}
@@ -48,7 +48,11 @@ const Settings = () => {
 function SidebarNav({ items }: ItemPropsType) {
   const { pathname } = useLocation()
   return (
-    <nav className={'flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-1'}>
+    <nav
+      className={
+        'flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:gap-0 lg:overflow-visible lg:pb-0 lg:space-y-1'
+      }
+    >
       {items.map((item) => (
         <Link
           key={item.href}
@@ -58,7 +62,7 @@ function SidebarNav({ items }: ItemPropsType) {
             pathname === item.href
               ? 'bg-muted hover:bg-muted'
               : 'hover:bg-transparent hover:underline',
-            'justify-start'
+            'shrink-0 justify-start'
           )}
         >
           {item.title}

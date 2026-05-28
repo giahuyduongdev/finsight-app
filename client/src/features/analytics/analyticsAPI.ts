@@ -42,6 +42,12 @@ export const analyticsApi = apiClient.injectEndpoints({
         method: 'GET'
       }),
       providesTags: ['analytics']
+    }),
+    refreshExchangeRates: builder.mutation<ExchangeRatesResponse, void>({
+      query: () => ({
+        url: '/analytics/rates/refresh',
+        method: 'POST'
+      })
     })
   })
 })
@@ -50,5 +56,6 @@ export const {
   useSummaryAnalyticsQuery,
   useChartAnalyticsQuery,
   useExpensePieChartBreakdownQuery,
-  useGetExchangeRatesQuery
+  useGetExchangeRatesQuery,
+  useRefreshExchangeRatesMutation
 } = analyticsApi

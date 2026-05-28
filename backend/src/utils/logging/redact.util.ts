@@ -5,8 +5,11 @@
 export const SENSITIVE_FIELDS = [
   'password',
   'token',
+  'auth',
   'authorization',
   'apikey',
+  'api_key',
+  'api_secret',
   'secret',
   'accesstoken',
   'refreshtoken'

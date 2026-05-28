@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useSocket } from '@/hooks/use-socket'
 import { useTypedSelector } from '@/app/hook'
-import { useGetExchangeRatesQuery } from '@/features/analytics/analyticsAPI'
+import {
+  useGetExchangeRatesQuery,
+  useRefreshExchangeRatesMutation
+} from '@/features/analytics/analyticsAPI'
 import PageLayout from '@/components/page-layout'
 import CurrencyConverter from '@/components/rates/currency-converter'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Globe, TrendingUp, HelpCircle, RefreshCw } from 'lucide-react'
 import { formatCurrency, formatRate } from '@/lib/format-currency'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 
 export interface ExchangeRates {
   base: string
@@ -20,11 +24,15 @@ export interface ExchangeRates {
 
 const RatesPage = () => {
   const socket = useSocket()
-  const { data: initialData, refetch, isFetching } = useGetExchangeRatesQuery()
+  const { data: initialData, isFetching } = useGetExchangeRatesQuery()
+  const [refreshExchangeRates, { isLoading: isRefreshRequestLoading }] =
+    useRefreshExchangeRatesMutation()
   const [rates, setRates] = useState<ExchangeRates | null>(null)
   const [isConnected, setIsConnected] = useState(socket?.connected || false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const preferredCurrency =
     useTypedSelector((state) => state.auth.user?.preferredCurrency) || 'VND'
+  const isRefreshLoading = isFetching || isRefreshing || isRefreshRequestLoading
 
   // Sync initial data from API
   useEffect(() => {
@@ -56,6 +64,22 @@ const RatesPage = () => {
     }
   }, [socket])
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+
+    try {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      const result = await refreshExchangeRates().unwrap()
+      setRates(result.data)
+      toast.success('Exchange rates are up to date')
+    } catch {
+      // Keep existing rates visible if manual refresh fails.
+      toast.error('Unable to refresh exchange rates')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   const currencyList = rates?.rates ? Object.entries(rates.rates) : []
 
   return (
@@ -65,7 +89,7 @@ const RatesPage = () => {
     >
       <div className="flex flex-col gap-6">
         {/* Status Bar */}
-        <div className="flex items-center justify-between bg-white dark:bg-card p-4 rounded-xl border border-gray-100 dark:border-border">
+        <div className="flex flex-col gap-4 bg-white dark:bg-card p-4 rounded-xl border border-gray-100 dark:border-border sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
               <Globe className="h-5 w-5 text-primary" />
@@ -84,20 +108,20 @@ const RatesPage = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="gap-2 h-8"
+              onClick={handleRefresh}
+              disabled={isRefreshLoading}
+              className="gap-2 h-8 w-full sm:w-auto"
             >
               <RefreshCw
-                className={`h-3 w-3 ${isFetching ? 'animate-spin' : ''}`}
+                className={`h-3 w-3 ${isRefreshLoading ? 'animate-spin' : ''}`}
               />
               Refresh
             </Button>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-xs text-muted-foreground">Last updated</p>
               <p className="text-sm font-mono">
                 {rates?.updatedAt

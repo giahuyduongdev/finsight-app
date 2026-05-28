@@ -38,7 +38,8 @@ const PageLayout = ({
         className={cn(
           'w-full pt-8',
           // 3. Nếu không full width thì mới gắn max-width và canh giữa (mx-auto)
-          !isFullWidth && 'max-w-[var(--max-width)] mx-auto',
+          !isFullWidth && 'max-w-[var(--max-width)] mx-auto px-4 lg:px-0',
+          isFullWidth && 'px-4 lg:px-14',
           addMarginTop && '-mt-20',
           className
         )}

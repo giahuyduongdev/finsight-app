@@ -4,6 +4,7 @@ import RefreshTokenModel, {
 import { IRefreshTokenRepository } from './interfaces/refresh-token-repository.interface'
 import { DeleteResult } from '../types/repository.type'
 import { logger } from '../config/logger.config'
+import { hashRefreshToken } from '../utils/secure-hash.util'
 
 /**
  * Mask token for safe logging
@@ -26,7 +27,10 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
     tokenData: Partial<RefreshTokenDocument>
   ): Promise<RefreshTokenDocument> {
     try {
-      const token = await RefreshTokenModel.create(tokenData)
+      const data = tokenData.token
+        ? { ...tokenData, token: hashRefreshToken(tokenData.token) }
+        : tokenData
+      const token = await RefreshTokenModel.create(data)
       logger.info('[APP:Auth] Refresh token created', {
         tokenId: token._id,
         userId: token.userId
@@ -47,7 +51,9 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
    */
   async findByToken(token: string): Promise<RefreshTokenDocument | null> {
     try {
-      return await RefreshTokenModel.findOne({ token }).exec()
+      return await RefreshTokenModel.findOne({
+        token: hashRefreshToken(token)
+      }).exec()
     } catch (error) {
       logger.error('[APP:Auth] Error finding refresh token by token', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -82,7 +88,7 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
   async revokeToken(token: string): Promise<boolean> {
     try {
       const result = await RefreshTokenModel.updateOne(
-        { token },
+        { token: hashRefreshToken(token) },
         { $set: { isRevoked: true } }
       ).exec()
 

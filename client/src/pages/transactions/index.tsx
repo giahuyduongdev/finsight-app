@@ -12,7 +12,7 @@ export default function Transactions() {
       addMarginTop
       isFullWidth={true}
       rightAction={
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <ImportTransactionModal />
           <AddTransactionDrawer />
         </div>

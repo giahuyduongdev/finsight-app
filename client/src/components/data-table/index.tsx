@@ -189,7 +189,7 @@ export function DataTable<TData>({
               value={searchTerm}
               disabled={isLoading}
               onChange={(e) => handleSearch(e.target.value)}
-              className="max-w-sm"
+              className="w-full sm:max-w-sm"
             />
           )}
           {filters.map(({ key, label, options }) => (

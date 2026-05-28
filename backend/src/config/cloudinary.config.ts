@@ -4,6 +4,7 @@ import { Env } from './env.config'
 import multer from 'multer'
 import { BadRequestException } from '../utils/errors/index'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
+import { cloudinaryCircuitBreaker } from '../utils/circuitBreaker.util'
 
 cloudinary.config({
   cloud_name: Env.CLOUDINARY_CLOUD_NAME,
@@ -19,6 +20,52 @@ const STORAGE_PARAMS = {
   quality: 'auto:good' as const
 }
 
+const uploadFileToCloudinary = (
+  file: Express.Multer.File
+): Promise<Partial<Express.Multer.File>> =>
+  new Promise((resolve, reject) => {
+    let settled = false
+
+    const finish = (
+      error?: Error | null,
+      info?: Partial<Express.Multer.File>
+    ) => {
+      if (settled) return
+      settled = true
+
+      if (error) {
+        reject(error)
+        return
+      }
+
+      resolve(info ?? {})
+    }
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      STORAGE_PARAMS,
+      (error, result?: UploadApiResponse) => {
+        if (error || !result) {
+          finish(error || new Error('Cloudinary upload failed'))
+          return
+        }
+
+        finish(null, {
+          path: result.secure_url,
+          filename: result.public_id,
+          size: result.bytes
+        })
+      }
+    )
+
+    file.stream.once('error', (error) => {
+      uploadStream.destroy(error)
+      finish(error)
+    })
+    uploadStream.once('error', finish)
+
+    file.stream.pipe(uploadStream)
+  })
+
 const storage: multer.StorageEngine = {
   _handleFile(_req, file, cb) {
     let callbackCalled = false
@@ -32,29 +79,10 @@ const storage: multer.StorageEngine = {
       cb(error, info)
     }
 
-    const uploadStream = cloudinary.uploader.upload_stream(
-      STORAGE_PARAMS,
-      (error, result?: UploadApiResponse) => {
-        if (error || !result) {
-          done(error || new Error('Cloudinary upload failed'))
-          return
-        }
-
-        done(null, {
-          path: result.secure_url,
-          filename: result.public_id,
-          size: result.bytes
-        })
-      }
-    )
-
-    file.stream.once('error', (error) => {
-      uploadStream.destroy(error)
-      done(error)
-    })
-    uploadStream.once('error', done)
-
-    file.stream.pipe(uploadStream)
+    cloudinaryCircuitBreaker
+      .execute(() => uploadFileToCloudinary(file), 'Cloudinary Upload')
+      .then((info) => done(null, info))
+      .catch((error) => done(error as Error))
   },
 
   _removeFile(_req, file, cb) {
@@ -63,8 +91,11 @@ const storage: multer.StorageEngine = {
       return
     }
 
-    cloudinary.uploader
-      .destroy(file.filename)
+    cloudinaryCircuitBreaker
+      .execute(
+        () => cloudinary.uploader.destroy(file.filename as string),
+        'Cloudinary Delete'
+      )
       .then(() => cb(null))
       .catch((error) => cb(error as Error))
   }

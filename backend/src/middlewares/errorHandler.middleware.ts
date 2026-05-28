@@ -6,7 +6,7 @@ import { AppError } from '../utils/errors/index'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
 import { logger } from '../config/logger.config'
 import { getUserMessage } from '../utils/userMessage.util'
-import { redactSensitiveFields } from '../utils/redact.util'
+import { redactSensitiveFields } from '../utils/logging/redact.util'
 import { Env } from '../config/env.config'
 import { captureSentryError } from '../config/sentry.config'
 

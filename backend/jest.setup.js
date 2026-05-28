@@ -15,6 +15,7 @@ process.env.JWT_REFRESH_EXPIRES_IN = '7d'
 
 // Encryption
 process.env.ENCRYPTION_SECRET = 'test-encryption-secret-key-for-testing'
+process.env.TOKEN_HASH_SECRET = 'test-token-hash-secret-key-for-testing'
 
 // Google AI (Gemini)
 process.env.GEMINI_API_KEY = 'test-gemini-api-key-for-testing'

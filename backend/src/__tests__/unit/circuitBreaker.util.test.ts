@@ -1,6 +1,7 @@
 import { CircuitBreaker, CircuitState } from '../../utils/circuitBreaker.util'
 import { ErrorCodeEnum } from '../../enums/error-code.enum'
 import { AppError } from '../../utils/errors/index'
+import { logger } from '../../config/logger.config'
 
 jest.mock('../../config/logger.config', () => ({
   logger: {
@@ -145,5 +146,30 @@ describe('CircuitBreaker', () => {
 
     expect(breaker.getFailureCount()).toBe(0)
     expect(breaker.getState()).toBe(CircuitState.CLOSED)
+  })
+
+  it('logs object errors without converting them to [object Object]', async () => {
+    const breaker = new CircuitBreaker({ failureThreshold: 2 })
+    const cloudinaryError = {
+      message: 'Invalid Signature',
+      http_code: 401
+    }
+
+    await expect(
+      breaker.execute(
+        () => Promise.reject(cloudinaryError),
+        'Cloudinary Receipt Upload'
+      )
+    ).rejects.toEqual(cloudinaryError)
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[APP:CircuitBreaker] Cloudinary Receipt Upload operation failed',
+      expect.objectContaining({
+        error: {
+          message: 'Invalid Signature',
+          http_code: 401
+        }
+      })
+    )
   })
 })

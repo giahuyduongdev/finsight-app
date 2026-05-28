@@ -47,7 +47,11 @@ export const REDIS_KEYS = {
   changeEmailOtpNew: (userId: string) => `otp:change-email:new:${userId}`,
   changeEmailPending: (userId: string) => `pending:change-email:${userId}`,
   changeEmailResend: (userId: string) => `resend:change-email:${userId}`,
-  changeEmailAttempts: (userId: string) => `attempts:change-email:${userId}`
+  changeEmailAttempts: (userId: string) => `attempts:change-email:${userId}`,
+
+  // Currency rates
+  currencyManualRefreshLock: 'rate:manual-refresh-lock',
+  currencyRatesUpdatedAt: 'rate:updated-at'
 } as const
 
 export const REDIS_TTL = {
@@ -67,7 +71,10 @@ export const REDIS_TTL = {
 
   // Change email
   CHANGE_EMAIL_OTP: 5 * 60, // 5 phút
-  CHANGE_EMAIL_RESEND: 60 // 1 phút
+  CHANGE_EMAIL_RESEND: 60, // 1 phút
+
+  // Currency rates
+  CURRENCY_MANUAL_REFRESH_LOCK: 60 // 1 phút
 } as const
 
 // Re-export redis client for backward compatibility

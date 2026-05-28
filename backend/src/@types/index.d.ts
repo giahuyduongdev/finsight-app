@@ -87,6 +87,13 @@ export interface HealthStatus {
   error?: string
 }
 
+export interface CircuitBreakerStatus {
+  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN'
+  failureCount: number
+  failureThreshold: number
+  resetTimeoutMs: number
+}
+
 export interface HealthCheckResponse {
   status: 'healthy' | 'unhealthy'
   timestamp: string
@@ -95,6 +102,12 @@ export interface HealthCheckResponse {
     mongodb: HealthStatus
     redis: HealthStatus
     bullmq: HealthStatus
+  }
+  circuitBreakers: {
+    gemini: CircuitBreakerStatus
+    resend: CircuitBreakerStatus
+    cloudinary: CircuitBreakerStatus
+    exchangeRate: CircuitBreakerStatus
   }
 }
 

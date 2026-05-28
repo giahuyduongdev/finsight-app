@@ -56,6 +56,11 @@ import {
 } from '../mailers/auth.mailer'
 import crypto from 'crypto'
 import { encrypt, decrypt } from '../utils/encryption.util'
+import {
+  hashOtp,
+  hashRefreshToken,
+  hashResetToken
+} from '../utils/secure-hash.util'
 
 export const registerService = async (
   body: RegisterSchemaType
@@ -125,7 +130,7 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
 
   // 3. Generate OTP
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
   const pendingUser = { name, email, password }
 
   // 4. Lưu Redis pipeline — 1 round-trip
@@ -166,7 +171,7 @@ export const verifyRegisterOTPService = async (
     )
   }
 
-  const hashedInputOTP = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedInputOTP = hashOtp(otp)
 
   if (storedOTP !== hashedInputOTP) {
     const failKey = REDIS_KEYS.registerAttempts(email)
@@ -286,7 +291,7 @@ export const resendRegisterVerifyOTPService = async (
 
   // 4. Generate OTP mới + reset TTL
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   const results = await redis
     .pipeline()
@@ -327,7 +332,7 @@ export const forgotPasswordService = async (body: ForgotPasswordSchemaType) => {
   }
 
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   const results = await redis
     .pipeline()
@@ -381,7 +386,7 @@ export const verifyForgotPasswordOTPService = async (
     )
   }
 
-  const hashedInputOTP = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedInputOTP = hashOtp(otp)
 
   // 3. Check OTP đúng không
   if (storedOTP !== hashedInputOTP) {
@@ -399,10 +404,7 @@ export const verifyForgotPasswordOTPService = async (
   // 4. OTP đúng → Generate resetToken
   const resetToken = crypto.randomBytes(32).toString('hex')
 
-  const hashedResetToken = crypto
-    .createHash('sha256')
-    .update(resetToken)
-    .digest('hex')
+  const hashedResetToken = hashResetToken(resetToken)
 
   await redis
     .pipeline()
@@ -448,7 +450,7 @@ export const resendForgotPasswordOTPService = async (
 
   // 3. Generate OTP mới + Hash để lưu trữ an toàn
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   // 4. Cập nhật Redis bằng pipeline + Xóa lịch sử nhập sai
   const results = await redis
@@ -482,10 +484,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
   }
 
   // 2. BẢO MẬT: So sánh token
-  const hashedInputToken = crypto
-    .createHash('sha256')
-    .update(resetToken)
-    .digest('hex')
+  const hashedInputToken = hashResetToken(resetToken)
 
   if (storedHashedToken !== hashedInputToken) {
     throw new BadRequestException(
@@ -546,6 +545,7 @@ export const loginService = async (
   const { token: accessToken, expiresAt } = signAccessToken({ userId: user.id })
 
   const { token: refreshToken } = signRefreshToken({ userId: user.id })
+  const refreshTokenHash = hashRefreshToken(refreshToken)
 
   await RefreshTokenModel.deleteMany({
     userId: user.id,
@@ -553,10 +553,10 @@ export const loginService = async (
   })
 
   await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshToken },
+    { token: refreshTokenHash },
     {
       userId: user.id,
-      token: refreshToken,
+      token: refreshTokenHash,
       expiresAt: new Date(
         Date.now() + ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
       ),
@@ -606,8 +606,9 @@ export const refreshTokenService = async (token: string) => {
   }
 
   // 2. Kiểm tra DB
+  const tokenHash = hashRefreshToken(token)
   const refreshToken = await RefreshTokenModel.findOne({
-    token,
+    token: tokenHash,
     isRevoked: false,
     expiresAt: { $gt: new Date() } // chưa hết hạn
   })
@@ -634,8 +635,9 @@ export const logoutService = async (
   accessToken: string
 ) => {
   // 1. Tìm và revoke refresh token
+  const refreshTokenHash = hashRefreshToken(refreshToken)
   const token = await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshToken, isRevoked: false },
+    { token: refreshTokenHash, isRevoked: false },
     { isRevoked: true }
   )
 
@@ -683,6 +685,7 @@ export const createRefreshToken = async (
 ): Promise<string> => {
   // 1. Tạo Refresh Token bằng hàm JWT có sẵn của bạn
   const { token: refreshToken } = signRefreshToken({ userId })
+  const refreshTokenHash = hashRefreshToken(refreshToken)
 
   // 2. Tính toán thời gian hết hạn để lưu DB (khớp với thời hạn của token)
   const expiresAt = new Date(
@@ -697,10 +700,10 @@ export const createRefreshToken = async (
 
   // 4. Lưu DB với cơ chế phòng thủ Upsert
   await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshToken },
+    { token: refreshTokenHash },
     {
       userId,
-      token: refreshToken,
+      token: refreshTokenHash,
       expiresAt,
       userAgent,
       isRevoked: false
@@ -851,7 +854,7 @@ export const changePasswordRequestService = async (
 
   // 4. Generate OTP
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   // 5. Lưu vào Redis - MÃ HÓA mật khẩu mới trước khi lưu
   const encryptedPassword = await encrypt(newPassword)
@@ -932,7 +935,7 @@ export const verifyChangePasswordOTPService = async (
   }
 
   // 4. So sánh OTP
-  const hashedInputOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedInputOtp = hashOtp(otp)
   if (storedOtp !== hashedInputOtp) {
     await redis.incr(attemptsKey)
     const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
@@ -1022,7 +1025,7 @@ export const resendChangePasswordOTPService = async (userId: string) => {
 
   // 4. Generate OTP mới
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   // 5. Cập nhật Redis
   await redis
@@ -1082,8 +1085,8 @@ export const changeEmailRequestService = async (
   // 4. Generate TWO OTPs
   const otpOld = generateSecureOTP()
   const otpNew = generateSecureOTP()
-  const hashedOtpOld = crypto.createHash('sha256').update(otpOld).digest('hex')
-  const hashedOtpNew = crypto.createHash('sha256').update(otpNew).digest('hex')
+  const hashedOtpOld = hashOtp(otpOld)
+  const hashedOtpNew = hashOtp(otpNew)
 
   // 5. Lưu vào Redis
   await redis
@@ -1177,14 +1180,8 @@ export const verifyChangeEmailOTPService = async (
   }
 
   // 4. So sánh OTPs
-  const hashedOld = crypto
-    .createHash('sha256')
-    .update(oldEmailOtp)
-    .digest('hex')
-  const hashedNew = crypto
-    .createHash('sha256')
-    .update(newEmailOtp)
-    .digest('hex')
+  const hashedOld = hashOtp(oldEmailOtp)
+  const hashedNew = hashOtp(newEmailOtp)
 
   const isOldValid = storedOtpOld === hashedOld
   const isNewValid = storedOtpNew === hashedNew
@@ -1265,8 +1262,8 @@ export const resendChangeEmailOTPService = async (userId: string) => {
   // 4. Generate OTPs mới
   const otpOld = generateSecureOTP()
   const otpNew = generateSecureOTP()
-  const hashedOtpOld = crypto.createHash('sha256').update(otpOld).digest('hex')
-  const hashedOtpNew = crypto.createHash('sha256').update(otpNew).digest('hex')
+  const hashedOtpOld = hashOtp(otpOld)
+  const hashedOtpNew = hashOtp(otpNew)
 
   // 5. Cập nhật Redis
   await redis
