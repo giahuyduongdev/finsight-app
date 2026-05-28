@@ -1,12 +1,6 @@
-import mongoose, { Document, Schema } from 'mongoose'
+import mongoose, { Document } from 'mongoose'
 
-export enum ReportFrequencyEnum {
-  DAILY = 'DAILY',
-  WEEKLY = 'WEEKLY',
-  MONTHLY = 'MONTHLY',
-  QUARTERLY = 'QUARTERLY',
-  ANNUALLY = 'ANNUALLy'
-}
+import { ReportFrequencyEnum } from '../enums/report-frequency.enum'
 
 export interface ReportSettingDocument extends Document {
   userId: mongoose.Types.ObjectId
@@ -46,6 +40,8 @@ const reportSettingSchema = new mongoose.Schema<ReportSettingDocument>(
     timestamps: true
   }
 )
+
+reportSettingSchema.index({ isEnabled: 1, nextReportDate: 1 })
 
 const ReportSettingModel = mongoose.model<ReportSettingDocument>(
   'ReportSetting',

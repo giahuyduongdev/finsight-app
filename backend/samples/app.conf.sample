@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# APPLICATION CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── Environment ──────────────────────────────────────────────────────────────
+NODE_ENV=development
+
+# ─── Server Settings ──────────────────────────────────────────────────────────
+PORT=5000
+BASE_PATH=/api/v1
+
+# ─── CORS Configuration ───────────────────────────────────────────────────────
+FRONTEND_ORIGIN=http://localhost:5173
+
+# ─── External APIs ────────────────────────────────────────────────────────────
+EXCHANGE_RATE_PRIMARY_API_URL=https://api.exchangerate-api.com/v4/latest
+EXCHANGE_RATE_FALLBACK_API_URL=https://v6.exchangerate-api.com/v6/<your-api-key>/latest
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOTES:
+# - Set NODE_ENV to 'production' in production environment
+# - Update FRONTEND_ORIGIN to your actual frontend URL
+# - For multiple origins, you'll need to modify CORS middleware
+# ═══════════════════════════════════════════════════════════════════════════

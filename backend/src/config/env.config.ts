@@ -1,17 +1,32 @@
-import { getEnv } from '../utils/get-env'
+import { getEnv } from '../utils/get-env.util'
+
+const encryptionSecret = getEnv('ENCRYPTION_SECRET')
 
 const envConfig = () => ({
   NODE_ENV: getEnv('NODE_ENV', 'development'),
 
   PORT: getEnv('PORT', '8000'),
   BASE_PATH: getEnv('BASE_PATH', '/api'),
+
   MONGO_URI: getEnv('MONGO_URI'),
+  MONGO_MAX_POOL_SIZE: getEnv('MONGO_MAX_POOL_SIZE', '50'),
+  MONGO_SERVER_SELECTION_TIMEOUT: getEnv(
+    'MONGO_SERVER_SELECTION_TIMEOUT',
+    '8000'
+  ),
+  MONGO_SOCKET_TIMEOUT: getEnv('MONGO_SOCKET_TIMEOUT', '45000'),
+  MONGO_CONNECT_TIMEOUT: getEnv('MONGO_CONNECT_TIMEOUT', '10000'),
+  MONGO_MAX_POOL_SIZE_PER_CORE: getEnv('MONGO_MAX_POOL_SIZE_PER_CORE', '5'),
+  MEMORY_THRESHOLD_MB: getEnv('MEMORY_THRESHOLD_MB', '500'),
 
-  JWT_SECRET: getEnv('JWT_SECRET', 'secert_jwt'),
+  JWT_SECRET: getEnv('JWT_SECRET'),
   JWT_EXPIRES_IN: getEnv('JWT_EXPIRES_IN', '15m') as string,
+  JWT_ISSUER: getEnv('JWT_ISSUER', 'finsight-api'),
 
-  JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET', 'secert_jwt_refresh'),
+  JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET'),
   JWT_REFRESH_EXPIRES_IN: getEnv('JWT_REFRESH_EXPIRES_IN', '7d') as string,
+  ENCRYPTION_SECRET: encryptionSecret,
+  TOKEN_HASH_SECRET: getEnv('TOKEN_HASH_SECRET'),
 
   GEMINI_API_KEY: getEnv('GEMINI_API_KEY'),
 
@@ -21,6 +36,26 @@ const envConfig = () => ({
 
   RESEND_API_KEY: getEnv('RESEND_API_KEY'),
   RESEND_MAILER_SENDER: getEnv('RESEND_MAILER_SENDER', ''),
+
+  SENTRY_DSN: getEnv('SENTRY_DSN', ''),
+
+  REDIS_URL: getEnv('REDIS_URL', 'redis://localhost:6379'),
+  UPSTASH_REDIS_URL: getEnv('UPSTASH_REDIS_URL'),
+
+  AUTH0_DOMAIN: getEnv('AUTH0_DOMAIN'),
+  AUTH0_CLIENT_ID: getEnv('AUTH0_CLIENT_ID'),
+  AUTH0_CLIENT_SECRET: getEnv('AUTH0_CLIENT_SECRET'),
+  AUTH0_CALLBACK_URL: getEnv('AUTH0_CALLBACK_URL'),
+
+  EXCHANGE_RATE_PRIMARY_API_URL: getEnv(
+    'EXCHANGE_RATE_PRIMARY_API_URL',
+    'https://api.exchangerate-api.com/v4/latest'
+  ),
+  EXCHANGE_RATE_FALLBACK_API_URL: getEnv('EXCHANGE_RATE_FALLBACK_API_URL', ''),
+  RECEIPT_SCAN_CACHE_TTL_SECONDS: getEnv(
+    'RECEIPT_SCAN_CACHE_TTL_SECONDS',
+    '86400'
+  ),
 
   FRONTEND_ORIGIN: getEnv('FRONTEND_ORIGIN', 'localhost')
 })

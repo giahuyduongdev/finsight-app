@@ -1,88 +1,107 @@
-import mongoose from 'mongoose'
-import TransactionModel from '../../models/transaction.model'
-import { calculateNextOccurrence } from '../../utils/helper'
+import { transactionFlowProducer, TRANSACTION_JOBS } from '../../queues'
+import { logger } from '../../config/logger.config'
+import { Types } from 'mongoose'
+import { container } from '../../container'
+
+interface TransactionGroup {
+  _id: Types.ObjectId
+  userId: Types.ObjectId
+}
 
 export const processRecurringTransactions = async () => {
   const now = new Date()
-  let processedCount = 0
-  let failedCount = 0
+  logger.info('[JOB:Cron] Enqueuing recurring transactions flows...')
 
   try {
-    const transactionCursor = TransactionModel.find({
-      isRecurring: true,
-      nextRecurringDate: { $lte: now }
-    }).cursor()
+    // Get TransactionRepository from DI container
+    const transactionRepository = container.getTransactionRepository()
 
-    console.log('Starting recurring process')
+    // 1. Lấy tất cả giao dịch đến hạn - CHỈ LẤY _id và userId để tiết kiệm memory
+    const transactions = await transactionRepository.findRecurringDue(now)
 
-    const session = await mongoose.startSession()
-    for await (const tx of transactionCursor) {
-      const nextDate = calculateNextOccurrence(
-        tx.nextRecurringDate!,
-        tx.recurringInterval!
-      )
+    logger.info(
+      `[JOB:Cron] Found ${transactions.length} due transactions across all users`
+    )
 
-      try {
-        await session.withTransaction(
-          async () => {
-            // console.log(tx, 'transaction')
-            await TransactionModel.create(
-              [
-                {
-                  ...tx.toObject(),
-                  _id: new mongoose.Types.ObjectId(),
-                  title: `Recurring - ${tx.title}`,
-                  date: tx.nextRecurringDate,
-                  isRecurring: false,
-                  nextRecurringDate: null,
-                  recurringInterval: null,
-                  lastProcessed: null,
-                  createdAt: undefined,
-                  updatedAt: undefined
-                }
-              ],
-              { session }
-            )
+    // 2. Nhóm theo UserId để tạo Flow cho từng người
+    const userGroups: Record<string, TransactionGroup[]> = {}
+    transactions.forEach((tx) => {
+      const uId = tx.userId.toString()
+      if (!userGroups[uId]) userGroups[uId] = []
+      userGroups[uId].push(tx)
+    })
 
-            await TransactionModel.updateOne(
-              { _id: tx._id },
-              {
-                $set: {
-                  nextRecurringDate: nextDate,
-                  lastProcessed: now
-                }
-              },
-              { session }
-            )
-          },
-          {
-            maxCommitTimeMS: 20000
+    Object.entries(userGroups).forEach(([uId, txs]) => {
+      logger.info(`[JOB:Cron] User ${uId}: ${txs.length} transactions due`)
+    })
+
+    const timeId = now.getTime()
+
+    // 3. Tạo Flow cho mỗi User - XỬ LÝ TỪNG USER RIÊNG BIỆT để tránh 1 user fail → stop all
+    const CHUNK_SIZE = 200 // Mỗi Job con sẽ xử lý tối đa 200 giao dịch
+
+    const flowPromises = Object.entries(userGroups).map(
+      async ([userId, userTxs]) => {
+        try {
+          // Chia nhỏ danh sách giao dịch của user này thành từng mẻ
+          const batches = []
+          for (let i = 0; i < userTxs.length; i += CHUNK_SIZE) {
+            batches.push(userTxs.slice(i, i + CHUNK_SIZE))
           }
-        )
 
-        processedCount++
-      } catch (error: any) {
-        failedCount++
-        console.log(`Failed recurring tx: ${tx._id}`, error)
-      } finally {
-        await session.endSession()
+          await transactionFlowProducer.add({
+            name: TRANSACTION_JOBS.RECURRING_SUMMARY, // Job CHA (Chốt hạ)
+            queueName: 'TRANSACTION_QUEUE',
+            data: { userId, count: userTxs.length },
+            opts: {
+              jobId: `recurring-summary-${userId}-${timeId}`
+            },
+            children: batches.map((batch, index) => ({
+              name: TRANSACTION_JOBS.RECURRING, // Job CON (Xử lý mẻ)
+              queueName: 'TRANSACTION_QUEUE',
+              data: {
+                transactionIds: batch.map((tx) => tx._id.toString()),
+                userId: userId
+              },
+              opts: {
+                // Đảm bảo jobId không trùng lặp cho từng mẻ
+                jobId: `recurring-batch-${userId}-${index}-${timeId}`
+              }
+            }))
+          })
+
+          logger.info(
+            `[JOB:Cron] Enqueued flow for user ${userId} (${userTxs.length} txs)`
+          )
+        } catch (error: unknown) {
+          // Xử lý lỗi PER-USER - không để 1 user fail làm dừng toàn bộ
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error'
+          logger.error(`[JOB:Cron] Failed to enqueue flow for user ${userId}`, {
+            error: errorMessage,
+            userId,
+            transactionCount: userTxs.length
+          })
+          // Không throw - tiếp tục xử lý user khác
+        }
       }
-    }
+    )
 
-    console.log(`✅Processed: ${processedCount} transaction`)
-    console.log(`❌ Failed: ${failedCount} transaction`)
+    // Chờ tất cả flows được enqueue (hoặc fail riêng lẻ)
+    await Promise.allSettled(flowPromises)
 
-    return {
-      success: true,
-      processedCount,
-      failedCount
-    }
-  } catch (error: any) {
-    console.error('Error occur processing transaction', error)
+    logger.info(
+      `[JOB:Cron] Enqueued recurring flows for ${Object.keys(userGroups).length} users (${transactions.length} txs, grouped in ${CHUNK_SIZE} per child)`
+    )
+  } catch (error: unknown) {
+    // 3. Gom hết rủi ro vào đây để Server không bao giờ bị Crash
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
 
-    return {
-      success: false,
-      error: error?.message
-    }
+    logger.error('[JOB:Cron] Failed to enqueue recurring transactions', {
+      error: errorMessage,
+      stack: errorStack
+    })
   }
 }

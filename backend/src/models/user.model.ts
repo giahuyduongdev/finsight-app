@@ -1,5 +1,8 @@
 import mongoose, { Document, Schema } from 'mongoose'
-import { compareValue, hashValue } from '../utils/bcrypt'
+import { compareValue, hashValue } from '../utils/bcrypt.util'
+import { CurrencyEnum } from '../enums/currency.enum'
+import { RoleUserEnum } from '../enums/role-user.enum'
+import { UserWithoutPassword } from '../types/user.type'
 
 export interface UserDocument extends Document {
   name: string
@@ -7,10 +10,13 @@ export interface UserDocument extends Document {
   password: string
   profilePicture: string | null
   timezone: string
+  preferredCurrency: string
+  role: string
+  auth0Ids?: string[]
   createdAt: Date
   updatedAt: Date
   comparePassword: (password: string) => Promise<boolean>
-  omitPassword: () => Omit<UserDocument, 'password'>
+  omitPassword: () => UserWithoutPassword
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -39,6 +45,24 @@ const userSchema = new Schema<UserDocument>(
     timezone: {
       type: String,
       default: 'UTC'
+    },
+    preferredCurrency: {
+      type: String,
+      enum: Object.values(CurrencyEnum),
+      default: CurrencyEnum.USD
+    },
+    role: {
+      type: String,
+      enum: Object.values(RoleUserEnum),
+      default: RoleUserEnum.USER
+    },
+    auth0Ids: {
+      type: [String],
+      default: undefined, // Mặc định là mảng rỗng cho user mới
+      index: {
+        unique: true,
+        sparse: true
+      }
     }
   },
   {
@@ -55,7 +79,7 @@ userSchema.pre('save', async function (next) {
   next()
 })
 
-userSchema.methods.omitPassword = function (): Omit<UserDocument, 'password'> {
+userSchema.methods.omitPassword = function (): UserWithoutPassword {
   const userObject = this.toObject()
   delete userObject.password
   return userObject

@@ -1,0 +1,285 @@
+# Logging current state
+
+## Cập nhật mới nhất
+
+Logging đã được cải thiện để phục vụ debug lỗi receipt scan và Cloudinary.
+
+Các thay đổi đã làm:
+
+- File log hiện ghi JSON không màu ANSI.
+- Console dev vẫn giữ pretty + color.
+- Thêm `serializeError(error)` để log lỗi object không bị thành `[object Object]`.
+- Circuit breaker dùng serialized error.
+- Receipt scan catch dùng serialized error.
+- Redact metadata toàn bộ log info, không chỉ `body` và `meta`.
+- Bổ sung redact cho `auth`, `api_key`, `api_secret`.
+- Primitive thrown values trong `serializeError()` cũng đi qua redaction helper trước khi ghi log.
+
+Nhờ thay đổi này, lỗi Cloudinary thật đã được thấy rõ:
+
+```json
+{
+  "error": {
+    "http_code": 404,
+    "message": "Resource not found - receipts/{userId}/{imageHash}"
+  }
+}
+```
+
+Lưu ý: log cũ trong cùng file trước thời điểm deploy fix vẫn có thể còn ANSI color hoặc `[object Object]`. Log mới sau restart/backend reload sẽ dùng format mới.
+
+## Hiện tại đang lưu log như thế nào?
+
+Backend đang dùng:
+
+- `winston`
+- `winston-daily-rotate-file`
+- `morgan` cho HTTP request log
+- `AsyncLocalStorage` để tự gắn request context vào log
+
+Logger chính nằm ở:
+
+```text
+backend/src/config/logger.config.ts
+```
+
+Request context nằm ở:
+
+```text
+backend/src/middlewares/correlationId.middleware.ts
+backend/src/middlewares/requestContext.middleware.ts
+backend/src/utils/asyncContext.ts
+```
+
+HTTP request logging nằm ở:
+
+```text
+backend/src/middlewares/morgan.middleware.ts
+```
+
+Log được ghi ra:
+
+```text
+backend/logs/error-YYYY-MM-DD.log
+backend/logs/combined-YYYY-MM-DD.log
+```
+
+Trong đó:
+
+- `error-YYYY-MM-DD.log`: chỉ chứa log level `error`, giữ 30 ngày.
+- `combined-YYYY-MM-DD.log`: chứa tất cả log level, giữ 14 ngày.
+- Mỗi file tối đa `20m`.
+- File cũ được nén do `zippedArchive: true`.
+- Console transport luôn bật.
+
+## Điểm đang làm tốt
+
+### Có rotate log theo ngày
+
+Không ghi mãi vào một file duy nhất. Điều này tránh file log phình quá lớn.
+
+### Có tách error log và combined log
+
+Khi debug lỗi có thể xem nhanh `error-YYYY-MM-DD.log`. Khi cần timeline đầy đủ thì xem `combined-YYYY-MM-DD.log`.
+
+### Có correlation id
+
+Mỗi request có `correlationId`, giúp lần theo một request qua nhiều log khác nhau.
+
+Ví dụ:
+
+```json
+{
+  "correlationId": "4c624e43-0d0f-47a5-a0ba-049a8b0d87b2",
+  "method": "POST",
+  "path": "/api/v1/transactions/scan-receipt"
+}
+```
+
+### Có request context tự động
+
+Logger tự gắn thêm:
+
+```text
+correlationId
+userId
+method
+path
+```
+
+Nhờ vậy nhiều chỗ không cần truyền metadata thủ công mà log vẫn có context.
+
+### Có redact một phần dữ liệu nhạy cảm
+
+Project đã có:
+
+```text
+backend/src/utils/logging/redact.util.ts
+```
+
+Các field như `password`, `token`, `authorization`, `secret` được che nếu nằm trong `body` hoặc `meta`.
+
+## Điểm chưa chuẩn
+
+### 1. File log dev đang bị dính màu ANSI
+
+Hiện `devFormat` dùng:
+
+```ts
+winston.format.colorize({ all: true })
+```
+
+Format này áp dụng cho cả console và file transport. Vì vậy file log có thể chứa ký tự màu như:
+
+```text
+[31merror[39m
+```
+
+Điều này làm file log khó đọc và khó grep.
+
+Chuẩn hơn:
+
+- Console dùng format có màu.
+- File dùng format plain hoặc JSON, không màu.
+
+### 2. Error object có thể bị mất chi tiết
+
+Ví dụ lỗi Cloudinary hiện chỉ log ra:
+
+```json
+"error": "[object Object]"
+```
+
+Khi đó không thấy được:
+
+```text
+message
+name
+stack
+http_code
+code
+statusCode
+response
+```
+
+Đây là lý do hiện tại khó biết Cloudinary fail vì credential, permission, timeout, quota hay nguyên nhân khác.
+
+### 3. Redact chưa phủ toàn bộ metadata
+
+Hiện `redactedFormat` chỉ xử lý:
+
+```ts
+info.body
+info.meta
+```
+
+Nếu code log trực tiếp:
+
+```ts
+logger.error('Something failed', {
+  token: 'secret-token'
+})
+```
+
+thì field top-level như `token` có thể không bị redact.
+
+Chuẩn hơn là redact toàn bộ metadata của log, trừ các field hệ thống như:
+
+```text
+level
+message
+timestamp
+```
+
+### 4. Production request log chưa structured hoàn toàn
+
+Ở production, morgan dùng format `combined`, tức là một chuỗi kiểu Apache log. Winston sau đó bọc chuỗi này vào JSON.
+
+Dùng được, nhưng chưa tối ưu để query/filter.
+
+Chuẩn hơn là log HTTP request thành object:
+
+```json
+{
+  "event": "http_request",
+  "method": "POST",
+  "path": "/api/v1/transactions/scan-receipt",
+  "statusCode": 202,
+  "durationMs": 20.4,
+  "userAgent": "...",
+  "ip": "..."
+}
+```
+
+### 5. File log nằm trong repo workspace
+
+Local/dev thì ổn.
+
+Production tùy môi trường:
+
+- Nếu chạy Docker/cloud platform: nên log ra stdout/stderr để platform thu thập.
+- Nếu chạy VPS đơn giản: file rotate như hiện tại dùng được, nhưng nên mount thư mục log riêng ngoài source code.
+
+## Đánh giá ngắn
+
+Logging hiện tại:
+
+```text
+Ổn cho local/dev và VPS nhỏ.
+Chưa chuẩn production hoàn chỉnh.
+```
+
+Hai vấn đề nên ưu tiên sửa trước:
+
+1. Tách format console và file để file log không có màu ANSI.
+2. Serialize error object rõ ràng để không còn `[object Object]`.
+
+## Checklist cải thiện đề xuất
+
+### Ưu tiên cao
+
+- Tạo helper normalize error, ví dụ `serializeError(error)`.
+- Dùng helper đó khi log lỗi third-party như Cloudinary, Gemini, Redis, MongoDB.
+- Tách console transport và file transport format:
+  - Console: pretty + color.
+  - File: JSON hoặc plain không màu.
+- Redact toàn bộ metadata log, không chỉ `body` và `meta`.
+
+### Ưu tiên vừa
+
+- Đổi HTTP request log sang structured object.
+- Thêm `event` field cho các log quan trọng, ví dụ:
+
+```text
+receipt_scan_failed
+cloudinary_receipt_upload_failed
+circuit_breaker_state_changed
+```
+
+- Thống nhất field lỗi:
+
+```text
+error.message
+error.name
+error.stack
+error.code
+error.httpCode
+```
+
+### Ưu tiên thấp
+
+- Cấu hình log retention bằng env.
+- Cho phép tắt file transport trong production nếu chạy container.
+- Thêm log sampling nếu traffic lớn.
+
+## Liên quan đến lỗi Cloudinary receipt scan
+
+Lỗi receipt scan hiện tại bị khó debug vì log chỉ có:
+
+```json
+"error": "[object Object]"
+```
+
+Nên bước sửa logging đầu tiên nên giúp log được object lỗi Cloudinary rõ hơn.
+
+Sau khi log rõ hơn, mới nên quyết định có cần đổi behavior của `utils/receipt/upload.util.ts` hay không.

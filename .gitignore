@@ -18,7 +18,15 @@ dist-ssr
 # Environment variables
 .env
 .env.*
-!.env.example  
+!.env.example
+
+# Configuration files (keep samples only)
+db.conf
+app.conf
+app.keys
+
+# Keep samples directory
+!backend/samples/  
 
 # Editor
 .vscode/*
@@ -30,6 +38,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.bak
+*.bak2
 
 # Backend specific
 backend/node_modules
@@ -40,3 +50,11 @@ backend/.env
 client/node_modules
 client/dist
 client/.env
+
+
+# Kiro specs
+.kiro/
+
+# Agent instructions
+AGENTS.md
+.codex-doc-backups/

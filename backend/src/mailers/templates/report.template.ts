@@ -1,6 +1,16 @@
-import { ReportType } from '../../@types/report.type'
-import { formatCurrency } from '../../utils/format-currency'
-import { capitalizeFirstLetter } from '../../utils/helper'
+import { ReportType } from '../../types/report.type'
+import { formatCurrency } from '../../utils/format-currency.util'
+
+const capitalizeFirstLetter = (str: string): string =>
+  str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 
 export const getReportEmailTemplate = (
   reportData: ReportType & { username: string },
@@ -14,22 +24,23 @@ export const getReportEmailTemplate = (
     availableBalance,
     savingsRate,
     topSpendingCategories,
-    insights
+    insights,
+    currency = 'USD'
   } = reportData
 
   const reportTitle = `${capitalizeFirstLetter(frequency)} Report`
 
   const categoryList = topSpendingCategories
     .map(
-      (cat: any) => `<li>
-      ${cat.name} - ${formatCurrency(cat.amount)} (${cat.percent}%)
+      (cat: { name: string; percent: number }) => `<li>
+      ${escapeHtml(cat.name)} - ${cat.percent}%
       </li>
     `
     )
     .join('')
 
   const insightsList = insights
-    .map((insight: string) => `<li>${insight}</li>`)
+    .map((insight: string) => `<li>${escapeHtml(insight)}</li>`)
     .join('')
 
   const currentYear = new Date().getFullYear()
@@ -39,7 +50,6 @@ export const getReportEmailTemplate = (
    <head>
      <meta charset="UTF-8" />
      <title>${reportTitle}</title>
-     <!-- Google Fonts Link -->
      <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
    </head>
    <body style="margin: 0; padding: 0; font-family: 'Roboto', Arial, sans-serif; background-color: #f7f7f7; font-size: 16px;">
@@ -54,21 +64,21 @@ export const getReportEmailTemplate = (
              </tr>
              <tr>
                <td style="padding: 20px 30px;">
-                 <p style="margin: 0 0 10px; font-size: 16px;">Hi <strong>${username}</strong>,</p>
+                 <p style="margin: 0 0 10px; font-size: 16px;">Hi <strong>${escapeHtml(username)}</strong>,</p>
                  <p style="margin: 0 0 20px; font-size: 16px;">Here's your financial summary for <strong>${period}</strong>.</p>
  
                  <table width="100%" style="border-collapse: collapse;">
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Total Income:</strong></td>
-                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalIncome)}</td>
+                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalIncome, currency)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Total Expenses:</strong></td>
-                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalExpenses)}</td>
+                     <td style="text-align: right; font-size: 16px;">${formatCurrency(totalExpenses, currency)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Available Balance:</strong></td>
-                     <td style="text-align: right; font-size: 16px;">${formatCurrency(availableBalance)}</td>
+                     <td style="text-align: right; font-size: 16px;">${formatCurrency(availableBalance, currency)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 8px 0; font-size: 16px;"><strong>Savings Rate:</strong></td>
@@ -86,11 +96,12 @@ export const getReportEmailTemplate = (
                    ${insightsList}
                  </ul>
                  <p style="margin-top: 30px; font-size: 13px; color: #888;">This report was generated automatically based on your recent activity.</p>
+                 <p style="margin-top: 8px; font-size: 12px; color: #aaa;">* All amounts are converted to <strong>${currency}</strong> using approximate exchange rates at the time this report was generated. Actual values may vary slightly due to market fluctuations.</p>
                </td>
              </tr>
              <tr>
                <td style="background-color: #f0f0f0; text-align: center; padding: 15px; font-size: 12px; color: #999;">
-                 &copy; ${currentYear} Finbase. All rights reserved.
+                 &copy; ${currentYear} Finsight. All rights reserved.
                </td>
              </tr>
            </table>
