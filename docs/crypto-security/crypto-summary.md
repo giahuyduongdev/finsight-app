@@ -7,10 +7,10 @@ Tài liệu này tóm tắt các cơ chế bảo mật đang dùng trong dự á
 | Cơ chế | Dùng cho | File chính | Đánh giá |
 | --- | --- | --- | --- |
 | `bcrypt` | Hash mật khẩu user | `backend/src/utils/bcrypt.util.ts`, `backend/src/models/user.model.ts` | Đúng hướng cho password storage |
-| JWT `HS256` | Access token, refresh token | `backend/src/utils/jwt.util.ts`, `backend/src/config/passport.config.ts` | Đang tách secret access/refresh; nên pin thuật toán ở mọi chỗ verify |
-| Refresh token plaintext | Lưu phiên đăng nhập | `backend/src/models/refresh-token.model.ts`, `backend/src/services/auth.service.ts` | Rủi ro nếu DB leak; nên lưu hash/HMAC |
-| `SHA-256` | Hash OTP và reset token | `backend/src/services/auth.service.ts` | Chấp nhận được cho flow ngắn hạn, nhưng OTP nên dùng HMAC |
-| `AES-256-GCM` + `PBKDF2-SHA256` | Mã hóa mật khẩu mới tạm thời trong Redis | `backend/src/utils/encryption.util.ts` | Thuật toán tốt; không nên dùng chung `JWT_SECRET` |
+| JWT `HS256` | Access token, refresh token | `backend/src/utils/jwt.util.ts`, `backend/src/config/passport.config.ts` | Đã tách secret access/refresh, pin thuật toán và verify audience refresh |
+| Refresh token HMAC digest | Lưu phiên đăng nhập | `backend/src/models/refresh-token.model.ts`, `backend/src/services/auth.service.ts`, `backend/src/repositories/refresh-token.repository.ts` | Token mới không lưu plaintext; có migration-safe lookup cho plaintext legacy |
+| HMAC-SHA256 | Hash OTP, reset token và refresh token | `backend/src/utils/secure-hash.util.ts` | Dùng `TOKEN_HASH_SECRET` riêng, bắt buộc cấu hình |
+| `AES-256-GCM` + `PBKDF2-SHA256` | Mã hóa mật khẩu mới tạm thời trong Redis | `backend/src/utils/encryption.util.ts` | Thuật toán tốt; dùng `ENCRYPTION_SECRET` riêng |
 | Redux Persist không mã hóa | Lưu một phần state frontend | `client/src/app/store.ts` | Ổn nếu không persist token nhạy cảm |
 
 ## 1. Mật khẩu user
@@ -36,8 +36,8 @@ Tài liệu này tóm tắt các cơ chế bảo mật đang dùng trong dự á
 - Refresh token được ký bằng `JWT_REFRESH_SECRET`, có `audience: refresh`, `issuer` và thời hạn riêng.
 - Route cần đăng nhập dùng `passportAuthenticateJwt` trong `backend/src/config/passport.config.ts`.
 - `passport.config.ts` đã cấu hình `algorithms: ['HS256']`.
-- `verifyAccessToken()` và `verifyRefreshToken()` trong `backend/src/utils/jwt.util.ts` đang verify signature/issuer/audience nhưng chưa pin `algorithms`.
-- `verifyRefreshToken()` hiện chưa kiểm tra `audience: refresh`, dù lúc ký refresh token đã set audience này.
+- `verifyAccessToken()` và `verifyRefreshToken()` trong `backend/src/utils/jwt.util.ts` đã pin `algorithms: ['HS256']`.
+- `verifyRefreshToken()` đã kiểm tra `audience: refresh`.
 
 ### Flow login
 
@@ -45,44 +45,47 @@ Tài liệu này tóm tắt các cơ chế bảo mật đang dùng trong dự á
 2. Backend xác thực email/password bằng bcrypt.
 3. Backend tạo access token bằng `signAccessToken({ userId })`.
 4. Backend tạo refresh token bằng `signRefreshToken({ userId })`.
-5. Refresh token được lưu vào MongoDB và set vào cookie `httpOnly`.
+5. Refresh token được hash bằng `hashRefreshToken()` trước khi lưu vào MongoDB, token gốc được set vào cookie `httpOnly`.
 6. Access token được trả trong response JSON.
 
 ### Flow refresh
 
 1. Client gọi `POST /api/v1/auth/refresh-token`.
 2. Backend lấy refresh token từ cookie `refreshToken`, nếu không có thì lấy từ body.
-3. Backend verify refresh token bằng `JWT_REFRESH_SECRET`.
-4. Backend tìm token trong MongoDB, kiểm tra chưa revoke và chưa hết hạn.
-5. Nếu hợp lệ, backend trả access token mới.
+3. Backend verify refresh token bằng `JWT_REFRESH_SECRET`, `issuer`, `audience: refresh` và `algorithms: ['HS256']`.
+4. Backend hash token rồi tìm digest trong MongoDB, kiểm tra chưa revoke và chưa hết hạn.
+5. Nếu không thấy digest, backend thử plaintext token legacy và migrate record đó sang digest nếu hợp lệ.
+6. Nếu hợp lệ, backend trả access token mới.
 
 ### Nhận xét
 
 - JWT là token được ký, không phải token được mã hóa. Payload có thể decode để đọc nhưng không thể sửa hợp lệ nếu không biết secret.
 - Tách `JWT_SECRET` và `JWT_REFRESH_SECRET` là đúng.
-- Nên pin `algorithms: ['HS256']` trong cả `verifyAccessToken()` và `verifyRefreshToken()`.
-- Nên thêm `audience: 'refresh'` vào `verifyRefreshToken()` để khớp với lúc ký token.
+- `algorithms: ['HS256']` đã được pin trong cả `verifyAccessToken()` và `verifyRefreshToken()`.
+- `audience: 'refresh'` đã được verify để khớp với lúc ký token.
 
 ## 3. Refresh token lưu trong MongoDB
 
 ### Hiện trạng
 
 - Model: `backend/src/models/refresh-token.model.ts`.
-- Field `token` đang lưu nguyên refresh token và có `unique: true`.
-- Login/OAuth tạo refresh token rồi upsert vào MongoDB.
-- Refresh token service tìm document theo `{ token, isRevoked: false }`.
-- Logout một thiết bị cũng tìm theo token plaintext rồi set `isRevoked = true`.
+- Field `token` lưu HMAC digest của refresh token và có `unique: true`.
+- Login/OAuth tạo refresh token rồi upsert digest vào MongoDB.
+- Refresh token service tìm document theo digest, kiểm tra `isRevoked` và `expiresAt`.
+- Logout một thiết bị tìm theo digest hoặc plaintext legacy rồi set `isRevoked = true`.
+- Plaintext token legacy được migrate sang digest khi user refresh/logout hợp lệ.
 
 ### Rủi ro
 
-Nếu MongoDB bị leak, attacker có thể dùng refresh token còn hạn để lấy access token mới. Vì refresh token thường sống lâu hơn access token, đây là rủi ro đáng ưu tiên.
+Với token mới, nếu MongoDB bị leak, attacker không thể dùng trực tiếp giá trị trong field `token` để refresh session. Rủi ro còn lại chủ yếu nằm ở plaintext token legacy chưa được migrate hoặc token thật bị lộ từ client/cookie.
 
-### Cải thiện đề xuất
+### Trạng thái cải thiện
 
-- Lưu `tokenHash` hoặc `tokenDigest` thay vì `token` plaintext.
-- Dùng `HMAC-SHA256(refreshToken, REFRESH_TOKEN_HASH_SECRET)` để tránh brute force/offline matching nếu token format có thể đoán được.
+- Đã lưu digest thay vì token plaintext cho token mới.
+- Đã dùng HMAC-SHA256 qua `hashRefreshToken()` với `TOKEN_HASH_SECRET`.
 - Khi client gửi refresh token, backend tính digest rồi query theo digest.
-- Đổi các flow liên quan cùng lúc: login, OAuth callback, refresh, logout một thiết bị, logout all, cleanup token hết hạn.
+- Refresh/logout có migration-safe fallback cho plaintext token cũ.
+- Cleanup token hết hạn và logout all vẫn xử lý theo user/revoke flag, không phụ thuộc plaintext token.
 
 ## 4. OTP và reset token
 
@@ -90,7 +93,7 @@ Nếu MongoDB bị leak, attacker có thể dùng refresh token còn hạn để
 
 - OTP được tạo bằng `crypto.randomInt()` trong `backend/src/utils/generate-otp.util.ts`.
 - OTP mặc định 6 chữ số.
-- OTP/reset token được hash bằng `crypto.createHash('sha256').update(value).digest('hex')`.
+- OTP/reset token được hash bằng HMAC-SHA256 qua `hashOtp()` và `hashResetToken()`.
 - Redis lưu hash, TTL, attempt counter và dữ liệu pending.
 - Các flow chính gồm đăng ký, quên mật khẩu, đổi mật khẩu và đổi email.
 
@@ -98,8 +101,7 @@ Nếu MongoDB bị leak, attacker có thể dùng refresh token còn hạn để
 
 - `crypto.randomInt()` là lựa chọn tốt để tạo OTP.
 - TTL và giới hạn số lần thử giúp chống online brute force.
-- SHA-256 trần không có secret. Với OTP 6 số, nếu Redis dump bị lộ, attacker có thể brute force offline rất nhanh.
-- Nên thay SHA-256 trần bằng `HMAC-SHA256(value, OTP_HASH_SECRET)` hoặc một secret dùng chung có tên rõ ràng hơn, ví dụ `TOKEN_HASH_SECRET`.
+- OTP/reset token không còn dùng SHA-256 trần; HMAC cần `TOKEN_HASH_SECRET`, giảm rủi ro brute force offline nếu Redis dump bị lộ.
 
 ## 5. AES-256-GCM cho dữ liệu tạm trong Redis
 
@@ -114,14 +116,13 @@ Nếu MongoDB bị leak, attacker có thể dùng refresh token còn hạn để
   - IV random `16` bytes,
   - `aes-256-gcm`,
   - output dạng `salt + iv + authTag + ciphertext`.
-- Secret đầu vào để derive key hiện là `Env.JWT_SECRET`.
+- Secret đầu vào để derive key hiện là `Env.ENCRYPTION_SECRET`.
 
 ### Nhận xét
 
 - `AES-256-GCM` là lựa chọn phù hợp vì vừa mã hóa vừa kiểm tra toàn vẹn dữ liệu.
 - PBKDF2 với `600000` iterations là cấu hình mạnh cho key derivation.
-- Điểm cần sửa là secret boundary: encryption không nên phụ thuộc `JWT_SECRET`.
-- Nên dùng `ENCRYPTION_SECRET` riêng. Nếu rotate JWT secret, dữ liệu mã hóa tạm trong Redis không nên bị phụ thuộc ngoài ý muốn.
+- Secret boundary đã tách khỏi `JWT_SECRET`. Nếu rotate JWT secret, dữ liệu mã hóa tạm trong Redis không bị phụ thuộc ngoài ý muốn.
 
 ## 6. Redux Persist
 
@@ -140,18 +141,20 @@ Nếu MongoDB bị leak, attacker có thể dùng refresh token còn hạn để
 
 ## Ưu tiên cải thiện
 
-1. Dùng `ENCRYPTION_SECRET` riêng cho `AES-256-GCM`/PBKDF2, không dùng `JWT_SECRET`.
-2. Lưu refresh token dạng HMAC/digest thay vì plaintext.
-3. Pin `algorithms: ['HS256']` trong `verifyAccessToken()` và `verifyRefreshToken()`.
-4. Thêm `audience: 'refresh'` khi verify refresh token.
-5. Đổi OTP/reset token từ SHA-256 trần sang HMAC-SHA256.
-6. Benchmark bcrypt và cân nhắc tăng `saltRounds` từ `10` lên `12`.
+1. Đã dùng `ENCRYPTION_SECRET` riêng cho `AES-256-GCM`/PBKDF2, không dùng `JWT_SECRET`.
+2. Đã lưu refresh token dạng HMAC/digest thay vì plaintext.
+3. Đã pin `algorithms: ['HS256']` trong `verifyAccessToken()` và `verifyRefreshToken()`.
+4. Đã thêm `audience: 'refresh'` khi verify refresh token.
+5. Đã đổi OTP/reset token từ SHA-256 trần sang HMAC-SHA256.
+6. Còn nên benchmark bcrypt và cân nhắc tăng `saltRounds` từ `10` lên `12`.
 
 ## Kết luận
 
-Dự án đang dùng đúng nhóm công cụ chính: bcrypt cho mật khẩu, JWT cho token, AES-GCM cho dữ liệu cần giải mã lại, OTP có TTL và attempt limit. Các điểm cần ưu tiên không nằm ở việc đổi thuật toán lớn, mà ở cách cô lập secret và cách lưu dữ liệu nhạy cảm:
+Dự án đang dùng đúng nhóm công cụ chính: bcrypt cho mật khẩu, JWT cho token, AES-GCM cho dữ liệu cần giải mã lại, OTP có TTL và attempt limit. Các điểm ưu tiên về cô lập secret và lưu dữ liệu nhạy cảm đã được xử lý trong batch crypto/CodeRabbit gần đây:
 
-- Secret mã hóa đang dùng chung với `JWT_SECRET`.
-- Refresh token đang lưu plaintext trong database.
-- OTP/reset token đang dùng SHA-256 trần, dễ brute force offline nếu Redis bị lộ.
-- JWT verify nên pin thuật toán và kiểm tra audience nhất quán hơn.
+- Secret mã hóa đã tách sang `ENCRYPTION_SECRET`.
+- Refresh token mới đã lưu HMAC digest thay vì plaintext.
+- OTP/reset token đã dùng HMAC-SHA256 với `TOKEN_HASH_SECRET`.
+- JWT verify đã pin thuật toán và kiểm tra audience refresh nhất quán hơn.
+
+Điểm còn lại nên xem xét riêng là benchmark bcrypt để quyết định có tăng `saltRounds` từ `10` lên `12` hay không.

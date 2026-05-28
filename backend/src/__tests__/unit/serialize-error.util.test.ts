@@ -33,6 +33,10 @@ describe('serializeError', () => {
     expect(serializeError('timeout')).toEqual({ message: 'timeout' })
   })
 
+  it('should pass primitive error fallback through the redaction helper', () => {
+    expect(serializeError(undefined)).toEqual({ message: 'undefined' })
+  })
+
   it('should redact sensitive fields', () => {
     expect(
       serializeError({

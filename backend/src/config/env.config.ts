@@ -26,7 +26,7 @@ const envConfig = () => ({
   JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET'),
   JWT_REFRESH_EXPIRES_IN: getEnv('JWT_REFRESH_EXPIRES_IN', '7d') as string,
   ENCRYPTION_SECRET: encryptionSecret,
-  TOKEN_HASH_SECRET: getEnv('TOKEN_HASH_SECRET', encryptionSecret),
+  TOKEN_HASH_SECRET: getEnv('TOKEN_HASH_SECRET'),
 
   GEMINI_API_KEY: getEnv('GEMINI_API_KEY'),
 

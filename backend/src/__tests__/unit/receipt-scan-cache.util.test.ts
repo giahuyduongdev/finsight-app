@@ -59,6 +59,15 @@ describe('receipt-scan-cache.util', () => {
     Env.RECEIPT_SCAN_CACHE_TTL_SECONDS = '3600'
     expect(getReceiptScanCacheTtlSeconds()).toBe(3600)
 
+    Env.RECEIPT_SCAN_CACHE_TTL_SECONDS = '3600.5'
+    expect(getReceiptScanCacheTtlSeconds()).toBe(86400)
+
+    Env.RECEIPT_SCAN_CACHE_TTL_SECONDS = '0'
+    expect(getReceiptScanCacheTtlSeconds()).toBe(86400)
+
+    Env.RECEIPT_SCAN_CACHE_TTL_SECONDS = '-1'
+    expect(getReceiptScanCacheTtlSeconds()).toBe(86400)
+
     Env.RECEIPT_SCAN_CACHE_TTL_SECONDS = 'invalid'
     expect(getReceiptScanCacheTtlSeconds()).toBe(86400)
   })

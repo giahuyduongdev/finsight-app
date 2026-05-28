@@ -15,6 +15,16 @@ const maskToken = (token?: string) => {
   return `${token.slice(0, 4)}...${token.slice(-4)}`
 }
 
+const migratePlaintextToken = async (
+  refreshToken: RefreshTokenDocument,
+  tokenHash: string
+) => {
+  if (refreshToken.token === tokenHash) return refreshToken
+
+  refreshToken.token = tokenHash
+  return await refreshToken.save()
+}
+
 /**
  * Refresh Token Repository Implementation
  * Handles data access operations for refresh tokens
@@ -51,9 +61,20 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
    */
   async findByToken(token: string): Promise<RefreshTokenDocument | null> {
     try {
-      return await RefreshTokenModel.findOne({
-        token: hashRefreshToken(token)
+      const tokenHash = hashRefreshToken(token)
+      const refreshToken = await RefreshTokenModel.findOne({
+        token: tokenHash
       }).exec()
+
+      if (refreshToken) return refreshToken
+
+      const plaintextRefreshToken = await RefreshTokenModel.findOne({
+        token
+      }).exec()
+
+      if (!plaintextRefreshToken) return null
+
+      return await migratePlaintextToken(plaintextRefreshToken, tokenHash)
     } catch (error) {
       logger.error('[APP:Auth] Error finding refresh token by token', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -87,12 +108,13 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
    */
   async revokeToken(token: string): Promise<boolean> {
     try {
-      const result = await RefreshTokenModel.updateOne(
-        { token: hashRefreshToken(token) },
-        { $set: { isRevoked: true } }
+      const tokenHash = hashRefreshToken(token)
+      const result = await RefreshTokenModel.findOneAndUpdate(
+        { token: { $in: [tokenHash, token] } },
+        { $set: { token: tokenHash, isRevoked: true } }
       ).exec()
 
-      const revoked = result.modifiedCount > 0
+      const revoked = !!result
       if (revoked) {
         logger.info('[APP:Auth] Refresh token revoked', {
           tokenPreview: maskToken(token)

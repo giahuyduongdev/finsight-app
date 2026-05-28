@@ -1,6 +1,6 @@
 # Các cải thiện bảo mật crypto/token đã thực hiện
 
-Tài liệu này ghi lại các thay đổi code đã làm sau phần kết luận trong `docs/crypto-summary.md`.
+Tài liệu này ghi lại các thay đổi code đã làm sau phần kết luận trong `docs/crypto-security/crypto-summary.md`.
 
 ## Mục tiêu
 
@@ -49,7 +49,7 @@ Thay đổi:
   - `hashResetToken()`
   - `hashRefreshToken()`
 - Thêm `TOKEN_HASH_SECRET`.
-- Nếu chưa cấu hình `TOKEN_HASH_SECRET`, code fallback về `ENCRYPTION_SECRET`.
+- `TOKEN_HASH_SECRET` là secret bắt buộc riêng, không fallback về `ENCRYPTION_SECRET`.
 
 Kết quả:
 
@@ -118,6 +118,8 @@ const refreshTokenHash = hashRefreshToken(refreshToken)
 - Field `token` trong MongoDB giờ lưu digest thay vì token gốc.
 - Khi refresh/logout, backend hash token client gửi lên rồi query theo digest.
 - Repository `create()`, `findByToken()` và `revokeToken()` cũng hash token trước khi thao tác DB.
+- Để deploy an toàn, lookup thử digest trước; nếu không thấy thì thử plaintext token cũ và migrate record đó sang digest.
+- Logout/revoke cũng hỗ trợ cả digest mới và plaintext token cũ.
 
 Kết quả:
 
@@ -126,9 +128,9 @@ Kết quả:
 
 Lưu ý deploy:
 
-- Refresh token cũ đang lưu plaintext sẽ không match digest mới.
-- Sau deploy, các phiên cũ có thể bị buộc đăng nhập lại.
-- Có thể cleanup token cũ bằng cách revoke/delete refresh token hiện có nếu muốn làm rõ trạng thái.
+- Refresh token cũ đang lưu plaintext vẫn có thể dùng trong lần refresh/logout đầu tiên sau deploy.
+- Khi token cũ được dùng hợp lệ, backend tự migrate field `token` sang digest.
+- Sau khi các session cũ được refresh/logout hoặc hết hạn, DB sẽ không còn cần plaintext token legacy.
 
 ### 5. Pin thuật toán JWT và verify audience refresh token
 
@@ -158,17 +160,19 @@ Kết quả:
 
 ## Verification
 
-Đã chạy:
+Đã chạy lại sau batch fix CodeRabbit PR #65:
 
 ```bash
 npm.cmd run type-check
+npm.cmd run lint
 npm.cmd run test:unit -- --runInBand
 ```
 
 Kết quả:
 
 - TypeScript type-check pass.
-- Unit test backend pass: 19 test suites passed, 173 tests passed, 3 skipped.
+- ESLint pass.
+- Unit test backend pass: 26 suites passed, 195 tests passed, 3 skipped.
 
 ## File đã chỉnh
 
@@ -184,5 +188,5 @@ Kết quả:
 
 ## Ghi chú
 
-- `backend/src/services/auth.service.ts.bak` là bản backup được tạo trước khi sửa file có nội dung tiếng Việt.
-- Các thay đổi này không đổi contract API phía client, ngoại trừ việc refresh token cũ có thể không còn hợp lệ sau deploy.
+- Các file backup `.bak` không còn được commit vào repo; `.gitignore` đã ignore `*.bak` và `*.bak2`.
+- Các thay đổi này không đổi contract API phía client.

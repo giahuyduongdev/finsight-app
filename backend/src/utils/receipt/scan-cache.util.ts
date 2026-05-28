@@ -23,7 +23,7 @@ const DEFAULT_RECEIPT_SCAN_CACHE_TTL_SECONDS = 24 * 3600
 
 export const getReceiptScanCacheTtlSeconds = () => {
   const ttl = Number(Env.RECEIPT_SCAN_CACHE_TTL_SECONDS)
-  return Number.isFinite(ttl) && ttl > 0
+  return Number.isInteger(ttl) && ttl > 0
     ? ttl
     : DEFAULT_RECEIPT_SCAN_CACHE_TTL_SECONDS
 }

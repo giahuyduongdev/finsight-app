@@ -53,7 +53,7 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 
 ### Valid Types:
 
-- `feat`: New feature
+- `feature`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
 - `style`: Code formatting
@@ -68,7 +68,7 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 ### Examples:
 
 ```bash
-git commit -m "feat: add user authentication"
+git commit -m "feature: add user authentication"
 git commit -m "fix: resolve login timeout"
 git commit -m "docs: update API documentation"
 ```

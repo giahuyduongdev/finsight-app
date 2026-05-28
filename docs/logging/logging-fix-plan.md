@@ -145,6 +145,8 @@ Kết quả:
 }
 ```
 
+Primitive fallback cũng đi qua redaction helper trước khi ghi log. Với primitive không có field name nhạy cảm, output vẫn là `{ "message": "..." }`; mục tiêu là giữ cùng một đường xử lý redaction cho mọi dạng thrown value.
+
 ### Bước 2: Dùng helper trong circuit breaker
 
 Hiện tại `circuitBreaker.util.ts` đang log:

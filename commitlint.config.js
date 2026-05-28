@@ -6,7 +6,7 @@ module.exports = {
       2,
       'always',
       [
-        'feat', // New feature
+        'feature', // New feature
         'fix', // Bug fix
         'docs', // Documentation changes
         'style', // Code style changes (formatting, etc.)

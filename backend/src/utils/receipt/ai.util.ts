@@ -27,7 +27,12 @@ const parseGeminiResponse = (responseText: string): ExtractedReceiptData => {
     throw new NonReceiptImageError('Could not read receipt content')
   }
 
-  const data = JSON.parse(cleanedText)
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(cleanedText)
+  } catch {
+    throw new NonReceiptImageError('Could not read receipt content')
+  }
 
   if (
     !data ||
@@ -48,17 +53,22 @@ const parseGeminiResponse = (responseText: string): ExtractedReceiptData => {
   const allowedCurrencies = ['VND', 'USD', 'EUR']
   const allowedTypes = ['EXPENSE', 'INCOME']
   const allowedStatus = ['COMPLETED', 'PENDING']
+  const currency = typeof data.currency === 'string' ? data.currency : 'VND'
+  const type = typeof data.type === 'string' ? data.type : 'EXPENSE'
+  const status = typeof data.status === 'string' ? data.status : 'COMPLETED'
 
   return {
-    title: (data.title || 'Receipt').substring(0, 100),
+    title: String(data.title || 'Receipt').substring(0, 100),
     amount,
-    currency: allowedCurrencies.includes(data.currency) ? data.currency : 'VND',
-    date: data.date,
-    description: data.description || '',
-    category: data.category || 'General',
-    paymentMethod: data.paymentMethod || 'CASH',
-    type: allowedTypes.includes(data.type) ? data.type : 'EXPENSE',
-    status: allowedStatus.includes(data.status) ? data.status : 'COMPLETED'
+    currency: allowedCurrencies.includes(currency) ? currency : 'VND',
+    date: String(data.date),
+    description: String(data.description || ''),
+    category: String(data.category || 'General'),
+    paymentMethod: String(data.paymentMethod || 'CASH'),
+    type: allowedTypes.includes(type)
+      ? (type as 'EXPENSE' | 'INCOME')
+      : 'EXPENSE',
+    status: allowedStatus.includes(status) ? status : 'COMPLETED'
   }
 }
 

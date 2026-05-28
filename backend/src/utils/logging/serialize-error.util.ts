@@ -51,7 +51,7 @@ export const serializeError = (error: unknown): Record<string, unknown> => {
     return redactSensitiveFields(serialized) as Record<string, unknown>
   }
 
-  return {
+  return redactSensitiveFields({
     message: String(error)
-  }
+  }) as Record<string, unknown>
 }

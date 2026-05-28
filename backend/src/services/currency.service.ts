@@ -190,29 +190,49 @@ export class CurrencyService {
   }
 
   static async refreshRatesManually() {
-    const lockAcquired = await redis.set(
-      REDIS_KEYS.currencyManualRefreshLock,
-      '1',
-      'EX',
-      REDIS_TTL.CURRENCY_MANUAL_REFRESH_LOCK,
-      'NX'
-    )
+    let lockAcquired = false
 
-    if (!lockAcquired) {
-      logger.info('[APP:Currency] Manual refresh skipped due to throttle')
-      return CurrencyService.getLatestRates()
-    }
+    try {
+      const lockResult = await redis.set(
+        REDIS_KEYS.currencyManualRefreshLock,
+        '1',
+        'EX',
+        REDIS_TTL.CURRENCY_MANUAL_REFRESH_LOCK,
+        'NX'
+      )
+      lockAcquired = !!lockResult
 
-    const fetchedRates = await CurrencyService.fetchAndBroadcastRates()
-    const baseCurrency = CurrencyEnum.VND
+      if (!lockAcquired) {
+        logger.info('[APP:Currency] Manual refresh skipped due to throttle')
+        return CurrencyService.getLatestRates()
+      }
 
-    if (fetchedRates) {
-      return {
-        base: baseCurrency,
-        rates: fetchedRates,
-        updatedAt:
-          (await redis.get(REDIS_KEYS.currencyRatesUpdatedAt)) ||
-          new Date().toISOString()
+      const fetchedRates = await CurrencyService.fetchAndBroadcastRates()
+      const baseCurrency = CurrencyEnum.VND
+
+      if (fetchedRates) {
+        return {
+          base: baseCurrency,
+          rates: fetchedRates,
+          updatedAt:
+            (await redis.get(REDIS_KEYS.currencyRatesUpdatedAt)) ||
+            new Date().toISOString()
+        }
+      }
+    } catch (error) {
+      logger.error('[APP:Currency] Manual refresh failed', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
+    } finally {
+      if (lockAcquired) {
+        try {
+          await redis.del(REDIS_KEYS.currencyManualRefreshLock)
+        } catch (error) {
+          logger.warn('[APP:Currency] Failed to release manual refresh lock', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
       }
     }
 

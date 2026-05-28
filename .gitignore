@@ -38,6 +38,8 @@ app.keys
 *.njsproj
 *.sln
 *.sw?
+*.bak
+*.bak2
 
 # Backend specific
 backend/node_modules
@@ -55,3 +57,4 @@ client/.env
 
 # Agent instructions
 AGENTS.md
+.codex-doc-backups/

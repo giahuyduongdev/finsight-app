@@ -19,6 +19,13 @@ const staleRateCacheKey = (
   to: CurrencyType | string
 ) => `rate:stale:${from}:${to}`
 
+const parseCachedRate = (value: string | null): number | null => {
+  if (!value) return null
+
+  const rate = Number(value)
+  return Number.isFinite(rate) ? rate : null
+}
+
 const fetchExchangeRatesWithFallbackInternal = async (
   currency: CurrencyType | string
 ) => {
@@ -63,7 +70,16 @@ export const getExchangeRate = async (
   // Check Redis cache trước
   const cacheKey = rateCacheKey(from, to)
   const cached = await redis.get(cacheKey)
-  if (cached) return parseFloat(cached)
+  const cachedRate = parseCachedRate(cached)
+  if (cachedRate !== null) return cachedRate
+
+  if (cached) {
+    logger.warn(`[APP:Currency] Ignoring invalid cached exchange rate`, {
+      from,
+      to,
+      cacheKey
+    })
+  }
 
   try {
     const res = await fetchExchangeRatesWithFallback(from)
@@ -83,8 +99,10 @@ export const getExchangeRate = async (
 
     return rate
   } catch (error) {
-    const staleRate = await redis.get(staleRateCacheKey(from, to))
-    if (staleRate) {
+    const staleCacheKey = staleRateCacheKey(from, to)
+    const staleRate = await redis.get(staleCacheKey)
+    const parsedStaleRate = parseCachedRate(staleRate)
+    if (parsedStaleRate !== null) {
       logger.warn(
         `[APP:Currency] Using stale exchange rate: ${from} to ${to}`,
         {
@@ -93,7 +111,15 @@ export const getExchangeRate = async (
           to
         }
       )
-      return parseFloat(staleRate)
+      return parsedStaleRate
+    }
+
+    if (staleRate) {
+      logger.warn(`[APP:Currency] Ignoring invalid stale exchange rate`, {
+        from,
+        to,
+        cacheKey: staleCacheKey
+      })
     }
 
     logger.error(

@@ -2,6 +2,16 @@
 
 Tài liệu này mô tả hướng cache cho flow AI Scan Receipt để tránh tốn tài nguyên khi user quét lại cùng một bill nhiều lần nhưng chưa bấm Save.
 
+## Cập nhật sau CodeRabbit PR #65
+
+Các hardening đã được bổ sung:
+
+- `RECEIPT_SCAN_CACHE_TTL_SECONDS` chỉ nhận số nguyên dương; giá trị decimal, zero, âm hoặc invalid sẽ fallback về default `86400`.
+- Gemini response không parse được JSON sẽ được map thành `NonReceiptImageError`, để client nhận đúng lỗi ảnh không phải receipt hoặc AI không đọc được receipt.
+- Background receipt scan catch không assume thrown value luôn là `Error`; lỗi primitive/object vẫn được normalize và log bằng `serializeError`.
+- Worker receipt scan giữ lại `imageHash` khi compact job data sau upload Cloudinary, để retry path vẫn cache/reuse theo cùng hash.
+- Unit test không hard-code TTL `86400` nữa mà dùng helper `getReceiptScanCacheTtlSeconds()`.
+
 ## Vấn đề hiện tại
 
 Flow hiện tại:
@@ -100,6 +110,21 @@ RECEIPT_SCAN_CACHE_TTL_SECONDS=86400
 
 Nếu env không có thì dùng default `86400`.
 
+Env phải là số nguyên dương. Ví dụ hợp lệ:
+
+```env
+RECEIPT_SCAN_CACHE_TTL_SECONDS=86400
+```
+
+Ví dụ không hợp lệ và sẽ fallback về default:
+
+```env
+RECEIPT_SCAN_CACHE_TTL_SECONDS=3600.5
+RECEIPT_SCAN_CACHE_TTL_SECONDS=0
+RECEIPT_SCAN_CACHE_TTL_SECONDS=-1
+RECEIPT_SCAN_CACHE_TTL_SECONDS=invalid
+```
+
 ## Flow sau khi thêm cache
 
 ### Cache hit
@@ -127,7 +152,7 @@ Frontend hiện đã hỗ trợ response có `data.receipt`, nên không cần c
 3. Tính `imageHash`.
 4. Trả `jobId` ngay cho frontend.
 5. Background task gọi Gemini trên ảnh nén trong RAM để xác định và trích xuất receipt.
-6. Nếu ảnh không phải receipt, emit `receipt:scan-failed` và không upload Cloudinary.
+6. Nếu ảnh không phải receipt hoặc Gemini trả JSON không parse được, emit `receipt:scan-failed` và không upload Cloudinary.
 7. Nếu ảnh là receipt hợp lệ, check Cloudinary bằng `public_id = receipts/{userId}/{imageHash}`.
 8. Nếu Cloudinary đã có ảnh này, dùng lại `secure_url` cũ và không upload lại.
 9. Nếu Cloudinary chưa có ảnh này, upload với `overwrite: false`.
@@ -162,3 +187,19 @@ npm.cmd run type-check
 npm.cmd run lint
 npm.cmd run test:unit -- --runInBand
 ```
+
+Sau batch fix PR #65 đã chạy:
+
+```bash
+npm.cmd test -- --runInBand --runTestsByPath src/__tests__/unit/receipt-scan-cache.util.test.ts src/__tests__/unit/receipt-ai.util.test.ts src/__tests__/unit/transaction.controller.test.ts
+npm.cmd run type-check
+npm.cmd run lint
+npm.cmd run test:unit -- --runInBand
+```
+
+Kết quả:
+
+- Targeted receipt-related unit tests pass.
+- Backend type-check pass.
+- Backend lint pass.
+- Full backend unit tests pass: 26 suites passed, 195 tests passed, 3 skipped.

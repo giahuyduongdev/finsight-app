@@ -607,11 +607,24 @@ export const refreshTokenService = async (token: string) => {
 
   // 2. Kiểm tra DB
   const tokenHash = hashRefreshToken(token)
-  const refreshToken = await RefreshTokenModel.findOne({
+  let refreshToken = await RefreshTokenModel.findOne({
     token: tokenHash,
     isRevoked: false,
     expiresAt: { $gt: new Date() } // chưa hết hạn
   })
+
+  if (!refreshToken) {
+    refreshToken = await RefreshTokenModel.findOne({
+      token,
+      isRevoked: false,
+      expiresAt: { $gt: new Date() }
+    })
+
+    if (refreshToken) {
+      refreshToken.token = tokenHash
+      await refreshToken.save()
+    }
+  }
 
   if (!refreshToken) {
     throw new UnauthorizedException('Refresh token is invalid or expired')
@@ -637,8 +650,8 @@ export const logoutService = async (
   // 1. Tìm và revoke refresh token
   const refreshTokenHash = hashRefreshToken(refreshToken)
   const token = await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshTokenHash, isRevoked: false },
-    { isRevoked: true }
+    { token: { $in: [refreshTokenHash, refreshToken] }, isRevoked: false },
+    { token: refreshTokenHash, isRevoked: true }
   )
 
   if (!token) {

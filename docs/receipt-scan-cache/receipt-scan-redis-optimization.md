@@ -142,6 +142,13 @@ RECEIPT_SCAN_CACHE_TTL_SECONDS=86400
 
 Cache chỉ lưu JSON kết quả scan, không lưu ảnh.
 
+Sau batch fix CodeRabbit PR #65:
+
+- `RECEIPT_SCAN_CACHE_TTL_SECONDS` chỉ nhận số nguyên dương; decimal/zero/negative/invalid fallback về `86400`.
+- Gemini invalid JSON được map thành `NonReceiptImageError`, nên frontend nhận lỗi non-receipt thay vì lỗi server mơ hồ.
+- Background task normalize thrown value trước khi tạo message cho socket failure.
+- Worker giữ `imageHash` khi compact job data để retry path vẫn cache theo đúng key.
+
 ## Verification
 
 Đã chạy trong `backend`:
@@ -156,7 +163,7 @@ Kết quả:
 
 - Type-check pass.
 - ESLint pass.
-- Unit test pass: 20 suites passed, 175 tests passed, 3 skipped.
+- Unit test pass: 26 suites passed, 195 tests passed, 3 skipped.
 
 ## Ghi chú
 

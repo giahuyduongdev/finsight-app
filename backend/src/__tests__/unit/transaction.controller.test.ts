@@ -20,6 +20,7 @@ import sharp from 'sharp'
 import { redis } from '../../config/redis.config'
 import {
   getReceiptScanCacheKey,
+  getReceiptScanCacheTtlSeconds,
   hashReceiptImage
 } from '../../utils/receipt/scan-cache.util'
 
@@ -575,7 +576,7 @@ describe('transaction.controller', () => {
           '"receiptUrl":"https://res.cloudinary.com/demo/new-receipt.jpg"'
         ),
         'EX',
-        86400
+        getReceiptScanCacheTtlSeconds()
       )
       expect(mockTo).toHaveBeenCalledWith('user-123')
       expect(mockEmit).toHaveBeenCalledWith('receipt:scan-completed', {

@@ -105,6 +105,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
         // [CLEANUP] Update job data: Replace base64 with URL to free Redis memory
         await job.updateData({
           userId,
+          imageHash,
           imageUrl: uploadResult.value.secure_url,
           fileBuffer: undefined, // Clear base64 from Redis
           fileName,
@@ -119,6 +120,10 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
       // Now validate Gemini response
       if (geminiResult.status === 'rejected') {
+        if (geminiResult.reason instanceof NonReceiptImageError) {
+          throw geminiResult.reason
+        }
+
         throw new Error(
           `Gemini extraction failed: ${geminiResult.reason?.message || 'Unknown error'}`
         )

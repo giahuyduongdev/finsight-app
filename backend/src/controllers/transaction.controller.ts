@@ -313,7 +313,7 @@ const processReceiptScanInBackground = async ({
       data: receiptData
     })
   } catch (error) {
-    const err = error as Error
+    const err = error instanceof Error ? error : new Error(String(error))
     logger.error('[APP:Transaction] Receipt scan failed', {
       error: serializeError(error),
       userId,

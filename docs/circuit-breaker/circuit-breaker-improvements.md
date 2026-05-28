@@ -51,6 +51,29 @@ Kết quả:
 - Các flow tính toán tiền tệ bền hơn khi exchange rate provider tạm lỗi.
 - User vẫn có thể nhận kết quả gần đúng dựa trên rate cũ.
 
+## 2.1. Harden manual refresh và cached rate payload
+
+File liên quan:
+
+- `backend/src/services/currency.service.ts`
+- `backend/src/lib/exchange-rate-currency.ts`
+- `client/src/features/analytics/analyticsAPI.ts`
+
+Thay đổi:
+
+- `refreshRatesManually()` bọc Redis lock/cache flow bằng `try/catch/finally`.
+- Nếu manual refresh lỗi do Redis/network/provider, endpoint fallback về `getLatestRates()` thay vì fail cứng.
+- Manual refresh lock được release trong `finally`; nếu release lock lỗi thì log warning.
+- Cached/stale exchange rate payload được parse bằng `Number()` và validate `Number.isFinite`.
+- Nếu cache/stale cache corrupt, backend log warning và bỏ qua entry đó thay vì trả `NaN`.
+- Frontend mutation `refreshExchangeRates` invalidate tag `analytics` để UI refetch dữ liệu liên quan sau khi refresh.
+
+Kết quả:
+
+- Manual refresh exchange rate ít làm gián đoạn UI hơn khi dependency tạm lỗi.
+- Không trả rate `NaN` từ Redis cache corrupt.
+- Frontend analytics cache đồng bộ lại sau manual refresh.
+
 ## 3. Thêm circuit breaker cho Cloudinary
 
 File liên quan:
@@ -169,7 +192,7 @@ Kết quả:
 
 - TypeScript type-check pass.
 - ESLint pass.
-- Unit test pass: 19 test suites passed, 173 tests passed, 3 skipped.
+- Unit test pass: 26 suites passed, 195 tests passed, 3 skipped.
 
 ## File đã chỉnh
 
@@ -179,7 +202,9 @@ Kết quả:
 - `backend/src/config/cloudinary.config.ts`
 - `backend/src/controllers/health.controller.ts`
 - `backend/src/lib/exchange-rate-currency.ts`
+- `backend/src/services/currency.service.ts`
 - `backend/src/utils/circuitBreaker.util.ts`
+- `client/src/features/analytics/analyticsAPI.ts`
 - `docs/circuit-breaker-retry-summary.md`
 
 ## Ghi chú còn lại

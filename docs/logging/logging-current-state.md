@@ -13,6 +13,7 @@ Các thay đổi đã làm:
 - Receipt scan catch dùng serialized error.
 - Redact metadata toàn bộ log info, không chỉ `body` và `meta`.
 - Bổ sung redact cho `auth`, `api_key`, `api_secret`.
+- Primitive thrown values trong `serializeError()` cũng đi qua redaction helper trước khi ghi log.
 
 Nhờ thay đổi này, lỗi Cloudinary thật đã được thấy rõ:
 

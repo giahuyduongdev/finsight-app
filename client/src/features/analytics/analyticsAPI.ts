@@ -47,7 +47,8 @@ export const analyticsApi = apiClient.injectEndpoints({
       query: () => ({
         url: '/analytics/rates/refresh',
         method: 'POST'
-      })
+      }),
+      invalidatesTags: ['analytics']
     })
   })
 })
