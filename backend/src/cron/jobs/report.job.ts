@@ -1,66 +1,182 @@
+import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
+import ReportSettingModel from '../../models/report-setting.model'
 import { UserDocument } from '../../models/user.model'
-import { reportQueue, REPORT_JOBS } from '../../queues/report.queue'
-import { logger } from '../../config/logger.config'
-import { container } from '../../container'
-import { v4 as uuidv4 } from 'uuid'
+import mongoose from 'mongoose'
+import { generateReportService } from '../../services/report.service'
+import ReportModel, { ReportStatusEnum } from '../../models/report.model'
+import { calculateNextReportDate } from '../../utils/helper'
+import { sendReportEmail } from '../../mailers/report.mailer'
+import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 
 export const processReportJob = async () => {
   const now = new Date()
 
-  logger.info('[JOB:Cron] Fetching report settings due for processing...')
+  let processedCount = 0
+  let failedCount = 0
+
+  //Today july 1, then run report for -> june 1 - 30
+  //Get Last Month because this will run on the first of the month
+
+  // const from = "2025-04-01T23:00:00.000Z";
+  // const to = "2025-04-T23:00:00.000Z";
 
   try {
-    // Get ReportSettingRepository from DI container
-    const reportSettingRepository = container.getReportSettingRepository()
+    const reportSettingCursor = ReportSettingModel.find({
+      isEnabled: true,
+      nextReportDate: { $lte: now }
+    })
+      .populate<{ userId: UserDocument }>('userId')
+      .cursor()
 
-    const settings = await reportSettingRepository.findEnabledDue(now)
+    console.log('Running report ')
 
-    if (!settings.length) {
-      logger.info('[JOB:Cron] No reports due at this time')
-      return
-    }
+    for await (const setting of reportSettingCursor) {
+      const user = setting.userId as UserDocument
+      if (!user) {
+        console.log(`User not found for setting: ${setting._id}`)
+        continue
+      }
 
-    logger.info(`[JOB:Cron] Found ${settings.length} report(s) to enqueue`)
+      // Lấy timezone của từng user
+      const timezone = user.timezone || 'UTC'
 
-    const jobs = settings
-      .filter((setting) => {
-        const user = setting.userId as unknown as UserDocument
-        if (!user || !user.id) {
-          logger.warn(`[JOB:Cron] User not found for setting: ${setting._id}`)
-          return false
-        }
-        return true
-      })
-      .map((setting) => {
-        const user = setting.userId as unknown as UserDocument
-        // Validate frequency before using
-        const frequency = setting.frequency || 'MONTHLY'
-        return {
-          name: REPORT_JOBS.PROCESS_REPORT,
-          data: {
-            userId: user.id as string,
-            settingId: setting._id.toString(),
-            timezone: user.timezone || 'UTC',
-            preferredCurrency: user.preferredCurrency,
-            frequency,
-            dueDate: setting.nextReportDate?.toISOString() || now.toISOString(),
-            correlationId: uuidv4()
-          },
-          opts: {
-            // jobId duy nhất để tránh enqueue trùng nếu cron chạy lại
-            jobId: `process-report-${setting._id}-${setting.nextReportDate?.toISOString() || now.toISOString()}`
+      // Tính from/to theo timezone của user
+      const nowInUserTz = toZonedTime(now, timezone)
+      const from = startOfMonth(subMonths(nowInUserTz, 1))
+      const to = endOfMonth(subMonths(nowInUserTz, 1))
+      const fromUTC = fromZonedTime(from, timezone)
+      const toUTC = fromZonedTime(to, timezone)
+
+      const session = await mongoose.startSession()
+
+      try {
+        const report = await generateReportService(
+          user.id,
+          fromUTC,
+          toUTC,
+          timezone
+        )
+
+        console.log(report, 'resport data')
+
+        let emailSent = false
+        if (report) {
+          try {
+            await sendReportEmail({
+              email: user.email!,
+              username: user.name!,
+              report: {
+                period: report.period,
+                totalIncome: report.summary.income,
+                totalExpenses: report.summary.expenses,
+                availableBalance: report.summary.balance,
+                savingsRate: report.summary.savingsRate,
+                topSpendingCategories: report.summary.topCategories,
+                insights: report.insights
+              },
+              frequency: setting.frequency!
+            })
+            emailSent = true
+          } catch (error) {
+            console.log(`Email failed for ${user.id}`)
           }
         }
-      })
 
-    await reportQueue.addBulk(jobs)
+        await session.withTransaction(
+          async () => {
+            const bulkReports: any[] = []
+            const bulkSettings: any[] = []
 
-    logger.info(
-      `[JOB:Cron] Enqueued ${jobs.length} report job(s) into REPORT_QUEUE`
-    )
+            if (report && emailSent) {
+              bulkReports.push({
+                insertOne: {
+                  document: {
+                    userId: user.id,
+                    sentDate: now,
+                    period: report.period,
+                    status: ReportStatusEnum.SENT,
+                    createdAt: now,
+                    updatedAt: now
+                  }
+                }
+              })
+
+              bulkSettings.push({
+                updateOne: {
+                  filter: { _id: setting._id },
+                  update: {
+                    $set: {
+                      lastSentDate: now,
+                      nextReportDate: calculateNextReportDate(now),
+                      updatedAt: now
+                    }
+                  }
+                }
+              })
+            } else {
+              bulkReports.push({
+                insertOne: {
+                  document: {
+                    userId: user.id,
+                    sentDate: now,
+                    period:
+                      report?.period ||
+                      `${format(from, 'MMMM d')}–${format(to, 'd, yyyy')}`,
+                    status: report
+                      ? ReportStatusEnum.FAILED
+                      : ReportStatusEnum.NO_ACTIVITY,
+                    createdAt: now,
+                    updatedAt: now
+                  }
+                }
+              })
+
+              bulkSettings.push({
+                updateOne: {
+                  filter: { _id: setting._id },
+                  update: {
+                    $set: {
+                      lastSentDate: null,
+                      nextReportDate: calculateNextReportDate(now),
+                      updatedAt: now
+                    }
+                  }
+                }
+              })
+            }
+
+            await Promise.all([
+              ReportModel.bulkWrite(bulkReports, { ordered: false }),
+              ReportSettingModel.bulkWrite(bulkSettings, { ordered: false })
+            ])
+          },
+          {
+            maxCommitTimeMS: 10000
+          }
+        )
+
+        processedCount++
+      } catch (error) {
+        console.log(`Failed to process report`, error)
+        failedCount++
+      } finally {
+        await session.endSession()
+      }
+    }
+
+    console.log(`✅Processed: ${processedCount} report`)
+    console.log(`❌ Failed: ${failedCount} report`)
+
+    return {
+      success: true,
+      processedCount,
+      failedCount
+    }
   } catch (error) {
-    logger.error('[JOB:Cron] Failed to enqueue report jobs', {
-      error: (error as Error).message
-    })
+    console.error('Error processing reports', error)
+    return {
+      success: false,
+      error: 'Report process failed'
+    }
   }
 }

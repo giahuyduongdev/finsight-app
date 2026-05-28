@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose'
-import { CurrencyEnum } from '../enums/currency.enum'
+import { convertToCents, convertToDollarUnit } from '../utils/format-currency'
 
 export enum TransactionStatusEnum {
   PENDING = 'PENDING',
@@ -33,7 +33,6 @@ export interface TransactionDocument extends Document {
   type: keyof typeof TransactionTypeEnum
   title: string
   amount: number
-  currency: string
   category: string
   receiptUrl?: string
   recurringInterval?: keyof typeof RecurringIntervalEnum
@@ -46,7 +45,6 @@ export interface TransactionDocument extends Document {
   paymentMethod: keyof typeof PaymentMethodEnum
   createdAt: Date
   updatedAt: Date
-  recurringSourceId?: mongoose.Types.ObjectId
 }
 
 const transactionSchema = new Schema<TransactionDocument>(
@@ -67,12 +65,9 @@ const transactionSchema = new Schema<TransactionDocument>(
     },
     amount: {
       type: Number,
-      required: true
-    },
-    currency: {
-      type: String,
-      enum: Object.values(CurrencyEnum),
-      default: CurrencyEnum.USD
+      required: true,
+      set: (value: number) => convertToCents(value),
+      get: (value: number) => convertToDollarUnit(value)
     },
     description: {
       type: String
@@ -114,44 +109,14 @@ const transactionSchema = new Schema<TransactionDocument>(
       type: String,
       enum: Object.values(PaymentMethodEnum),
       default: PaymentMethodEnum.CASH
-    },
-    recurringSourceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Transaction',
-      default: null
     }
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toJSON: { virtuals: true, getters: true },
+    toObject: { virtuals: true, getters: true }
   }
 )
-
-// ─── Indexes ──────────────────────────────────────────────────────────────────
-
-// 1. Query danh sách transactions của user (dùng nhiều nhất)
-transactionSchema.index({ userId: 1, createdAt: -1 })
-
-// 2. Filter theo type + date (INCOME/EXPENSE theo thời gian)
-transactionSchema.index({ userId: 1, type: 1, date: -1 })
-
-// 3. Filter theo status (PENDING/COMPLETED/FAILED)
-transactionSchema.index({ userId: 1, status: 1 })
-
-// 4. Cron job tìm recurring transactions đến hạn
-transactionSchema.index({ isRecurring: 1, nextRecurringDate: 1 })
-
-// 5. Expandable rows — lấy children của parent
-transactionSchema.index({ recurringSourceId: 1, date: -1 })
-
-// 6. Analytics — tính tổng theo khoảng thời gian
-transactionSchema.index({ userId: 1, date: -1 })
-
-// 7. Search theo title + category (keyword search)
-transactionSchema.index({ userId: 1, title: 'text', category: 'text' })
-
-// ─── Model ────────────────────────────────────────────────────────────────────
 
 const TransactionModel = mongoose.model<TransactionDocument>(
   'Transaction',
