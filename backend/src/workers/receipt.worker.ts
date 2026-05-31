@@ -1,14 +1,21 @@
 import { Worker, Job } from 'bullmq'
-import { v2 as cloudinary } from 'cloudinary'
-import type { UploadApiResponse } from 'cloudinary'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
-import { generateWithFallback } from '../config/google-ai.config'
-import { receiptPrompt } from '../lib/prompts/receipt.prompt'
 import { getIO } from '../config/socket.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 import { RECEIPT_JOBS, ScanReceiptJobData } from '../queues/receipt.queue'
-import { cloudinaryCircuitBreaker } from '../utils/circuitBreaker.util'
+import { redis } from '../config/redis.config'
+import {
+  CachedReceiptScanData,
+  getReceiptCloudinaryPublicId,
+  getReceiptScanCacheKey,
+  getReceiptScanCacheTtlSeconds
+} from '../utils/receipt/scan-cache.util'
+import { uploadReceiptImageToCloudinary } from '../utils/receipt/upload.util'
+import {
+  extractReceiptDataFromBase64,
+  NonReceiptImageError
+} from '../utils/receipt/ai.util'
 
 const MAX_RETRY_DELAY_MS = 30000
 
@@ -43,93 +50,32 @@ async function safeInvalidateUserAnalyticsCache(userId: string): Promise<void> {
   }
 }
 
-/**
- * Upload image buffer to Cloudinary (permanent storage)
- */
-async function uploadToCloudinary(buffer: Buffer): Promise<UploadApiResponse> {
-  return cloudinaryCircuitBreaker.execute(
-    () =>
-      new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: 'receipts',
-            resource_type: 'image',
-            timeout: 10000
-          },
-          (error, result) => {
-            if (error || !result) {
-              reject(error || new Error('Upload failed'))
-            } else {
-              resolve(result)
-            }
-          }
-        )
-        uploadStream.end(buffer)
+async function cacheReceiptScan(
+  userId: string,
+  imageHash: string | undefined,
+  data: CachedReceiptScanData
+) {
+  if (!imageHash) return
+
+  const cacheKey = getReceiptScanCacheKey(userId, imageHash)
+
+  try {
+    await redis.set(
+      cacheKey,
+      JSON.stringify({
+        data,
+        cachedAt: new Date().toISOString()
       }),
-    'Cloudinary'
-  )
-}
-
-/**
- * Extract receipt data using Google Gemini AI with Model/Key Fallback
- */
-async function extractReceiptData(base64String: string) {
-  return await generateWithFallback(
-    [
-      {
-        role: 'user',
-        parts: [
-          { text: receiptPrompt },
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64String
-            }
-          }
-        ]
-      }
-    ],
-    {
-      temperature: 0,
-      topP: 1,
-      responseMimeType: 'application/json'
-    }
-  )
-}
-
-/**
- * Parse and validate Gemini response with strict checks
- */
-function parseGeminiResponse(responseText: string) {
-  const cleanedText = responseText?.replace(/```(?:json)?\n?/g, '').trim()
-
-  if (!cleanedText) {
-    throw new Error('Could not read receipt content')
-  }
-
-  const data = JSON.parse(cleanedText)
-
-  // Strict check: amount must be a number (allow 0), date must be present
-  const amount = Number(data.amount)
-  if (isNaN(amount) || !data.date) {
-    throw new Error('Receipt missing valid amount or date information')
-  }
-
-  // Predefined allowed values for enums
-  const allowedCurrencies = ['VND', 'USD', 'EUR']
-  const allowedTypes = ['EXPENSE', 'INCOME']
-  const allowedStatus = ['COMPLETED', 'PENDING']
-
-  return {
-    title: (data.title || 'Receipt').substring(0, 100),
-    amount: amount,
-    currency: allowedCurrencies.includes(data.currency) ? data.currency : 'VND',
-    date: data.date,
-    description: data.description || '',
-    category: data.category || 'General',
-    paymentMethod: data.paymentMethod || 'CASH',
-    type: allowedTypes.includes(data.type) ? data.type : 'EXPENSE',
-    status: allowedStatus.includes(data.status) ? data.status : 'COMPLETED'
+      'EX',
+      getReceiptScanCacheTtlSeconds()
+    )
+  } catch (error) {
+    logger.warn('[JOB:Receipt] Receipt scan cache write failed', {
+      error: error instanceof Error ? error.message : String(error),
+      userId,
+      imageHash,
+      cacheKey
+    })
   }
 }
 
@@ -141,6 +87,7 @@ function parseGeminiResponse(responseText: string) {
 async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
   const { userId, fileBuffer, imageUrl, fileName, fileSize, correlationId } =
     job.data
+  const { imageHash } = job.data
 
   try {
     let finalImageUrl: string
@@ -154,8 +101,12 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
       // [OPTIMIZED] Upload to Cloudinary and process AI in parallel
       const [uploadResult, geminiResult] = await Promise.allSettled([
-        uploadToCloudinary(imageBuffer), // ~600ms
-        extractReceiptData(base64ForAI) // ~2000ms (bottleneck)
+        uploadReceiptImageToCloudinary(imageBuffer, {
+          publicId: imageHash
+            ? getReceiptCloudinaryPublicId(userId, imageHash)
+            : undefined
+        }), // ~600ms
+        extractReceiptDataFromBase64(base64ForAI) // ~2000ms (bottleneck)
       ])
 
       // Persist upload result first, even if Gemini fails
@@ -165,6 +116,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
         // [CLEANUP] Update job data: Replace base64 with URL to free Redis memory
         await job.updateData({
           userId,
+          imageHash,
           imageUrl: uploadResult.value.secure_url,
           fileBuffer: undefined, // Clear base64 from Redis
           fileName,
@@ -179,26 +131,28 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
       // Now validate Gemini response
       if (geminiResult.status === 'rejected') {
+        if (geminiResult.reason instanceof NonReceiptImageError) {
+          throw geminiResult.reason
+        }
+
         throw new Error(
           `Gemini extraction failed: ${geminiResult.reason?.message || 'Unknown error'}`
         )
       }
 
-      // Process and validate Gemini response
-      const responseText = geminiResult.value.text
-      if (!responseText) {
-        throw new Error('Could not read receipt content from Gemini')
+      const data = geminiResult.value
+      const receiptData = {
+        ...data,
+        receiptUrl: finalImageUrl
       }
-      const data = parseGeminiResponse(responseText)
+
+      await cacheReceiptScan(userId, imageHash, receiptData)
 
       // Emit success event
       const io = getIO()
       io.to(userId).emit('receipt:scan-completed', {
         jobId: job.id,
-        data: {
-          ...data,
-          receiptUrl: finalImageUrl
-        }
+        data: receiptData
       })
 
       // Invalidate analytics cache
@@ -230,21 +184,19 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       base64ForAI = imageBuffer.toString('base64')
 
       // Retry AI extraction
-      const geminiResult = await extractReceiptData(base64ForAI)
-      const responseText = geminiResult.text
-      if (!responseText) {
-        throw new Error('Could not read receipt content from Gemini')
+      const data = await extractReceiptDataFromBase64(base64ForAI)
+      const receiptData = {
+        ...data,
+        receiptUrl: imageUrl
       }
-      const data = parseGeminiResponse(responseText)
+
+      await cacheReceiptScan(userId, imageHash, receiptData)
 
       // Emit success event
       const io = getIO()
       io.to(userId).emit('receipt:scan-completed', {
         jobId: job.id,
-        data: {
-          ...data,
-          receiptUrl: imageUrl
-        }
+        data: receiptData
       })
 
       // Invalidate analytics cache
@@ -269,17 +221,26 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
     // Catch Gemini Rate Limit (429) details
     let friendlyMessage = err.message || 'Receipt scanning failed'
+    const isNonReceiptImage = err instanceof NonReceiptImageError
+
     if (
       friendlyMessage.includes('429') ||
       friendlyMessage.includes('RESOURCE_EXHAUSTED')
     ) {
       friendlyMessage =
-        'AI service is currently busy due to free tier limits. Please try again in 1 minute.'
+        'AI service is currently busy due to free tier limits. Please try again in 1 minute'
+    }
+
+    if (isNonReceiptImage) {
+      job.discard()
+      friendlyMessage =
+        'This image does not look like a receipt. Please upload a clear receipt image'
     }
 
     // Only emit failure on final attempt (when all attempts are exhausted)
     const maxAttempts = job.opts.attempts || 3
-    if (job.attemptsMade >= maxAttempts) {
+    const currentAttemptNumber = (job.attemptsMade ?? 0) + 1
+    if (isNonReceiptImage || currentAttemptNumber >= maxAttempts) {
       const io = getIO()
       io.to(userId).emit('receipt:scan-failed', {
         jobId: job.id,

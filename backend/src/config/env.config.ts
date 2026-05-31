@@ -1,5 +1,7 @@
 import { getEnv } from '../utils/get-env.util'
 
+const encryptionSecret = getEnv('ENCRYPTION_SECRET')
+
 const envConfig = () => ({
   NODE_ENV: getEnv('NODE_ENV', 'development'),
 
@@ -23,6 +25,8 @@ const envConfig = () => ({
 
   JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET'),
   JWT_REFRESH_EXPIRES_IN: getEnv('JWT_REFRESH_EXPIRES_IN', '7d') as string,
+  ENCRYPTION_SECRET: encryptionSecret,
+  TOKEN_HASH_SECRET: getEnv('TOKEN_HASH_SECRET'),
 
   GEMINI_API_KEY: getEnv('GEMINI_API_KEY'),
 
@@ -48,6 +52,10 @@ const envConfig = () => ({
     'https://api.exchangerate-api.com/v4/latest'
   ),
   EXCHANGE_RATE_FALLBACK_API_URL: getEnv('EXCHANGE_RATE_FALLBACK_API_URL', ''),
+  RECEIPT_SCAN_CACHE_TTL_SECONDS: getEnv(
+    'RECEIPT_SCAN_CACHE_TTL_SECONDS',
+    '86400'
+  ),
 
   FRONTEND_ORIGIN: getEnv('FRONTEND_ORIGIN', 'localhost')
 })

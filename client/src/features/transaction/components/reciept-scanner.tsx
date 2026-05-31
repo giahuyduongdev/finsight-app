@@ -215,7 +215,7 @@ const ReceiptScanner = ({
           stopSafetyTimeout()
           timeoutRef.current = setTimeout(() => {
             toast.error(
-              'Processing timed out. Please check your internet or try again.'
+              'Processing timed out. Please check your internet or try again'
             )
             resetState()
           }, 60000) // 60 seconds
@@ -240,6 +240,8 @@ const ReceiptScanner = ({
             !receipt ? 'bg-muted' : ''
           }`}
           style={receipt ? { backgroundImage: `url(${receipt})` } : {}}
+          role="img"
+          aria-label={receipt ? 'Receipt preview' : 'No receipt uploaded'}
         >
           {!receipt && (
             <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -256,20 +258,25 @@ const ReceiptScanner = ({
                 type="file"
                 accept="image/*"
                 onChange={handleReceiptUpload}
+                aria-label="Upload receipt image"
+                aria-describedby="receipt-file-restrictions"
                 className="max-w-[250px] px-1 h-9 cursor-pointer file:cursor-pointer text-sm file:mr-2 
             file:rounded file:border-0 file:bg-primary file:px-3 file:py-px
              file:text-sm file:font-medium file:text-white 
              hover:file:bg-primary/90"
                 disabled={loadingChange}
               />
-              <p className="mt-2 text-[11px] px-2 text-muted-foreground">
+              <p
+                id="receipt-file-restrictions"
+                className="mt-2 text-[11px] px-2 text-muted-foreground"
+              >
                 JPG, PNG up to 5MB
               </p>
             </>
           ) : (
-            <div className="space-y-2 pt-3">
+            <div className="space-y-2 pt-3" role="status" aria-live="polite">
               <Progress value={progress} className="h-2 w-[250px]" />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground" aria-atomic="true">
                 Scanning receipt... {progress}%
               </p>
             </div>

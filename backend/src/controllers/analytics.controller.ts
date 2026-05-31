@@ -147,3 +147,24 @@ export const getExchangeRatesController = asyncHandler(
     )
   }
 )
+
+export const refreshExchangeRatesController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = getUserId(req)
+
+    const rates = await CurrencyService.refreshRatesManually()
+    const usedCurrencies = await TransactionModel.distinct('currency', {
+      userId
+    })
+
+    return res.status(HTTPSTATUS.OK).json(
+      ResponseFormatter.success(
+        {
+          ...rates,
+          usedCurrencies
+        },
+        { message: 'Exchange rates refreshed successfully' }
+      )
+    )
+  }
+)

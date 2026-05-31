@@ -87,6 +87,32 @@ export interface HealthStatus {
   error?: string
 }
 
+/**
+ * Circuit breaker status exposed by health endpoints.
+ *
+ * `CLOSED` means normal operation and requests are allowed.
+ * `OPEN` means requests fail fast until `resetTimeoutMs` has elapsed.
+ * `HALF_OPEN` means a limited probe request is testing service recovery.
+ */
+export interface CircuitBreakerStatus {
+  /**
+   * Current circuit state and its effect on request handling.
+   */
+  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN'
+  /**
+   * Number of consecutive failures recorded for the protected service.
+   */
+  failureCount: number
+  /**
+   * Failure count required to move the circuit from CLOSED to OPEN.
+   */
+  failureThreshold: number
+  /**
+   * Milliseconds to wait before moving from OPEN to HALF_OPEN for a probe.
+   */
+  resetTimeoutMs: number
+}
+
 export interface HealthCheckResponse {
   status: 'healthy' | 'unhealthy'
   timestamp: string
@@ -95,6 +121,12 @@ export interface HealthCheckResponse {
     mongodb: HealthStatus
     redis: HealthStatus
     bullmq: HealthStatus
+  }
+  circuitBreakers: {
+    gemini: CircuitBreakerStatus
+    resend: CircuitBreakerStatus
+    cloudinary: CircuitBreakerStatus
+    exchangeRate: CircuitBreakerStatus
   }
 }
 

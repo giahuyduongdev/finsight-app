@@ -3,11 +3,73 @@ import { redis } from '../config/redis.config'
 import { CurrencyType } from '../enums/currency.enum'
 import { logger } from '../config/logger.config'
 import { Env } from '../config/env.config'
+import { exchangeRateCircuitBreaker } from '../utils/circuitBreaker.util'
 
 const buildRateUrl = (baseUrl: string, currency: CurrencyType | string) =>
   `${baseUrl.replace(/\/$/, '')}/${currency}`
 
-export const fetchExchangeRatesWithFallback = async (
+const RATE_CACHE_TTL_SECONDS = 3600
+const STALE_RATE_CACHE_TTL_SECONDS = 24 * 3600
+
+const rateCacheKey = (from: CurrencyType | string, to: CurrencyType | string) =>
+  `rate:${from}:${to}`
+
+const staleRateCacheKey = (
+  from: CurrencyType | string,
+  to: CurrencyType | string
+) => `rate:stale:${from}:${to}`
+
+const parseCachedRate = (value: string | null): number | null => {
+  if (!value) return null
+
+  const rate = Number(value)
+  return Number.isFinite(rate) ? rate : null
+}
+
+const getCachedRate = async (
+  key: string,
+  label: string
+): Promise<string | null> => {
+  try {
+    return await redis.get(key)
+  } catch (error) {
+    logger.warn(`[APP:Currency] ${label} cache read failed`, {
+      error: error instanceof Error ? error.message : String(error),
+      cacheKey: key
+    })
+    return null
+  }
+}
+
+const setCachedRate = async (
+  key: string,
+  rate: number,
+  ttlSeconds: number,
+  label: string
+) => {
+  try {
+    await redis.set(key, rate.toString(), 'EX', ttlSeconds)
+  } catch (error) {
+    logger.warn(`[APP:Currency] ${label} cache write failed`, {
+      error: error instanceof Error ? error.message : String(error),
+      cacheKey: key
+    })
+  }
+}
+
+const parseProviderRate = (
+  value: unknown,
+  from: CurrencyType | string,
+  to: CurrencyType | string
+) => {
+  const rate = Number(value)
+  if (!Number.isFinite(rate)) {
+    throw new Error(`Invalid exchange rate for ${from} to ${to}`)
+  }
+  return rate
+}
+
+const fetchExchangeRatesWithFallbackInternal = async (
   currency: CurrencyType | string
 ) => {
   try {
@@ -33,6 +95,14 @@ export const fetchExchangeRatesWithFallback = async (
   }
 }
 
+export const fetchExchangeRatesWithFallback = async (
+  currency: CurrencyType | string
+) =>
+  exchangeRateCircuitBreaker.execute(
+    () => fetchExchangeRatesWithFallbackInternal(currency),
+    'Exchange Rate API'
+  )
+
 export const getExchangeRate = async (
   from: CurrencyType | string,
   to: CurrencyType | string
@@ -41,21 +111,58 @@ export const getExchangeRate = async (
   if (from === to) return 1
 
   // Check Redis cache trước
-  const cacheKey = `rate:${from}:${to}`
-  const cached = await redis.get(cacheKey)
-  if (cached) return parseFloat(cached)
+  const cacheKey = rateCacheKey(from, to)
+  const cached = await getCachedRate(cacheKey, 'Exchange rate')
+  const cachedRate = parseCachedRate(cached)
+  if (cachedRate !== null) return cachedRate
+
+  if (cached) {
+    logger.warn(`[APP:Currency] Ignoring invalid cached exchange rate`, {
+      from,
+      to,
+      cacheKey
+    })
+  }
 
   try {
     const res = await fetchExchangeRatesWithFallback(from)
-    const rate = res.data.rates[to]
+    const rate = parseProviderRate(res.data.rates[to], from, to)
 
-    if (!rate) throw new Error(`Exchange rate not found for ${from} to ${to}`)
-
-    // Cache 1 giờ (dành cho fallback)
-    await redis.set(cacheKey, rate.toString(), 'EX', 3600)
+    await Promise.allSettled([
+      setCachedRate(cacheKey, rate, RATE_CACHE_TTL_SECONDS, 'Exchange rate'),
+      setCachedRate(
+        staleRateCacheKey(from, to),
+        rate,
+        STALE_RATE_CACHE_TTL_SECONDS,
+        'Stale exchange rate'
+      )
+    ])
 
     return rate
   } catch (error) {
+    const staleCacheKey = staleRateCacheKey(from, to)
+    const staleRate = await getCachedRate(staleCacheKey, 'Stale exchange rate')
+    const parsedStaleRate = parseCachedRate(staleRate)
+    if (parsedStaleRate !== null) {
+      logger.warn(
+        `[APP:Currency] Using stale exchange rate: ${from} to ${to}`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+          from,
+          to
+        }
+      )
+      return parsedStaleRate
+    }
+
+    if (staleRate) {
+      logger.warn(`[APP:Currency] Ignoring invalid stale exchange rate`, {
+        from,
+        to,
+        cacheKey: staleCacheKey
+      })
+    }
+
     logger.error(
       `[APP:Currency] Fallback rate fetch failed: ${from} to ${to}`,
       {
@@ -65,7 +172,6 @@ export const getExchangeRate = async (
         to
       }
     )
-    // Nếu có tỉ giá cũ trong cache (dù đã hết hạn hoặc fallback cứng) thì có thể trả về 0 hoặc throw
     throw error
   }
 }

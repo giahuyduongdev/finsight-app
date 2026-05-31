@@ -2,6 +2,7 @@ import { HTTPSTATUS } from '../config/http.config'
 import { logger } from '../config/logger.config'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
 import { AppError } from './errors/index'
+import { serializeError } from './logging/serialize-error.util'
 
 export enum CircuitState {
   CLOSED = 'CLOSED',
@@ -14,8 +15,40 @@ export interface CircuitBreakerConfig {
   resetTimeoutMs?: number
 }
 
+export interface CircuitBreakerSnapshot {
+  state: CircuitState
+  failureCount: number
+  failureThreshold: number
+  resetTimeoutMs: number
+}
+
 const DEFAULT_FAILURE_THRESHOLD = 5
 const DEFAULT_RESET_TIMEOUT_MS = 30000
+
+const getPositiveNumberEnv = (key: string): number | undefined => {
+  const value = process.env[key]
+  if (!value) return undefined
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+const getPositiveIntEnv = (key: string): number | undefined => {
+  const value = process.env[key]
+  if (!value) return undefined
+
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+const serviceConfig = (prefix: string): CircuitBreakerConfig => ({
+  failureThreshold:
+    getPositiveIntEnv(`${prefix}_CIRCUIT_FAILURE_THRESHOLD`) ??
+    getPositiveIntEnv('CIRCUIT_FAILURE_THRESHOLD'),
+  resetTimeoutMs:
+    getPositiveNumberEnv(`${prefix}_CIRCUIT_RESET_TIMEOUT_MS`) ??
+    getPositiveNumberEnv('CIRCUIT_RESET_TIMEOUT_MS')
+})
 
 export class CircuitBreaker {
   private state = CircuitState.CLOSED
@@ -36,6 +69,15 @@ export class CircuitBreaker {
 
   getFailureCount(): number {
     return this.failureCount
+  }
+
+  getSnapshot(): CircuitBreakerSnapshot {
+    return {
+      state: this.state,
+      failureCount: this.failureCount,
+      failureThreshold: this.failureThreshold,
+      resetTimeoutMs: this.resetTimeoutMs
+    }
   }
 
   reset(): void {
@@ -113,7 +155,7 @@ export class CircuitBreaker {
       state: this.state,
       failureCount: this.failureCount,
       threshold: this.failureThreshold,
-      error: error instanceof Error ? error.message : String(error)
+      error: serializeError(error)
     })
 
     if (
@@ -139,6 +181,18 @@ export class CircuitBreaker {
   }
 }
 
-export const geminiCircuitBreaker = new CircuitBreaker()
-export const resendCircuitBreaker = new CircuitBreaker()
-export const cloudinaryCircuitBreaker = new CircuitBreaker()
+export const geminiCircuitBreaker = new CircuitBreaker(serviceConfig('GEMINI'))
+export const resendCircuitBreaker = new CircuitBreaker(serviceConfig('RESEND'))
+export const cloudinaryCircuitBreaker = new CircuitBreaker(
+  serviceConfig('CLOUDINARY')
+)
+export const exchangeRateCircuitBreaker = new CircuitBreaker(
+  serviceConfig('EXCHANGE_RATE')
+)
+
+export const getCircuitBreakerSnapshots = () => ({
+  gemini: geminiCircuitBreaker.getSnapshot(),
+  resend: resendCircuitBreaker.getSnapshot(),
+  cloudinary: cloudinaryCircuitBreaker.getSnapshot(),
+  exchangeRate: exchangeRateCircuitBreaker.getSnapshot()
+})

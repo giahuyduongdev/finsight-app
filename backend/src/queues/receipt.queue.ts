@@ -13,14 +13,15 @@ export type ScanReceiptJobData = {
   userId: string
   fileName: string
   fileSize: number
+  imageHash?: string
   correlationId?: string
 } & (
   | {
-      fileBuffer: string // Base64 encoded image (compressed) - initial processing path
+      fileBuffer: string // Legacy path: compressed base64 image still present in older queued jobs
       imageUrl?: string
     }
   | {
-      imageUrl: string // Cloudinary URL - retry/reprocess path
+      imageUrl: string // Preferred path: Cloudinary URL keeps Redis/BullMQ payload small
       fileBuffer?: string
     }
 )

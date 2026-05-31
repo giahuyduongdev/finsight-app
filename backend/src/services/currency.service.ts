@@ -1,13 +1,15 @@
-import { redis } from '../config/redis.config'
+import { REDIS_KEYS, REDIS_TTL, redis } from '../config/redis.config'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 import { CurrencyEnum } from '../enums/currency.enum'
 import { BadRequestException, InternalServerException } from '../utils/errors'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
 import { fetchExchangeRatesWithFallback } from '../lib/exchange-rate-currency'
+import crypto from 'crypto'
 
 const CACHE_KEY_PREFIX = 'rate:'
 const BROADCAST_EVENT = 'currency:rates_updated'
+const RATE_CACHE_TTL_SECONDS = 86400
 
 export class CurrencyService {
   /**
@@ -34,6 +36,7 @@ export class CurrencyService {
       // Chúng ta sẽ lưu cả 2 chiều để tăng hiệu năng query sau này
       const currencies = Object.values(CurrencyEnum)
       const pipeline = redis.pipeline()
+      const updatedAt = new Date().toISOString()
 
       for (const from of currencies) {
         for (const to of currencies) {
@@ -50,11 +53,18 @@ export class CurrencyService {
               `${CACHE_KEY_PREFIX}${from}:${to}`,
               crossRate.toString(),
               'EX',
-              86400
+              RATE_CACHE_TTL_SECONDS
             ) // Cache 24h as fallback
           }
         }
       }
+
+      pipeline.set(
+        REDIS_KEYS.currencyRatesUpdatedAt,
+        updatedAt,
+        'EX',
+        RATE_CACHE_TTL_SECONDS
+      )
 
       const results = await pipeline.exec()
 
@@ -75,7 +85,7 @@ export class CurrencyService {
       io.emit(BROADCAST_EVENT, {
         base: baseCurrency,
         rates,
-        updatedAt: new Date().toISOString()
+        updatedAt
       })
 
       logger.info('[APP:Currency] Broadcasted rates to all clients')
@@ -98,6 +108,7 @@ export class CurrencyService {
       const currencies = Object.values(CurrencyEnum)
       const baseCurrency = CurrencyEnum.VND
       const rates: Record<string, number> = {}
+      const cachedUpdatedAt = await redis.get(REDIS_KEYS.currencyRatesUpdatedAt)
 
       // Lấy tỉ giá so với VND từ cache - Optimized with mget
       let hasData = false
@@ -141,7 +152,9 @@ export class CurrencyService {
           return {
             base: baseCurrency,
             rates: fetchedRates,
-            updatedAt: new Date().toISOString()
+            updatedAt:
+              (await redis.get(REDIS_KEYS.currencyRatesUpdatedAt)) ||
+              new Date().toISOString()
           }
         }
         throw new InternalServerException(
@@ -153,7 +166,7 @@ export class CurrencyService {
       return {
         base: baseCurrency,
         rates,
-        updatedAt: new Date().toISOString()
+        updatedAt: cachedUpdatedAt || new Date().toISOString()
       }
     } catch (error) {
       logger.error('[APP:Currency] Error getting rates from cache', {
@@ -175,5 +188,61 @@ export class CurrencyService {
         updatedAt: new Date().toISOString()
       }
     }
+  }
+
+  static async refreshRatesManually() {
+    let lockAcquired = false
+    const lockToken = crypto.randomUUID()
+
+    try {
+      const lockResult = await redis.set(
+        REDIS_KEYS.currencyManualRefreshLock,
+        lockToken,
+        'EX',
+        REDIS_TTL.CURRENCY_MANUAL_REFRESH_LOCK,
+        'NX'
+      )
+      lockAcquired = !!lockResult
+
+      if (!lockAcquired) {
+        logger.info('[APP:Currency] Manual refresh skipped due to throttle')
+        return CurrencyService.getLatestRates()
+      }
+
+      const fetchedRates = await CurrencyService.fetchAndBroadcastRates()
+      const baseCurrency = CurrencyEnum.VND
+
+      if (fetchedRates) {
+        return {
+          base: baseCurrency,
+          rates: fetchedRates,
+          updatedAt:
+            (await redis.get(REDIS_KEYS.currencyRatesUpdatedAt)) ||
+            new Date().toISOString()
+        }
+      }
+    } catch (error) {
+      logger.error('[APP:Currency] Manual refresh failed', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
+    } finally {
+      if (lockAcquired) {
+        try {
+          await redis.eval(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            1,
+            REDIS_KEYS.currencyManualRefreshLock,
+            lockToken
+          )
+        } catch (error) {
+          logger.warn('[APP:Currency] Failed to release manual refresh lock', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+    }
+
+    return CurrencyService.getLatestRates()
   }
 }

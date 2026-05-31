@@ -6,6 +6,7 @@ import {
   checkRedis
 } from '../utils/healthCheck.util'
 import { HealthCheckResponse, ReadinessResponse } from '../@types'
+import { getCircuitBreakerSnapshots } from '../utils/circuitBreaker.util'
 
 const getDependencyChecks = async (): Promise<
   HealthCheckResponse['checks']
@@ -28,7 +29,8 @@ export const healthCheckController = async (_req: Request, res: Response) => {
     status: isHealthy ? 'healthy' : 'unhealthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    checks
+    checks,
+    circuitBreakers: getCircuitBreakerSnapshots()
   }
 
   return res
