@@ -1,8 +1,24 @@
 import { z } from 'zod'
+import { normalizeTimezone } from '../utils/timezone.util'
+
+const timezoneSchema = z
+  .string()
+  .optional()
+  .superRefine((value, ctx) => {
+    if (value === undefined || value.trim() === '') return
+
+    if (!normalizeTimezone(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid timezone'
+      })
+    }
+  })
+  .transform((value) => normalizeTimezone(value))
 
 export const updateUserSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
-  timezone: z.string().optional(),
+  timezone: timezoneSchema,
   preferredCurrency: z.string().optional()
 })
 

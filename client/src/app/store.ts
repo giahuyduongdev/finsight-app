@@ -11,15 +11,53 @@ import {
   PURGE,
   REGISTER
 } from 'redux-persist'
+import type { PersistedState } from 'redux-persist/es/types'
 import { apiClient } from './api-client'
+import { normalizeTimeZone } from '@/lib/timezone'
 //import { encryptTransform } from 'redux-persist-transform-encrypt';
 
 type RootReducerType = ReturnType<typeof rootReducer>
+
+type PersistedAuthState = {
+  user?: {
+    timezone?: string
+    [key: string]: unknown
+  } | null
+  timezone?: string | null
+  [key: string]: unknown
+}
+
+const normalizePersistedAuthState = (
+  state: PersistedAuthState
+): PersistedAuthState => {
+  const userTimezone = normalizeTimeZone(state.user?.timezone)
+  const timezone = normalizeTimeZone(state.timezone ?? undefined)
+
+  return {
+    ...state,
+    user: state.user
+      ? {
+          ...state.user,
+          timezone: userTimezone || state.user.timezone
+        }
+      : state.user,
+    timezone: timezone || state.timezone
+  }
+}
 
 // Persist riêng cho auth — chỉ lưu user info, không lưu token
 const authPersistConfig = {
   key: 'auth',
   storage,
+  version: 1,
+  migrate: (state: PersistedState): Promise<PersistedState> =>
+    Promise.resolve(
+      state
+        ? (normalizePersistedAuthState(
+            state as unknown as PersistedAuthState
+          ) as unknown as PersistedState)
+        : state
+    ),
   blacklist: ['accessToken', 'expiresAt', 'isInitialized'] // ← chỉ blacklist token
 }
 

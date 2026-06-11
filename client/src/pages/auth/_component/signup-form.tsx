@@ -23,6 +23,7 @@ import {
   useResendRegisterOTPMutation
 } from '@/features/auth/authAPI'
 import { getApiBaseUrl } from '@/app/api-client'
+import { getBrowserTimeZone } from '@/lib/timezone'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ type OtpValues = z.infer<typeof otpSchema>
 // ─── OAuth helper ─────────────────────────────────────────────────────────────
 
 const handleOAuth = (provider: 'github' | 'google') => {
-  const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const currentTz = getBrowserTimeZone() || 'UTC'
   const backendUrl = getApiBaseUrl({ allowLocalFallback: import.meta.env.DEV })
   if (!backendUrl) {
     toast.error('OAuth is temporarily unavailable. Please try again later.')
@@ -196,7 +197,7 @@ const SignUpForm = () => {
       name: '',
       email: '',
       password: '',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      timezone: getBrowserTimeZone()
     }
   })
 

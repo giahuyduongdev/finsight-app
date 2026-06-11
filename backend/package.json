@@ -12,6 +12,7 @@
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "build": "npm run clean && tsc --project tsconfig.build.json",
     "start": "cross-env NODE_ENV=production node dist/index.js",
+    "normalize:timezones": "ts-node-dev --files src/scripts/normalize-timezones.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

@@ -1,4 +1,20 @@
 import { z } from 'zod'
+import { normalizeTimezone } from '../utils/timezone.util'
+
+const timezoneSchema = z
+  .string()
+  .optional()
+  .superRefine((value, ctx) => {
+    if (value === undefined || value.trim() === '') return
+
+    if (!normalizeTimezone(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid timezone'
+      })
+    }
+  })
+  .transform((value) => normalizeTimezone(value))
 
 // ─── Base Schemas ─────────────────────────────────────────────────────────────
 
@@ -26,14 +42,14 @@ export const registerSchema = z.object({
   name: z.string().trim().min(1).max(255),
   email: emailSchema,
   password: passwordSchema,
-  timezone: z.string().optional(),
+  timezone: timezoneSchema,
   preferredCurrency: z.string().optional()
 })
 
 export const loginSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  timezone: z.string().optional()
+  timezone: timezoneSchema
 })
 
 export const refreshTokenSchema = z.object({

@@ -1,25 +1,25 @@
-﻿# CÃ¡c cáº£i thiá»‡n circuit breaker/retry/fallback Ä‘Ã£ thá»±c hiá»‡n
+﻿# Các cải thiện circuit breaker/retry/fallback đã thực hiện
 
-TÃ i liá»‡u nÃ y ghi láº¡i cÃ¡c thay Ä‘á»•i Ä‘Ã£ lÃ m sau khi rÃ  soÃ¡t `docs/circuit-breaker/circuit-breaker-retry-summary.md`.
+Tài liệu này ghi lại các thay đổi đã làm sau khi rà soát `docs/circuit-breaker/circuit-breaker-retry-summary.md`.
 
-## Má»¥c tiÃªu
+## Mục tiêu
 
-- Ãp dá»¥ng circuit breaker cho cÃ¡c dependency cÃ²n thiáº¿u.
-- Cho phÃ©p cáº¥u hÃ¬nh threshold/timeout qua env.
-- TÄƒng visibility tráº¡ng thÃ¡i circuit breaker.
-- Bá»• sung fallback thá»±c táº¿ hÆ¡n cho exchange rate khi API ngoÃ i lá»—i.
+- Áp dụng circuit breaker cho các dependency còn thiếu.
+- Cho phép cấu hình threshold/timeout qua env.
+- Tăng visibility trạng thái circuit breaker.
+- Bổ sung fallback thực tế hơn cho exchange rate khi API ngoài lỗi.
 
-## 1. ThÃªm circuit breaker cho Exchange Rate API
+## 1. Thêm circuit breaker cho Exchange Rate API
 
-File liÃªn quan:
+File liên quan:
 
 - `backend/src/lib/exchange-rate-currency.ts`
 - `backend/src/utils/circuitBreaker.util.ts`
 
-Thay Ä‘á»•i:
+Thay đổi:
 
-- ThÃªm `exchangeRateCircuitBreaker`.
-- Bá»c `fetchExchangeRatesWithFallback()` báº±ng:
+- Thêm `exchangeRateCircuitBreaker`.
+- Bọc `fetchExchangeRatesWithFallback()` bằng:
 
 ```ts
 exchangeRateCircuitBreaker.execute(
@@ -28,88 +28,88 @@ exchangeRateCircuitBreaker.execute(
 )
 ```
 
-Káº¿t quáº£:
+Kết quả:
 
-- Náº¿u primary/fallback exchange rate API lá»—i liÃªn tá»¥c, circuit sáº½ má»Ÿ.
-- Khi circuit má»Ÿ, request má»›i fail nhanh thay vÃ¬ tiáº¿p tá»¥c gá»i API ngoÃ i.
-- Náº¿u primary fail nhÆ°ng fallback thÃ nh cÃ´ng, operation váº«n Ä‘Æ°á»£c tÃ­nh lÃ  thÃ nh cÃ´ng.
+- Nếu primary/fallback exchange rate API lỗi liên tục, circuit sẽ mở.
+- Khi circuit mở, request mới fail nhanh thay vì tiếp tục gọi API ngoài.
+- Nếu primary fail nhưng fallback thành công, operation vẫn được tính là thành công.
 
-## 2. ThÃªm stale cache cho exchange rate
+## 2. Thêm stale cache cho exchange rate
 
-File liÃªn quan:
+File liên quan:
 
 - `backend/src/lib/exchange-rate-currency.ts`
 
-Thay Ä‘á»•i:
+Thay đổi:
 
-- Váº«n giá»¯ cache chÃ­nh TTL `3600` giÃ¢y.
-- ThÃªm stale cache TTL `24` giá».
-- Khi API ngoÃ i fail, náº¿u cÃ²n stale rate thÃ¬ tráº£ stale rate thay vÃ¬ throw ngay.
+- Vẫn giữ cache chính TTL `3600` giây.
+- Thêm stale cache TTL `24` giờ.
+- Khi API ngoài fail, nếu còn stale rate thì trả stale rate thay vì throw ngay.
 
-Káº¿t quáº£:
+Kết quả:
 
-- CÃ¡c flow tÃ­nh toÃ¡n tiá»n tá»‡ bá»n hÆ¡n khi exchange rate provider táº¡m lá»—i.
-- User váº«n cÃ³ thá»ƒ nháº­n káº¿t quáº£ gáº§n Ä‘Ãºng dá»±a trÃªn rate cÅ©.
+- Các flow tính toán tiền tệ bền hơn khi exchange rate provider tạm lỗi.
+- User vẫn có thể nhận kết quả gần đúng dựa trên rate cũ.
 
-## 2.1. Harden manual refresh vÃ  cached rate payload
+## 2.1. Harden manual refresh và cached rate payload
 
-File liÃªn quan:
+File liên quan:
 
 - `backend/src/services/currency.service.ts`
 - `backend/src/lib/exchange-rate-currency.ts`
 - `client/src/features/analytics/analyticsAPI.ts`
 
-Thay Ä‘á»•i:
+Thay đổi:
 
-- `refreshRatesManually()` bá»c Redis lock/cache flow báº±ng `try/catch/finally`.
-- Náº¿u manual refresh lá»—i do Redis/network/provider, endpoint fallback vá» `getLatestRates()` thay vÃ¬ fail cá»©ng.
-- Manual refresh lock Ä‘Æ°á»£c release trong `finally`; náº¿u release lock lá»—i thÃ¬ log warning.
-- Cached/stale exchange rate payload Ä‘Æ°á»£c parse báº±ng `Number()` vÃ  validate `Number.isFinite`.
-- Náº¿u cache/stale cache corrupt, backend log warning vÃ  bá» qua entry Ä‘Ã³ thay vÃ¬ tráº£ `NaN`.
-- Frontend mutation `refreshExchangeRates` invalidate tag `analytics` Ä‘á»ƒ UI refetch dá»¯ liá»‡u liÃªn quan sau khi refresh.
+- `refreshRatesManually()` bọc Redis lock/cache flow bằng `try/catch/finally`.
+- Nếu manual refresh lỗi do Redis/network/provider, endpoint fallback về `getLatestRates()` thay vì fail cứng.
+- Manual refresh lock được release trong `finally`; nếu release lock lỗi thì log warning.
+- Cached/stale exchange rate payload được parse bằng `Number()` và validate `Number.isFinite`.
+- Nếu cache/stale cache corrupt, backend log warning và bỏ qua entry đó thay vì trả `NaN`.
+- Frontend mutation `refreshExchangeRates` invalidate tag `analytics` để UI refetch dữ liệu liên quan sau khi refresh.
 
-Káº¿t quáº£:
+Kết quả:
 
-- Manual refresh exchange rate Ã­t lÃ m giÃ¡n Ä‘oáº¡n UI hÆ¡n khi dependency táº¡m lá»—i.
-- KhÃ´ng tráº£ rate `NaN` tá»« Redis cache corrupt.
-- Frontend analytics cache Ä‘á»“ng bá»™ láº¡i sau manual refresh.
+- Manual refresh exchange rate ít làm gián đoạn UI hơn khi dependency tạm lỗi.
+- Không trả rate `NaN` từ Redis cache corrupt.
+- Frontend analytics cache đồng bộ lại sau manual refresh.
 
-## 3. ThÃªm circuit breaker cho Cloudinary
+## 3. Thêm circuit breaker cho Cloudinary
 
-File liÃªn quan:
+File liên quan:
 
 - `backend/src/config/cloudinary.config.ts`
 - `backend/src/utils/circuitBreaker.util.ts`
 
-Thay Ä‘á»•i:
+Thay đổi:
 
-- Bá»c upload Cloudinary báº±ng `cloudinaryCircuitBreaker`.
-- Bá»c delete Cloudinary báº±ng `cloudinaryCircuitBreaker`.
-- TÃ¡ch upload stream thÃ nh promise helper Ä‘á»ƒ dá»… bá»c báº±ng breaker.
+- Bọc upload Cloudinary bằng `cloudinaryCircuitBreaker`.
+- Bọc delete Cloudinary bằng `cloudinaryCircuitBreaker`.
+- Tách upload stream thành promise helper để dễ bọc bằng breaker.
 
-Káº¿t quáº£:
+Kết quả:
 
-- Náº¿u Cloudinary upload/delete lá»—i liÃªn tá»¥c, circuit sáº½ má»Ÿ.
-- Khi circuit má»Ÿ, request má»›i fail nhanh thay vÃ¬ tiáº¿p tá»¥c gá»i Cloudinary.
+- Nếu Cloudinary upload/delete lỗi liên tục, circuit sẽ mở.
+- Khi circuit mở, request mới fail nhanh thay vì tiếp tục gọi Cloudinary.
 
-## 4. Cho phÃ©p cáº¥u hÃ¬nh circuit breaker báº±ng env
+## 4. Cho phép cấu hình circuit breaker bằng env
 
-File liÃªn quan:
+File liên quan:
 
 - `backend/src/utils/circuitBreaker.util.ts`
 - `backend/.env.example`
 - `backend/samples/.env.sample`
 
-Thay Ä‘á»•i:
+Thay đổi:
 
-- ThÃªm env chung:
+- Thêm env chung:
 
 ```env
 CIRCUIT_FAILURE_THRESHOLD=
 CIRCUIT_RESET_TIMEOUT_MS=
 ```
 
-- ThÃªm env riÃªng theo service:
+- Thêm env riêng theo service:
 
 ```env
 GEMINI_CIRCUIT_FAILURE_THRESHOLD=
@@ -124,30 +124,30 @@ EXCHANGE_RATE_CIRCUIT_RESET_TIMEOUT_MS=
 
 Rule:
 
-- Env riÃªng theo service Ä‘Æ°á»£c Æ°u tiÃªn.
-- Náº¿u env riÃªng khÃ´ng cÃ³, fallback vá» env chung.
-- Náº¿u env chung cÅ©ng khÃ´ng cÃ³, dÃ¹ng default:
+- Env riêng theo service được ưu tiên.
+- Nếu env riêng không có, fallback về env chung.
+- Nếu env chung cũng không có, dùng default:
   - `failureThreshold = 5`
   - `resetTimeoutMs = 30000`
 
-## 5. ThÃªm visibility vÃ o health check
+## 5. Thêm visibility vào health check
 
-File liÃªn quan:
+File liên quan:
 
 - `backend/src/controllers/health.controller.ts`
 - `backend/src/@types/index.d.ts`
 - `backend/src/utils/circuitBreaker.util.ts`
 
-Thay Ä‘á»•i:
+Thay đổi:
 
-- ThÃªm `getCircuitBreakerSnapshots()`.
-- Endpoint `/health` tráº£ thÃªm tráº¡ng thÃ¡i cÃ¡c breaker:
+- Thêm `getCircuitBreakerSnapshots()`.
+- Endpoint `/health` trả thêm trạng thái các breaker:
   - `gemini`
   - `resend`
   - `cloudinary`
   - `exchangeRate`
 
-Má»—i breaker tráº£:
+Mỗi breaker trả:
 
 ```ts
 {
@@ -158,29 +158,29 @@ Má»—i breaker tráº£:
 }
 ```
 
-Káº¿t quáº£:
+Kết quả:
 
-- CÃ³ thá»ƒ kiá»ƒm tra breaker nÃ o Ä‘ang `OPEN`, `HALF_OPEN`, hoáº·c `CLOSED`.
-- Dá»… debug hÆ¡n khi dependency ngoÃ i bá»‹ lá»—i.
+- Có thể kiểm tra breaker nào đang `OPEN`, `HALF_OPEN`, hoặc `CLOSED`.
+- Dễ debug hơn khi dependency ngoài bị lỗi.
 
-## 6. Cáº­p nháº­t tÃ i liá»‡u summary
+## 6. Cập nhật tài liệu summary
 
-File liÃªn quan:
+File liên quan:
 
 - `docs/circuit-breaker/circuit-breaker-retry-summary.md`
 
-Thay Ä‘á»•i:
+Thay đổi:
 
-- Cáº­p nháº­t tráº¡ng thÃ¡i má»›i:
-  - Exchange Rate API Ä‘Ã£ cÃ³ circuit breaker.
-  - Cloudinary Ä‘Ã£ cÃ³ circuit breaker.
-  - Exchange Rate cÃ³ stale cache fallback.
-  - `/health` cÃ³ circuit breaker snapshot.
-  - Env config cho circuit breaker Ä‘Ã£ Ä‘Æ°á»£c bá»• sung.
+- Cập nhật trạng thái mới:
+  - Exchange Rate API đã có circuit breaker.
+  - Cloudinary đã có circuit breaker.
+  - Exchange Rate có stale cache fallback.
+  - `/health` có circuit breaker snapshot.
+  - Env config cho circuit breaker đã được bổ sung.
 
 ## Verification
 
-ÄÃ£ cháº¡y trong `backend`:
+Đã chạy trong `backend`:
 
 ```bash
 npm.cmd run type-check
@@ -188,13 +188,13 @@ npm.cmd run lint
 npm.cmd run test:unit -- --runInBand
 ```
 
-Káº¿t quáº£:
+Kết quả:
 
 - TypeScript type-check pass.
 - ESLint pass.
 - Unit test pass: 26 suites passed, 195 tests passed, 3 skipped.
 
-## File Ä‘Ã£ chá»‰nh
+## File đã chỉnh
 
 - `backend/.env.example`
 - `backend/samples/.env.sample`
@@ -207,8 +207,8 @@ Káº¿t quáº£:
 - `client/src/features/analytics/analyticsAPI.ts`
 - `docs/circuit-breaker/circuit-breaker-retry-summary.md`
 
-## Ghi chÃº cÃ²n láº¡i
+## Ghi chú còn lại
 
-- Resend Email váº«n chá»‰ cÃ³ circuit breaker, chÆ°a cÃ³ retry hoáº·c fallback provider.
-- Gemini retry classification váº«n nÃªn Ä‘Æ°á»£c rÃ  riÃªng náº¿u muá»‘n phÃ¢n biá»‡t rÃµ lá»—i permission/config vá»›i lá»—i provider táº¡m thá»i.
-- Cloudinary hiá»‡n cÃ³ circuit breaker nhÆ°ng chÆ°a cÃ³ retry riÃªng hoáº·c fallback storage provider.
+- Resend Email vẫn chỉ có circuit breaker, chưa có retry hoặc fallback provider.
+- Gemini retry classification vẫn nên được rà riêng nếu muốn phân biệt rõ lỗi permission/config với lỗi provider tạm thời.
+- Cloudinary hiện có circuit breaker nhưng chưa có retry riêng hoặc fallback storage provider.

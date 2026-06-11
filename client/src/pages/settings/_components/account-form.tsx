@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAppDispatch, useTypedSelector } from '@/app/hook'
-import { Loader } from 'lucide-react'
+import { Loader, RefreshCw } from 'lucide-react'
 import { useUpdateUserMutation } from '@/features/user/userAPI'
 import { updateCredentials } from '@/features/auth/authSlice'
 import { CURRENCY_OPTIONS, TIMEZONE_OPTIONS } from '@/constant'
@@ -31,6 +31,7 @@ import {
 // 1. MỚI: Import API Dashboard và Enum để làm Prefetch
 import { analyticsApi } from '@/features/analytics/analyticsAPI'
 import { DateRangeEnum } from '@/components/date-range-select'
+import { getBrowserTimeZone, normalizeTimeZone } from '@/lib/timezone'
 
 const accountFormSchema = z.object({
   name: z
@@ -52,6 +53,7 @@ export function AccountForm() {
 
   const [file, setFile] = useState<File | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [isDetectingTimezone, setIsDetectingTimezone] = useState(false)
 
   const [updateUserMutation, { isLoading }] = useUpdateUserMutation()
 
@@ -60,7 +62,7 @@ export function AccountForm() {
     defaultValues: {
       name: user?.name || '',
       profilePicture: user?.profilePicture || '',
-      timezone: user?.timezone || 'Asia/Ho_Chi_Minh',
+      timezone: normalizeTimeZone(user?.timezone) || 'Asia/Ho_Chi_Minh',
       preferredCurrency: user?.preferredCurrency || 'USD'
     }
   })
@@ -144,6 +146,25 @@ export function AccountForm() {
       setAvatarUrl(null)
     }
     reader.readAsDataURL(file)
+  }
+
+  const handleUseBrowserTimezone = () => {
+    setIsDetectingTimezone(true)
+    window.setTimeout(() => setIsDetectingTimezone(false), 400)
+
+    const browserTimezone = getBrowserTimeZone()
+
+    if (!browserTimezone) {
+      toast.error('Your browser timezone is not supported yet')
+      return
+    }
+
+    form.setValue('timezone', browserTimezone, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true
+    })
+    toast.success(`Timezone set to ${browserTimezone}`)
   }
 
   const avatarInputId = useId()
@@ -240,26 +261,56 @@ export function AccountForm() {
         <FormField
           control={form.control}
           name="timezone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Timezone</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select timezone" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {TIMEZONE_OPTIONS.map((tz) => (
-                    <SelectItem key={tz.value} value={tz.value}>
-                      {tz.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const selectedTimezone = normalizeTimeZone(field.value)
+            const timezoneOptions =
+              selectedTimezone &&
+              !TIMEZONE_OPTIONS.some((tz) => tz.value === selectedTimezone)
+                ? [
+                    ...TIMEZONE_OPTIONS,
+                    { value: selectedTimezone, label: selectedTimezone }
+                  ]
+                : TIMEZONE_OPTIONS
+
+            return (
+              <FormItem>
+                <FormLabel>Timezone</FormLabel>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Select
+                    onValueChange={field.onChange}
+                    value={selectedTimezone || field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {timezoneOptions.map((tz) => (
+                        <SelectItem key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUseBrowserTimezone}
+                    disabled={isLoading || isDetectingTimezone}
+                    className="h-8 gap-2 sm:w-auto"
+                  >
+                    <RefreshCw
+                      className={`h-3 w-3 ${isDetectingTimezone ? 'animate-spin' : ''}`}
+                    />
+                    Detect
+                  </Button>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )
+          }}
         />
         <Button disabled={isLoading} type="submit">
           {isLoading && <Loader className="h-4 w-4 animate-spin" />}

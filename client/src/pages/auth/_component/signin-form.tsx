@@ -20,8 +20,8 @@ import { Loader } from 'lucide-react'
 import { useAppDispatch } from '@/app/hook'
 import { useLoginMutation } from '@/features/auth/authAPI'
 import { setCredentials } from '@/features/auth/authSlice'
-import { TIMEZONE_ALIAS_MAPPING } from '@/constant'
 import { getApiBaseUrl } from '@/app/api-client'
+import { getBrowserTimeZone } from '@/lib/timezone'
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
@@ -39,14 +39,8 @@ const SignInForm = ({
   const navigate = useNavigate()
   const [login, { isLoading }] = useLoginMutation()
 
-  const getInitialTimezone = () => {
-    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    // Nếu múi giờ trình duyệt là Seoul -> đổi thành Tokyo, nếu là Bangkok -> đổi thành Saigon
-    return TIMEZONE_ALIAS_MAPPING[browserTz] || browserTz
-  }
-
   const handleOAuth = (provider: 'github' | 'google') => {
-    const currentTz = getInitialTimezone()
+    const currentTz = getBrowserTimeZone() || 'UTC'
     const backendUrl = getApiBaseUrl({
       allowLocalFallback: import.meta.env.DEV
     })
@@ -64,7 +58,7 @@ const SignInForm = ({
     defaultValues: {
       email: '',
       password: '',
-      timezone: getInitialTimezone() // Tự động lấy "Asia/Ho_Chi_Minh", v.v.
+      timezone: getBrowserTimeZone()
     }
   })
 

@@ -1,0 +1,11 @@
+flowchart TD
+    A[Task Request]
+    A --> B["Clarify Task If Needed<br/>brainstorming"]
+    B --> C["Generate Lightweight Requirements"]
+    C --> D["Generate Lightweight Tasks"]
+    D --> E["Create Branch<br/>skip only for trivial work"]
+    E --> F["TDD / Minimal Verification<br/>tdd if testable"]
+    F --> G["Verification<br/>verification-loop"]
+    G --> H["Security Review<br/>security-review"]
+    H --> I["Finish Development Branch<br/>finishing-a-development-branch"]
+    I --> J[Done]

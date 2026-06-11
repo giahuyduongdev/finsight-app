@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit'
+import { normalizeTimeZone } from '@/lib/timezone'
 
 interface AuthState {
   accessToken: string | null
@@ -33,6 +34,15 @@ const initialState: AuthState = {
   isInitialized: false
 }
 
+const normalizeUser = (user?: User | null): User | null => {
+  if (!user) return null
+
+  return {
+    ...user,
+    timezone: normalizeTimeZone(user.timezone) || user.timezone
+  }
+}
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -40,9 +50,10 @@ const authSlice = createSlice({
     setCredentials: (state, action) => {
       state.accessToken = action.payload.accessToken
       state.expiresAt = action.payload.expiresAt
-      state.user = action.payload.user
+      state.user = normalizeUser(action.payload.user)
       state.reportSetting = action.payload.reportSetting
-      state.timezone = action.payload.timezone
+      state.timezone =
+        normalizeTimeZone(action.payload.timezone) || action.payload.timezone
     },
     updateCredentials: (state, action) => {
       const { accessToken, expiresAt, user, reportSetting, timezone } =
@@ -50,10 +61,13 @@ const authSlice = createSlice({
 
       if (accessToken !== undefined) state.accessToken = accessToken
       if (expiresAt !== undefined) state.expiresAt = expiresAt
-      if (user !== undefined) state.user = { ...state.user, ...user }
+      if (user !== undefined) {
+        state.user = normalizeUser({ ...state.user, ...user } as User)
+      }
       if (reportSetting !== undefined)
         state.reportSetting = { ...state.reportSetting, ...reportSetting }
-      if (timezone !== undefined) state.timezone = timezone
+      if (timezone !== undefined)
+        state.timezone = normalizeTimeZone(timezone) || timezone
     },
 
     setInitialized: (state) => {
