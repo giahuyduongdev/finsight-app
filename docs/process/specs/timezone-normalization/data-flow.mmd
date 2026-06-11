@@ -1,0 +1,8 @@
+flowchart TD
+    A[Browser Intl timezone] --> B[Frontend timezone helper]
+    B --> C[Auth or Account payload]
+    C --> D[Backend timezone helper]
+    D --> E[Backend validator]
+    E --> F[Saved user.timezone]
+    F --> G[Analytics, Reports, Transactions]
+    H[Manual migration script] --> F

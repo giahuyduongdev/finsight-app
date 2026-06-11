@@ -34,6 +34,7 @@ import { logger } from '../config/logger.config'
 import { getUserId } from '../utils/getUserId.util'
 import crypto from 'crypto'
 import { ResponseFormatter } from '../utils/responseFormatter.util'
+import { normalizeTimezone } from '../utils/timezone.util'
 
 const messageOnlyResponse = (message: string) =>
   ResponseFormatter.success(null, { message })
@@ -260,18 +261,15 @@ export const oauthCallbackController = asyncHandler(
       const decoded = JSON.parse(
         Buffer.from(state as string, 'base64').toString()
       )
-      timezone = decoded.timezone || 'UTC'
+      const normalizedTimezone = normalizeTimezone(decoded.timezone)
       csrfTokenFromState = decoded.csrfToken || ''
 
-      // Validate timezone against IANA database
-      if (timezone !== 'UTC') {
-        try {
-          Intl.DateTimeFormat(undefined, { timeZone: timezone })
-        } catch {
-          logger.warn('[APP:Auth] Invalid timezone received:', { timezone })
-          timezone = 'UTC'
-        }
+      if (decoded.timezone && !normalizedTimezone) {
+        logger.warn('[APP:Auth] Invalid timezone received:', {
+          timezone: decoded.timezone
+        })
       }
+      timezone = normalizedTimezone || 'UTC'
     } catch (e) {
       logger.warn('[APP:Auth] State decoding failed:', e)
       return res.redirect(`${Env.FRONTEND_ORIGIN}/?error=invalid_state`)

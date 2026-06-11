@@ -146,7 +146,10 @@ export const TIMEZONE_OPTIONS = [
   // Châu Á (Viễn Đông sang Trung Đông)
   { value: 'Asia/Tokyo', label: '(UTC+09:00) Seoul, Tokyo' },
   { value: 'Asia/Singapore', label: '(UTC+08:00) Beijing, Singapore' },
-  { value: 'Asia/Saigon', label: '(UTC+07:00) Bangkok, Hanoi, Jakarta' },
+  {
+    value: 'Asia/Ho_Chi_Minh',
+    label: '(UTC+07:00) Ho Chi Minh, Hanoi, Bangkok, Jakarta'
+  },
   { value: 'Asia/Kolkata', label: '(UTC+05:30) Chennai, Mumbai, New Delhi' },
   { value: 'Asia/Dubai', label: '(UTC+04:00) Abu Dhabi, Dubai' },
 
@@ -169,11 +172,11 @@ export const TIMEZONE_OPTIONS = [
 
 // 5. BỘ TỪ ĐIỂN ÁNH XẠ (Fixed: Remove incorrect DST mappings)
 export const TIMEZONE_ALIAS_MAPPING: Record<string, string> = {
-  'Asia/Bangkok': 'Asia/Saigon',
-  'Asia/Jakarta': 'Asia/Saigon',
-  'Asia/Ho_Chi_Minh': 'Asia/Saigon',
-  'Asia/Phnom_Penh': 'Asia/Saigon',
-  'Asia/Vientiane': 'Asia/Saigon',
+  'Asia/Bangkok': 'Asia/Ho_Chi_Minh',
+  'Asia/Jakarta': 'Asia/Ho_Chi_Minh',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Asia/Phnom_Penh': 'Asia/Ho_Chi_Minh',
+  'Asia/Vientiane': 'Asia/Ho_Chi_Minh',
   'Asia/Shanghai': 'Asia/Singapore',
   'Asia/Hong_Kong': 'Asia/Singapore',
   'Asia/Taipei': 'Asia/Singapore',

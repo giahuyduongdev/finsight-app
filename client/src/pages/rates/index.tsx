@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useSocket } from '@/hooks/use-socket'
 import { useTypedSelector } from '@/app/hook'
-import { useGetExchangeRatesQuery } from '@/features/analytics/analyticsAPI'
+import {
+  useGetExchangeRatesQuery,
+  useRefreshExchangeRatesMutation
+} from '@/features/analytics/analyticsAPI'
 import PageLayout from '@/components/page-layout'
 import CurrencyConverter from '@/components/rates/currency-converter'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Globe, TrendingUp, HelpCircle, RefreshCw } from 'lucide-react'
 import { formatCurrency, formatRate } from '@/lib/format-currency'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 
 export interface ExchangeRates {
   base: string
@@ -20,8 +24,11 @@ export interface ExchangeRates {
 
 const RatesPage = () => {
   const socket = useSocket()
-  const { data: initialData, refetch, isFetching } = useGetExchangeRatesQuery()
+  const { data: initialData, isFetching } = useGetExchangeRatesQuery()
+  const [refreshExchangeRates, { isLoading: isRefreshingRates }] =
+    useRefreshExchangeRatesMutation()
   const [rates, setRates] = useState<ExchangeRates | null>(null)
+  const [showRefreshSpinner, setShowRefreshSpinner] = useState(false)
   const [isConnected, setIsConnected] = useState(socket?.connected || false)
   const preferredCurrency =
     useTypedSelector((state) => state.auth.user?.preferredCurrency) || 'VND'
@@ -56,7 +63,36 @@ const RatesPage = () => {
     }
   }, [socket])
 
+  const handleRefreshRates = async () => {
+    setShowRefreshSpinner(true)
+    const minimumSpinner = new Promise((resolve) => setTimeout(resolve, 500))
+    const updatedAtTime = rates?.updatedAt
+      ? new Date(rates.updatedAt).getTime()
+      : Number.NaN
+    const isCacheFresh =
+      Number.isFinite(updatedAtTime) &&
+      Date.now() - updatedAtTime < 30 * 60 * 1000
+
+    try {
+      if (isCacheFresh) {
+        await minimumSpinner
+        toast.success('Exchange rates updated')
+        return
+      }
+
+      const [response] = await Promise.all([
+        refreshExchangeRates().unwrap(),
+        minimumSpinner
+      ])
+      setRates(response.data)
+      toast.success('Exchange rates updated')
+    } finally {
+      setShowRefreshSpinner(false)
+    }
+  }
+
   const currencyList = rates?.rates ? Object.entries(rates.rates) : []
+  const isRefreshing = isFetching || isRefreshingRates || showRefreshSpinner
 
   return (
     <PageLayout
@@ -88,12 +124,12 @@ const RatesPage = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
+              onClick={handleRefreshRates}
+              disabled={isRefreshing}
               className="gap-2 h-8"
             >
               <RefreshCw
-                className={`h-3 w-3 ${isFetching ? 'animate-spin' : ''}`}
+                className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`}
               />
               Refresh
             </Button>
