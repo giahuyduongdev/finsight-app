@@ -5,6 +5,10 @@ import passport from 'passport'
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
+import fs from 'fs'
+import path from 'path'
+import swaggerUi from 'swagger-ui-express'
+import YAML from 'yaml'
 import { appConfig } from './config/app.config'
 import { errorHandler } from './middlewares/errorHandler.middleware'
 import { passportAuthenticateJwt } from './config/passport.config'
@@ -26,6 +30,7 @@ import { rateLimitHeadersMiddleware } from './middlewares/rateLimitHeaders.middl
 import routes from './routes'
 
 const app = express()
+const openApiPath = path.resolve(process.cwd(), 'docs/openapi.yaml')
 
 initSentry(app)
 
@@ -58,6 +63,22 @@ if (appConfig.nodeEnv === 'development') {
   app.get('/debug-sentry', () => {
     throw new Error('Sentry test error')
   })
+}
+
+if (appConfig.features.swagger) {
+  const docsPath = `${appConfig.basePath}/docs`
+  const openApiUrl = `${docsPath}/openapi.yaml`
+  const openApiDocument = YAML.parse(fs.readFileSync(openApiPath, 'utf8'))
+
+  app.get(openApiUrl, (_req, res) => {
+    res.type('yaml').sendFile(openApiPath)
+  })
+
+  app.use(docsPath, swaggerUi.serve, swaggerUi.setup(openApiDocument))
+
+  logger.info(
+    `[SYS:Docs] Swagger UI: http://localhost:${appConfig.port}${docsPath}`
+  )
 }
 
 app.use(rateLimiter)

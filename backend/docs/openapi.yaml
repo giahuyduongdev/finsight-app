@@ -1,0 +1,815 @@
+openapi: 3.1.0
+info:
+  title: Finsight API
+  version: 1.0.0
+  description: API contract for Finsight backend v1.
+  license:
+    name: ISC
+    identifier: ISC
+servers:
+  - url: http://localhost:8000
+    description: Local backend
+tags:
+  - name: Auth
+    description: Authentication and account access flows
+security: []
+paths:
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Start account registration with OTP
+      operationId: registerWithOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '202':
+          description: Registration OTP accepted for delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/register/verify-otp:
+    post:
+      tags:
+        - Auth
+      summary: Verify registration OTP and create account
+      operationId: verifyRegistrationOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '200':
+          description: Account verified and created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - user
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/register/resend:
+    post:
+      tags:
+        - Auth
+      summary: Resend registration OTP
+      operationId: resendRegistrationOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+      responses:
+        '200':
+          description: Registration OTP resend processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Log in with email and password
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: httpOnly refresh token cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/refresh-token:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      operationId: refreshToken
+      security:
+        - refreshCookie: []
+        - {}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Access token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Log out the current session
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/logout-all:
+    post:
+      tags:
+        - Auth
+      summary: Log out all sessions for the authenticated user
+      operationId: logoutAll
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out from all devices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/password/forgot:
+    post:
+      tags:
+        - Auth
+      summary: Request password reset OTP
+      operationId: requestPasswordResetOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+      responses:
+        '202':
+          description: Password reset request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /api/v1/auth/password/verify-otp:
+    post:
+      tags:
+        - Auth
+      summary: Verify password reset OTP
+      description: Returns a temporary reset token that must be sent to the reset password endpoint.
+      operationId: verifyPasswordResetOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '201':
+          description: OTP verified and reset token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetTokenResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/password/resend:
+    post:
+      tags:
+        - Auth
+      summary: Resend password reset OTP
+      operationId: resendPasswordResetOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailRequest'
+      responses:
+        '200':
+          description: Password reset OTP resend processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/password/reset:
+    post:
+      tags:
+        - Auth
+      summary: Reset password with reset token
+      description: The resetToken value is returned by POST /api/v1/auth/password/verify-otp.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/password/change-request:
+    post:
+      tags:
+        - Auth
+      summary: Request OTP to change password
+      operationId: requestPasswordChangeOtp
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Change password OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/password/change-verify:
+    post:
+      tags:
+        - Auth
+      summary: Verify OTP and change authenticated user's password
+      operationId: verifyPasswordChangeOtp
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpOnlyRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/password/change-resend:
+    post:
+      tags:
+        - Auth
+      summary: Resend authenticated password change OTP
+      operationId: resendPasswordChangeOtp
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Change password OTP resent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/email/change-request:
+    post:
+      tags:
+        - Auth
+      summary: Request OTPs to change email
+      operationId: requestEmailChangeOtp
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeEmailRequest'
+      responses:
+        '200':
+          description: Email change OTPs sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/email/change-verify:
+    post:
+      tags:
+        - Auth
+      summary: Verify old and new email OTPs
+      operationId: verifyEmailChangeOtp
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyChangeEmailRequest'
+      responses:
+        '200':
+          description: Email changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/email/change-resend:
+    post:
+      tags:
+        - Auth
+      summary: Resend email change OTPs
+      operationId: resendEmailChangeOtp
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Email change OTPs resent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/v1/auth/oauth/{provider}:
+    get:
+      tags:
+        - Auth
+      summary: Redirect to OAuth provider
+      operationId: oauthRedirect
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - google
+              - github
+        - name: tz
+          in: query
+          required: false
+          schema:
+            type: string
+            example: Asia/Ho_Chi_Minh
+      responses:
+        '302':
+          description: Redirects to OAuth provider
+          headers:
+            Location:
+              schema:
+                type: string
+  /api/v1/auth/callback:
+    get:
+      tags:
+        - Auth
+      summary: OAuth callback
+      operationId: oauthCallback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirects back to the frontend after OAuth handling
+          headers:
+            Location:
+              schema:
+                type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refreshToken
+  responses:
+    Error:
+      description: Standard error response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Validation error response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    SuccessResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          description: Response payload
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+    MessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: 'null'
+              example: null
+            meta:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: Request processed successfully
+    ResponseMeta:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Request processed successfully
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - userMessage
+            - statusCode
+            - requestId
+            - timestamp
+            - path
+            - method
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Validation failed
+            userMessage:
+              type: string
+              example: Please check your input and try again
+            statusCode:
+              type: integer
+              example: 400
+            requestId:
+              type: string
+              example: 5f6d1a70-1111-4444-8888-4f77f9bbd001
+            timestamp:
+              type: string
+              format: date-time
+            path:
+              type: string
+              example: /api/v1/auth/password/reset
+            method:
+              type: string
+              example: POST
+            details:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationErrorDetail'
+    ValidationErrorDetail:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          example: resetToken
+        message:
+          type: string
+          example: Required
+    Email:
+      type: string
+      format: email
+      example: user@example.com
+    Password:
+      type: string
+      format: password
+      minLength: 6
+      pattern: '^[A-Z](?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).*$'
+      example: Password1!
+      description: Must start with an uppercase letter and include at least one number and one special character.
+    RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: Alex Nguyen
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+        timezone:
+          type: string
+          example: Asia/Ho_Chi_Minh
+        preferredCurrency:
+          type: string
+          example: USD
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+        timezone:
+          type: string
+          example: Asia/Ho_Chi_Minh
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Optional when the refreshToken cookie is present.
+          example: refresh-token-placeholder
+    EmailRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+    OtpOnlyRequest:
+      type: object
+      required:
+        - otp
+      properties:
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          example: '123456'
+    OtpRequest:
+      allOf:
+        - $ref: '#/components/schemas/EmailRequest'
+        - $ref: '#/components/schemas/OtpOnlyRequest'
+    ResetPasswordRequest:
+      type: object
+      required:
+        - email
+        - resetToken
+        - newPassword
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        resetToken:
+          type: string
+          minLength: 1
+          description: Token returned by password OTP verification.
+          example: reset-token-placeholder
+        newPassword:
+          $ref: '#/components/schemas/Password'
+    ChangePasswordRequest:
+      type: object
+      required:
+        - oldPassword
+        - newPassword
+        - confirmPassword
+      properties:
+        oldPassword:
+          type: string
+          format: password
+          example: OldPassword1!
+        newPassword:
+          $ref: '#/components/schemas/Password'
+        confirmPassword:
+          $ref: '#/components/schemas/Password'
+    ChangeEmailRequest:
+      type: object
+      required:
+        - newEmail
+      properties:
+        newEmail:
+          $ref: '#/components/schemas/Email'
+    VerifyChangeEmailRequest:
+      type: object
+      required:
+        - oldEmailOtp
+        - newEmailOtp
+      properties:
+        oldEmailOtp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          example: '123456'
+        newEmailOtp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          example: '654321'
+    User:
+      type: object
+      required:
+        - _id
+        - name
+        - email
+        - timezone
+      properties:
+        _id:
+          type: string
+          example: 65f1c2d3e4f5678901234567
+        name:
+          type: string
+          example: Alex Nguyen
+        email:
+          $ref: '#/components/schemas/Email'
+        profilePicture:
+          type:
+            - string
+            - 'null'
+          example: https://example.com/avatar.png
+        timezone:
+          type: string
+          example: Asia/Ho_Chi_Minh
+        preferredCurrency:
+          type: string
+          example: USD
+    ReportSettingSummary:
+      type:
+        - object
+        - 'null'
+      properties:
+        _id:
+          type: string
+          example: 65f1c2d3e4f5678901234568
+        frequency:
+          type: string
+          example: monthly
+        isEnabled:
+          type: boolean
+          example: true
+    AuthSuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - user
+                - accessToken
+                - expiresAt
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                accessToken:
+                  type: string
+                  example: access-token-placeholder
+                expiresAt:
+                  type: integer
+                  example: 1767225600000
+                reportSetting:
+                  $ref: '#/components/schemas/ReportSettingSummary'
+            meta:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: Login successful
+    RefreshTokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - accessToken
+                - expiresAt
+              properties:
+                accessToken:
+                  type: string
+                  example: access-token-placeholder
+                expiresAt:
+                  type: integer
+                  example: 1767225600000
+            meta:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: Token refreshed successfully
+    PasswordResetTokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - resetToken
+              properties:
+                resetToken:
+                  type: string
+                  example: reset-token-placeholder
+            meta:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: OTP verified successfully

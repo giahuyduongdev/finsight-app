@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant Dev as Developer
+    participant Code as Express routes/controllers/validators
+    participant OAS as backend/docs/openapi.yaml
+    participant Swagger as Swagger UI
+    participant Postman as Postman
+    participant CI as Validation
+
+    Dev->>Code: Change API behavior
+    Dev->>OAS: Update matching contract
+    Dev->>Swagger: View local API docs
+    Swagger->>OAS: Load OpenAPI file
+    Dev->>Postman: Manually import contract
+    Postman->>OAS: Read OpenAPI file
+    Dev->>CI: Run validation
+    CI->>OAS: Validate syntax and contract structure
