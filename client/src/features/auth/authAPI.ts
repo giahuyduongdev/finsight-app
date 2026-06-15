@@ -121,6 +121,12 @@ export const authApi = apiClient.injectEndpoints({
         url: '/auth/password/verify-otp',
         method: 'POST',
         body
+      }),
+      transformResponse: (
+        response: ApiSuccessResponse<{ resetToken: string }>
+      ) => ({
+        message: response.meta?.message || '',
+        resetToken: response.data.resetToken
       })
     }),
 

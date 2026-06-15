@@ -11,6 +11,7 @@ import LogoutDialog from './logout-dialog'
 import { useTypedSelector } from '@/app/hook'
 import { usePrefetch as useTransactionPrefetch } from '@/features/transaction/transactionAPI'
 import { usePrefetch as useReportPrefetch } from '@/features/report/reportAPI'
+import { NotificationNav } from './notification-nav'
 
 const Navbar = () => {
   const { pathname } = useLocation()
@@ -130,7 +131,8 @@ const Navbar = () => {
 
             {/* {} */}
             {/* Right side - User actions */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-2">
+              <NotificationNav />
               <UserNav
                 userName={user?.name || ''}
                 profilePicture={user?.profilePicture || ''}

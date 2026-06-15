@@ -51,7 +51,7 @@ Document briefly in the working response:
 - edge cases
 - success criteria
 
-Do not create docs/process/specs files unless the task grows in scope.
+Do not create docs/specs files unless the task grows in scope.
 
 ---
 

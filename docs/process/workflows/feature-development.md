@@ -58,7 +58,7 @@ Do not generate requirements until the request is clear enough.
 
 Create:
 
-docs/process/specs/<feature-name>/requirements.md
+docs/specs/<feature-name>/requirements.md
 
 Document:
 
@@ -102,7 +102,7 @@ Do not finalize design until the main approach is selected.
 
 Create:
 
-docs/process/specs/<feature-name>/design.md
+docs/specs/<feature-name>/design.md
 
 Document:
 
@@ -150,7 +150,7 @@ Optional:
 
 Store diagrams beside the spec:
 
-docs/process/specs/<feature-name>/
+docs/specs/<feature-name>/
 
 ---
 
@@ -174,7 +174,7 @@ Create ADRs only for major technical decisions.
 
 Create:
 
-docs/process/decisions/
+docs/decisions/
 
 Document:
 
@@ -189,7 +189,7 @@ Document:
 
 Create:
 
-docs/process/specs/<feature-name>/tasks.md
+docs/specs/<feature-name>/tasks.md
 
 Document:
 

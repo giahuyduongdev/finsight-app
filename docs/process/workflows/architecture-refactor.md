@@ -100,7 +100,7 @@ Otherwise:
 
 Create:
 
-docs/process/specs/<refactor-name>/requirements.md
+docs/specs/<refactor-name>/requirements.md
 
 Document:
 
@@ -128,7 +128,7 @@ Otherwise:
 
 Create:
 
-docs/process/specs/<refactor-name>/design.md
+docs/specs/<refactor-name>/design.md
 
 Document:
 
@@ -159,8 +159,8 @@ Create diagrams for the current and target architecture.
 
 Required:
 
-docs/process/specs/<refactor-name>/current-architecture.mmd
-docs/process/specs/<refactor-name>/target-architecture.mmd
+docs/specs/<refactor-name>/current-architecture.mmd
+docs/specs/<refactor-name>/target-architecture.mmd
 
 Document:
 
@@ -177,7 +177,7 @@ Create ADRs for major architectural decisions.
 
 Create:
 
-docs/process/decisions/
+docs/decisions/
 
 Document:
 
@@ -192,7 +192,7 @@ Document:
 
 Create:
 
-docs/process/specs/<refactor-name>/tasks.md
+docs/specs/<refactor-name>/tasks.md
 
 Document:
 
