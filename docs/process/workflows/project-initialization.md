@@ -55,7 +55,7 @@ Do not generate foundation requirements until the project idea is clear enough.
 
 Create:
 
-docs/process/specs/project-foundation/requirements.md
+docs/specs/project-foundation/requirements.md
 
 Document:
 
@@ -100,7 +100,7 @@ Do not finalize design until the main approach is selected.
 
 Create:
 
-docs/process/specs/project-foundation/design.md
+docs/specs/project-foundation/design.md
 
 Document:
 
@@ -141,7 +141,7 @@ Optional:
 
 Store diagrams beside the spec:
 
-docs/process/specs/project-foundation/
+docs/specs/project-foundation/
 
 ---
 
@@ -165,7 +165,7 @@ Create Architecture Decision Records (ADR) for long-term technical decisions.
 
 Create:
 
-docs/process/decisions/
+docs/decisions/
 
 Document:
 
@@ -182,7 +182,7 @@ ADR is recommended for decisions that are expensive to change later.
 
 Create:
 
-docs/process/specs/project-foundation/tasks.md
+docs/specs/project-foundation/tasks.md
 
 Document:
 

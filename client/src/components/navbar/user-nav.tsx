@@ -25,12 +25,12 @@ export function UserNav({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative !bg-transparent h-8 w-8 rounded-full !gap-0"
+          className="relative h-9 rounded-full !bg-transparent px-1.5 !gap-1 text-white hover:!bg-white/10 hover:!text-white"
         >
-          <Avatar className="h-10 w-10 !cursor-pointer ">
+          <Avatar className="h-8 w-8 !cursor-pointer">
             <AvatarImage
               src={profilePicture || ''}
-              className="!cursor-pointer "
+              className="!cursor-pointer"
             />
             <AvatarFallback
               className="!bg-[var(--secondary-dark-color)] border !border-gray-700
@@ -39,7 +39,7 @@ export function UserNav({
               {userName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <ChevronDown className="!w-3 !h-3 ml-1 text-white" />
+          <ChevronDown className="!h-3 !w-3 text-white/80" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

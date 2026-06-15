@@ -313,7 +313,7 @@ export const forgotPasswordService = async (body: ForgotPasswordSchemaType) => {
   if (isBlocked) {
     // Vẫn trả về 200, không tiết lộ gì thêm
     return {
-      message: 'If this email is registered, you will receive an OTP shortly.'
+      message: ''
     }
   }
 
@@ -322,7 +322,7 @@ export const forgotPasswordService = async (body: ForgotPasswordSchemaType) => {
   if (!user) {
     // Âm thầm kết thúc — không throw error
     return {
-      message: 'If this email is registered, you will receive an OTP shortly.'
+      message: 'If this email is registered, you will receive an OTP shortly'
     }
   }
 
@@ -345,7 +345,7 @@ export const forgotPasswordService = async (body: ForgotPasswordSchemaType) => {
   })
 
   return {
-    message: 'If this email is registered, you will receive an OTP shortly.'
+    message: 'If this email is registered, you will receive an OTP shortly'
   }
 }
 

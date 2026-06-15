@@ -31,5 +31,5 @@ Use the smallest workflow that fits the task.
 ## Document Locations
 
 - Workflow docs live in `docs/process/workflows/`.
-- Specs live in `docs/process/specs/<name>/`.
-- ADRs live in `docs/process/decisions/`.
+- Specs live in `docs/specs/<name>/`.
+- ADRs live in `docs/decisions/`.
