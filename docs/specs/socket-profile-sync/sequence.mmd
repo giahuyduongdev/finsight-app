@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant TabA as Tab A
+  participant API as Backend API
+  participant DB as Database
+  participant Socket as Socket.IO Room
+  participant TabB as Tab B
+
+  TabA->>API: PATCH /user/profile
+  API->>API: validate and normalize profile fields
+  API->>DB: persist profile update
+  DB-->>API: updated user
+  API->>Socket: emit user:profile-updated
+  API-->>TabA: updated user response
+  Socket-->>TabB: user:profile-updated
+  TabB->>TabB: map changedFields to RTK Query tags
+  TabB->>API: refetch active affected queries
+  API-->>TabB: fresh user/analytics/report/transaction data

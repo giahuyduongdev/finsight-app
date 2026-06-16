@@ -9,3 +9,5 @@ export interface User {
 export interface UpdateUserResponse {
   data: User
 }
+
+export type GetCurrentUserResponse = UpdateUserResponse

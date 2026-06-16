@@ -1,4 +1,4 @@
-import { useEffect, useState, useId } from 'react'
+import { useState, useId } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -66,24 +66,6 @@ export function AccountForm() {
       preferredCurrency: user?.preferredCurrency || 'USD'
     }
   })
-
-  useEffect(() => {
-    form.reset(
-      {
-        name: user?.name || '',
-        profilePicture: user?.profilePicture || '',
-        timezone: normalizeTimeZone(user?.timezone) || 'Asia/Ho_Chi_Minh',
-        preferredCurrency: user?.preferredCurrency || 'USD'
-      },
-      { keepDirtyValues: true }
-    )
-  }, [
-    form,
-    user?.name,
-    user?.profilePicture,
-    user?.preferredCurrency,
-    user?.timezone
-  ])
 
   const onSubmit = (values: AccountFormValues) => {
     if (isLoading) return
@@ -257,10 +239,7 @@ export function AccountForm() {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Preferred Currency</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                value={field.value || 'USD'}
-              >
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select currency" />

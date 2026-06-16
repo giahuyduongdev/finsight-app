@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useSocket } from './use-socket'
 import { apiClient } from '@/app/api-client'
 import { AppDispatch } from '@/app/store'
+import { userApi } from '@/features/user/userAPI'
 
 interface BulkImportProgressPayload {
   progress: number
@@ -28,6 +29,16 @@ interface RecurringTransactionProcessedPayload {
   message: string
 }
 
+type ProfileUpdatedField =
+  | 'name'
+  | 'profilePicture'
+  | 'timezone'
+  | 'preferredCurrency'
+
+interface ProfileUpdatedPayload {
+  changedFields?: ProfileUpdatedField[]
+}
+
 export const useAppSockets = () => {
   const socket = useSocket()
   const dispatch = useDispatch<AppDispatch>()
@@ -40,10 +51,46 @@ export const useAppSockets = () => {
       dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
     }
 
+    const refreshCurrentUser = () => {
+      dispatch(
+        userApi.endpoints.getCurrentUser.initiate(undefined, {
+          forceRefetch: true,
+          subscribe: false
+        })
+      )
+    }
+
+    const handleProfileUpdated = ({ changedFields }: ProfileUpdatedPayload) => {
+      if (!Array.isArray(changedFields)) {
+        dispatch(apiClient.util.invalidateTags(['user']))
+        refreshCurrentUser()
+        return
+      }
+
+      const tags = new Set<'analytics' | 'report' | 'transactions' | 'user'>([
+        'user'
+      ])
+
+      if (changedFields.includes('timezone')) {
+        tags.add('analytics')
+        tags.add('transactions')
+        tags.add('report')
+      }
+
+      if (changedFields.includes('preferredCurrency')) {
+        tags.add('analytics')
+        tags.add('report')
+      }
+
+      dispatch(apiClient.util.invalidateTags([...tags]))
+      refreshCurrentUser()
+    }
+
     socket.on('transaction:created', refreshTransactionData)
     socket.on('transaction:updated', refreshTransactionData)
     socket.on('transaction:deleted', refreshTransactionData)
     socket.on('transaction:bulk-deleted', refreshTransactionData)
+    socket.on('user:profile-updated', handleProfileUpdated)
 
     socket.on(
       'bulk-import:progress',
@@ -94,6 +141,7 @@ export const useAppSockets = () => {
       socket.off('transaction:updated', refreshTransactionData)
       socket.off('transaction:deleted', refreshTransactionData)
       socket.off('transaction:bulk-deleted', refreshTransactionData)
+      socket.off('user:profile-updated', handleProfileUpdated)
       socket.off('bulk-import:progress')
       socket.off('bulk-import:completed')
       socket.off('bulk-import:failed')

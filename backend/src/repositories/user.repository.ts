@@ -36,7 +36,7 @@ export class UserRepository implements IUserRepository {
 
   /**
    * Update user profile information
-   * Invalidates user cache after update
+   * Refreshes user cache after update
    * @param userId - User ID
    * @param updates - Partial user data to update
    * @returns Updated user document or null if not found
@@ -48,7 +48,20 @@ export class UserRepository implements IUserRepository {
     // Invalidate cache before update
     await redis.del(`user:${userId}`)
 
-    return await UserModel.findByIdAndUpdate(userId, updates, { new: true })
+    const updatedUser = await UserModel.findByIdAndUpdate(userId, updates, {
+      new: true
+    })
+
+    if (updatedUser) {
+      await redis.set(
+        `user:${userId}`,
+        JSON.stringify(updatedUser.omitPassword()),
+        'EX',
+        900
+      )
+    }
+
+    return updatedUser
   }
 
   /**
