@@ -5,6 +5,7 @@ import { useSocket } from './use-socket'
 import { apiClient } from '@/app/api-client'
 import { AppDispatch } from '@/app/store'
 import { userApi } from '@/features/user/userAPI'
+import { updateCredentials } from '@/features/auth/authSlice'
 
 interface BulkImportProgressPayload {
   progress: number
@@ -37,6 +38,17 @@ type ProfileUpdatedField =
 
 interface ProfileUpdatedPayload {
   changedFields?: ProfileUpdatedField[]
+}
+
+interface ReportSettingsUpdatedPayload {
+  reportSetting?: {
+    _id?: string
+    userId?: string
+    frequency?: string
+    isEnabled?: boolean
+    lastSentDate?: string | null
+    nextReportDate?: string | null
+  }
 }
 
 export const useAppSockets = () => {
@@ -86,11 +98,21 @@ export const useAppSockets = () => {
       refreshCurrentUser()
     }
 
+    const handleReportSettingsUpdated = ({
+      reportSetting
+    }: ReportSettingsUpdatedPayload = {}) => {
+      if (reportSetting) {
+        dispatch(updateCredentials({ reportSetting }))
+      }
+      dispatch(apiClient.util.invalidateTags(['report']))
+    }
+
     socket.on('transaction:created', refreshTransactionData)
     socket.on('transaction:updated', refreshTransactionData)
     socket.on('transaction:deleted', refreshTransactionData)
     socket.on('transaction:bulk-deleted', refreshTransactionData)
     socket.on('user:profile-updated', handleProfileUpdated)
+    socket.on('report:settings-updated', handleReportSettingsUpdated)
 
     socket.on(
       'bulk-import:progress',
@@ -142,6 +164,7 @@ export const useAppSockets = () => {
       socket.off('transaction:deleted', refreshTransactionData)
       socket.off('transaction:bulk-deleted', refreshTransactionData)
       socket.off('user:profile-updated', handleProfileUpdated)
+      socket.off('report:settings-updated', handleReportSettingsUpdated)
       socket.off('bulk-import:progress')
       socket.off('bulk-import:completed')
       socket.off('bulk-import:failed')

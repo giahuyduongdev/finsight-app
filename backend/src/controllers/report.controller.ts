@@ -9,9 +9,54 @@ import { toReportSettingResponse, toGenerateReportResponse } from '../dtos'
 import { parsePaginationQuery } from '../utils/query-parser.util'
 import { ResponseFormatter } from '../utils/responseFormatter.util'
 import { BadRequestException, NotFoundException } from '../utils/errors'
+import { getIO } from '../config/socket.config'
+import { logger } from '../config/logger.config'
 
 // Get ReportService instance from DI container
 const reportService = container.getReportService()
+
+type ReportSettingsUpdatedField = 'isEnabled' | 'frequency' | 'nextReportDate'
+
+const getChangedReportSettingFields = (
+  body: Record<string, unknown>
+): ReportSettingsUpdatedField[] => {
+  const changedFields: ReportSettingsUpdatedField[] = []
+
+  if (Object.prototype.hasOwnProperty.call(body, 'isEnabled')) {
+    changedFields.push('isEnabled')
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'frequency')) {
+    changedFields.push('frequency')
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'nextReportDate')) {
+    changedFields.push('nextReportDate')
+  }
+
+  return changedFields
+}
+
+const emitReportSettingsUpdated = (
+  userId: string,
+  changedFields: ReportSettingsUpdatedField[],
+  reportSetting: ReturnType<typeof toReportSettingResponse>['data']
+) => {
+  if (changedFields.length === 0) return
+
+  try {
+    getIO().to(userId).emit('report:settings-updated', {
+      userId,
+      changedFields,
+      reportSetting,
+      updatedAt: new Date().toISOString()
+    })
+  } catch (error) {
+    logger.warn('[APP:Report] Failed to emit report settings socket event', {
+      userId,
+      changedFields,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
 
 export const getAllReportsController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -38,6 +83,11 @@ export const updateReportSettingController = asyncHandler(
     )
 
     const response = toReportSettingResponse(updatedReportSetting)
+    emitReportSettingsUpdated(
+      userId,
+      getChangedReportSettingFields(body),
+      response.data
+    )
 
     return res
       .status(HTTPSTATUS.OK)

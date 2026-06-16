@@ -1,0 +1,22 @@
+sequenceDiagram
+  autonumber
+  participant A as Tab A
+  participant API as Backend API
+  participant DB as Database
+  participant S as Socket.IO
+  participant B as Tab B
+  participant Cache as RTK Query Cache
+
+  A->>API: PATCH /reports/settings { isEnabled }
+  API->>API: validate request body
+  API->>DB: update report setting
+  DB-->>API: updated setting
+  API->>S: emit report:settings-updated to user room
+  API-->>A: 200 updated setting
+  A->>Cache: invalidate report tag from mutation
+  S-->>B: report:settings-updated
+  B->>Cache: invalidate report tag
+  Cache->>API: refetch reports/settings data when subscribed
+  API-->>Cache: latest report data
+  Cache-->>B: render latest state
+
