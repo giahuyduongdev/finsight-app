@@ -7,6 +7,7 @@ const mockEmit = jest.fn()
 const mockTo = jest.fn(() => ({ emit: mockEmit }))
 const mockGetIO = jest.fn(() => ({ to: mockTo }))
 const mockLoggerWarn = jest.fn()
+const mockInvalidateUserAnalyticsCache = jest.fn()
 
 jest.mock('../../container', () => ({
   container: {
@@ -32,6 +33,11 @@ jest.mock('../../config/logger.config', () => ({
 
 jest.mock('../../utils/getUserId.util', () => ({
   getUserId: () => 'user-123'
+}))
+
+jest.mock('../../utils/cache.util', () => ({
+  invalidateUserAnalyticsCache: (...args: unknown[]) =>
+    mockInvalidateUserAnalyticsCache(...args)
 }))
 
 import { updateUserController } from '../../controllers/user.controller'
@@ -90,6 +96,7 @@ describe('user.controller', () => {
         mockRequest.file
       )
       expect(mockTo).toHaveBeenCalledWith('user-123')
+      expect(mockInvalidateUserAnalyticsCache).toHaveBeenCalledWith('user-123')
       expect(mockEmit).toHaveBeenCalledWith('user:profile-updated', {
         userId: 'user-123',
         changedFields: [
@@ -109,6 +116,104 @@ describe('user.controller', () => {
         }),
         meta: { message: 'User profile updated successfully' }
       })
+      expect(nextMock).not.toHaveBeenCalled()
+    })
+
+    it('invalidates analytics cache once when timezone and preferred currency change', async () => {
+      mockUpdate.mockResolvedValue(createUser())
+
+      const mockRequest = {
+        body: {
+          timezone: 'Asia/Ho_Chi_Minh',
+          preferredCurrency: 'VND'
+        }
+      } as Request
+
+      await updateUserController(
+        mockRequest,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(mockInvalidateUserAnalyticsCache).toHaveBeenCalledTimes(1)
+      expect(mockInvalidateUserAnalyticsCache).toHaveBeenCalledWith('user-123')
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(nextMock).not.toHaveBeenCalled()
+    })
+
+    it('invalidates analytics cache when preferred currency changes', async () => {
+      mockUpdate.mockResolvedValue(createUser())
+
+      const mockRequest = {
+        body: {
+          preferredCurrency: 'VND'
+        }
+      } as Request
+
+      await updateUserController(
+        mockRequest,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(mockInvalidateUserAnalyticsCache).toHaveBeenCalledWith('user-123')
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(nextMock).not.toHaveBeenCalled()
+    })
+
+    it('does not invalidate analytics cache when only non-analytics profile fields change', async () => {
+      mockUpdate.mockResolvedValue(createUser())
+
+      const mockRequest = {
+        body: {
+          name: 'Updated User'
+        },
+        file: { path: 'https://cdn.example.com/avatar.jpg' }
+      } as unknown as Request
+
+      await updateUserController(
+        mockRequest,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(mockInvalidateUserAnalyticsCache).not.toHaveBeenCalled()
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(nextMock).not.toHaveBeenCalled()
+    })
+
+    it('does not fail the profile update response when analytics cache invalidation fails', async () => {
+      mockUpdate.mockResolvedValue(createUser())
+      mockInvalidateUserAnalyticsCache.mockRejectedValueOnce(
+        new Error('Redis unavailable')
+      )
+
+      const mockRequest = {
+        body: {
+          timezone: 'Asia/Ho_Chi_Minh'
+        }
+      } as Request
+
+      await updateUserController(
+        mockRequest,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ id: 'user-123' })
+        })
+      )
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        '[APP:User] Failed to invalidate analytics cache after profile update',
+        expect.objectContaining({
+          userId: 'user-123',
+          changedFields: ['timezone'],
+          error: 'Redis unavailable'
+        })
+      )
       expect(nextMock).not.toHaveBeenCalled()
     })
 

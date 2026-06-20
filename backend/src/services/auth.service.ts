@@ -523,6 +523,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
   ])
 
   return {
+    userId: user._id.toString(),
     message: 'Password reset successfully. Please login again.'
   }
 }

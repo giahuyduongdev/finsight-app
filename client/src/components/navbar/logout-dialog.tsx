@@ -14,6 +14,8 @@ import { useNavigate } from 'react-router-dom'
 import { AUTH_ROUTES } from '@/routes/common/routePath'
 import { useLogoutMutation } from '@/features/auth/authAPI'
 import { toast } from 'sonner'
+import { apiClient } from '@/app/api-client'
+import { publishLocalLogout } from '@/lib/local-logout-sync'
 
 interface LogoutDialogProps {
   isOpen: boolean
@@ -39,6 +41,8 @@ const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
     } finally {
       // 4. Dọn dẹp Redux và chuyển trang
       dispatch(logout())
+      dispatch(apiClient.util.resetApiState())
+      publishLocalLogout()
       setIsOpen(false)
       navigate(AUTH_ROUTES.SIGN_IN)
 

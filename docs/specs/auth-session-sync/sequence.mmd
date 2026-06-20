@@ -1,0 +1,22 @@
+sequenceDiagram
+  autonumber
+  actor User
+  participant TabA as Browser Tab A
+  participant API as Auth API
+  participant DB as Refresh Token Store
+  participant Socket as Socket.IO
+  participant TabB as Browser Tab B
+
+  User->>TabA: Trigger logout-all/password/email/password-reset
+  TabA->>API: Auth request
+  API->>API: Validate request
+  API->>DB: Revoke affected refresh tokens
+  DB-->>API: Revocation persisted
+  API->>Socket: Emit auth:session-revoked to user room
+  Socket-->>TabA: auth:session-revoked
+  Socket-->>TabB: auth:session-revoked
+  TabA->>TabA: Clear auth state and API cache
+  TabB->>TabB: Clear auth state and API cache
+  TabA->>TabA: Redirect to /
+  TabB->>TabB: Redirect to /
+  API-->>TabA: Existing API success response

@@ -26,11 +26,13 @@ import { Input } from '@/components/ui/input'
 import {
   useChangeEmailRequestMutation,
   useVerifyChangeEmailOTPMutation,
-  useResendChangeEmailOTPMutation,
-  useLogoutMutation
+  useResendChangeEmailOTPMutation
 } from '@/features/auth/authAPI'
 import { useAppDispatch } from '@/app/hook'
 import { logout } from '@/features/auth/authSlice'
+import { apiClient } from '@/app/api-client'
+import { saveFlashMessage } from '@/lib/flash-message'
+import { redirectTo } from '@/lib/navigation'
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -147,7 +149,6 @@ export function ChangeEmailDialog() {
     useVerifyChangeEmailOTPMutation()
   const [resendOTP, { isLoading: isResending }] =
     useResendChangeEmailOTPMutation()
-  const [logoutServer] = useLogoutMutation()
 
   const [seconds, setSeconds] = useState(60)
   const [canResend, setCanResend] = useState(false)
@@ -191,15 +192,15 @@ export function ChangeEmailDialog() {
   const onOtpSubmit = async (values: OtpValues) => {
     try {
       await verifyOTP(values).unwrap()
-      toast.success('Email updated successfully. Please login again')
+      saveFlashMessage({
+        message: 'Email updated successfully. Please sign in again',
+        type: 'success'
+      })
       setOpen(false)
-
-      // Logout server-side to clear cookies
-      await logoutServer(undefined).unwrap()
-      // Logout client-side state
       dispatch(logout())
-      // 3. Chuyển hướng về trang chủ / (trang đăng nhập)
-      window.location.href = '/'
+      dispatch(apiClient.util.resetApiState())
+      localStorage.removeItem('persist:root')
+      redirectTo('/')
     } catch (error) {
       const err = error as { data?: { message?: string } }
       toast.error(err.data?.message || 'Invalid verification codes')

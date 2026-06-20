@@ -7,6 +7,7 @@ import { Provider } from 'react-redux'
 import { store } from './app/store'
 import { persistor } from './app/store'
 import { PersistGate } from 'redux-persist/integration/react'
+import { FlashMessageToast } from './components/flash-message-toast'
 
 createRoot(document.getElementById('root')!).render(
   <Provider store={store}>
@@ -21,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
         richColors
         closeButton
       />
+      <FlashMessageToast />
     </PersistGate>
   </Provider>
 )

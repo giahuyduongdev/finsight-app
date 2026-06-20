@@ -42,6 +42,84 @@ type AvailableAttributeType =
   | { fieldName: string; required?: never } // For the "Do not import" option
   | TransactionField // For the actual fields
 
+const FIELD_ALIASES: Record<string, string[]> = {
+  title: ['title', 'name', 'transaction name', 'description', 'desc', 'memo'],
+  amount: ['amount', 'value', 'total', 'price', 'cost'],
+  currency: ['currency', 'curr', 'ccy'],
+  type: ['type', 'transaction type', 'income expense', 'in/out'],
+  date: ['date', 'transaction date', 'posted date', 'created date'],
+  category: ['category', 'cat'],
+  paymentMethod: [
+    'paymentmethod',
+    'payment method',
+    'payment',
+    'method',
+    'pay method'
+  ],
+  status: ['status', 'state'],
+  description: ['note', 'notes', 'details', 'remark', 'remarks']
+}
+
+const normalizeColumnName = (value: string) =>
+  value.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+
+const inferTransactionField = (
+  columnName: string,
+  transactionFields: TransactionField[],
+  usedFields: Set<string>
+) => {
+  const normalizedColumn = normalizeColumnName(columnName)
+  const availableFields = new Set(
+    transactionFields.map((field) => field.fieldName)
+  )
+
+  for (const field of transactionFields) {
+    const normalizedField = normalizeColumnName(field.fieldName)
+    const aliases = FIELD_ALIASES[field.fieldName] ?? []
+    const normalizedAliases = aliases.map(normalizeColumnName)
+
+    const isMatch =
+      normalizedColumn === normalizedField ||
+      normalizedAliases.includes(normalizedColumn)
+
+    if (
+      isMatch &&
+      availableFields.has(field.fieldName) &&
+      !usedFields.has(field.fieldName)
+    ) {
+      return field.fieldName
+    }
+  }
+
+  return 'Skip'
+}
+
+const inferInitialMappings = (
+  csvColumns: CsvColumn[],
+  transactionFields: TransactionField[],
+  existingMappings: Record<string, string>
+) => {
+  if (Object.keys(existingMappings).length > 0) return existingMappings
+
+  const usedFields = new Set<string>()
+  const inferredMappings: Record<string, string> = {}
+
+  csvColumns.forEach((column) => {
+    const field = inferTransactionField(
+      column.name,
+      transactionFields,
+      usedFields
+    )
+    inferredMappings[column.name] = field
+
+    if (field !== 'Skip') {
+      usedFields.add(field)
+    }
+  })
+
+  return inferredMappings
+}
+
 const ColumnMappingStep = ({
   csvColumns,
   transactionFields,
@@ -49,8 +127,8 @@ const ColumnMappingStep = ({
   onBack,
   ...props
 }: ColumnMappingStepProps) => {
-  const [mappings, setMappings] = useState<Record<string, string>>(
-    props.mappings || {}
+  const [mappings, setMappings] = useState<Record<string, string>>(() =>
+    inferInitialMappings(csvColumns, transactionFields, props.mappings || {})
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
 

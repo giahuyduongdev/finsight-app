@@ -433,10 +433,10 @@ const ConfirmationStep = ({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 border rounded-xl overflow-hidden shadow-sm bg-background">
+      <div className="flex-1 min-h-[260px] border rounded-xl overflow-hidden shadow-sm bg-background">
         <div
           ref={parentRef}
-          className="h-[450px] overflow-auto scrollbar-thin scrollbar-thumb-gray-200"
+          className="h-[min(450px,calc(85vh-260px))] overflow-auto scrollbar-thin scrollbar-thumb-gray-200"
         >
           <Table className="table-fixed w-full border-collapse" role="grid">
             <TableHeader

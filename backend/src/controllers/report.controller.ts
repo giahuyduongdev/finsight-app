@@ -11,6 +11,7 @@ import { ResponseFormatter } from '../utils/responseFormatter.util'
 import { BadRequestException, NotFoundException } from '../utils/errors'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
+import { emitReportListUpdated } from '../utils/report-socket.util'
 
 // Get ReportService instance from DI container
 const reportService = container.getReportService()
@@ -140,6 +141,13 @@ export const resendReportController = asyncHandler(
     }
 
     const result = await reportService.resendReport(userId, reportId)
+    emitReportListUpdated({
+      userId,
+      reason: 'resent',
+      reportId,
+      status: 'SENT',
+      source: 'api'
+    })
 
     return res
       .status(HTTPSTATUS.OK)

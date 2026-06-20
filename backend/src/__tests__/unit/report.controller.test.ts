@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 import { HTTPSTATUS } from '../../config/http.config'
 
 const mockUpdateSettings = jest.fn()
+const mockResendReport = jest.fn()
 const mockEmit = jest.fn()
 const mockTo = jest.fn(() => ({ emit: mockEmit }))
 const mockGetIO = jest.fn(() => ({ to: mockTo }))
@@ -10,7 +11,8 @@ const mockLoggerWarn = jest.fn()
 jest.mock('../../container', () => ({
   container: {
     getReportService: () => ({
-      updateSettings: (...args: unknown[]) => mockUpdateSettings(...args)
+      updateSettings: (...args: unknown[]) => mockUpdateSettings(...args),
+      resendReport: (...args: unknown[]) => mockResendReport(...args)
     })
   }
 }))
@@ -36,7 +38,10 @@ jest.mock('../../utils/getUserId.util', () => ({
   getUserId: () => 'user-123'
 }))
 
-import { updateReportSettingController } from '../../controllers/report.controller'
+import {
+  resendReportController,
+  updateReportSettingController
+} from '../../controllers/report.controller'
 
 const createReportSetting = (overrides: Record<string, unknown> = {}) => ({
   _id: { toString: () => 'setting-123' },
@@ -139,6 +144,85 @@ describe('report.controller', () => {
         expect.objectContaining({
           userId: 'user-123',
           changedFields: ['isEnabled'],
+          error: 'Socket unavailable'
+        })
+      )
+      expect(nextMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('resendReportController', () => {
+    it('emits report list update event after successful resend', async () => {
+      mockResendReport.mockResolvedValue({
+        message: 'Report resent successfully'
+      })
+
+      const mockRequest = {
+        params: {
+          reportId: '507f1f77bcf86cd799439011'
+        }
+      } as unknown as Request
+
+      await resendReportController(
+        mockRequest,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(mockResendReport).toHaveBeenCalledWith(
+        'user-123',
+        '507f1f77bcf86cd799439011'
+      )
+      expect(mockTo).toHaveBeenCalledWith('user-123')
+      expect(mockEmit).toHaveBeenCalledWith('report:list-updated', {
+        userId: 'user-123',
+        reason: 'resent',
+        reportId: '507f1f77bcf86cd799439011',
+        status: 'SENT',
+        source: 'api',
+        updatedAt: expect.any(String)
+      })
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(jsonMock).toHaveBeenCalledWith({
+        data: null,
+        meta: { message: 'Report resent successfully' }
+      })
+      expect(nextMock).not.toHaveBeenCalled()
+    })
+
+    it('does not fail the resend response when lifecycle socket emit fails', async () => {
+      mockResendReport.mockResolvedValue({
+        message: 'Report resent successfully'
+      })
+      mockGetIO.mockImplementationOnce(() => {
+        throw new Error('Socket unavailable')
+      })
+
+      const mockRequest = {
+        params: {
+          reportId: '507f1f77bcf86cd799439011'
+        }
+      } as unknown as Request
+
+      await resendReportController(
+        mockRequest,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(jsonMock).toHaveBeenCalledWith({
+        data: null,
+        meta: { message: 'Report resent successfully' }
+      })
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        '[APP:Report] Failed to emit report lifecycle socket event',
+        expect.objectContaining({
+          userId: 'user-123',
+          reason: 'resent',
+          reportId: '507f1f77bcf86cd799439011',
+          status: 'SENT',
+          source: 'api',
           error: 'Socket unavailable'
         })
       )

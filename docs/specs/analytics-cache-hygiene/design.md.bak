@@ -1,0 +1,134 @@
+# Analytics Cache Hygiene - Design
+
+## Cach tiep can de xuat
+
+Dung helper hien co:
+
+```ts
+invalidateUserAnalyticsCache(userId)
+```
+
+Goi helper sau khi user profile update thanh cong, chi khi request body co field anh huong analytics:
+
+- `timezone`
+- `preferredCurrency`
+
+Khong them event socket moi. Socket `user:profile-updated` da lo phan client refetch.
+
+## Vi tri implement
+
+Vi tri de xuat:
+
+```text
+backend/src/controllers/user.controller.ts
+```
+
+Ly do:
+
+- Controller da co `getChangedProfileFields`.
+- Controller da emit `user:profile-updated` dua tren changed fields.
+- Co the reuse changed fields de quyet dinh analytics invalidation.
+- Khong can day cache concern xuong repository user, vi repository dang chi quan tam user cache `user:<id>`.
+
+Flow:
+
+1. Lay `changedFields` tu request body/file.
+2. Goi `userService.update`.
+3. Neu `changedFields` co `timezone` hoac `preferredCurrency`, invalidate analytics cache.
+4. Emit `user:profile-updated`.
+5. Return response success.
+
+## Helper nho trong controller
+
+Co the them helper:
+
+```ts
+const shouldInvalidateAnalyticsCache = (
+  changedFields: ProfileUpdatedField[]
+) =>
+  changedFields.includes('timezone') ||
+  changedFields.includes('preferredCurrency');
+```
+
+Va helper safe wrapper:
+
+```ts
+const invalidateAnalyticsCacheForProfileChange = async (
+  userId: string,
+  changedFields: ProfileUpdatedField[]
+) => {
+  if (!shouldInvalidateAnalyticsCache(changedFields)) return;
+
+  try {
+    await invalidateUserAnalyticsCache(userId);
+  } catch (error) {
+    logger.warn('[APP:User] Failed to invalidate analytics cache after profile update', {
+      userId,
+      changedFields,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+```
+
+Luu y: helper `invalidateUserAnalyticsCache` hien tai da catch loi noi bo va resolve, nhung wrapper van huu ich neu sau nay helper throw.
+
+## Thu tu invalidate va emit
+
+De xuat:
+
+1. Update DB/user cache thanh cong.
+2. Invalidate analytics cache best-effort.
+3. Emit `user:profile-updated`.
+4. Return HTTP response.
+
+Neu cache invalidation cham, request co the tre hon mot chut. V1 chap nhan vi helper dung `scanStream` va chi scan keys cua user. Neu sau nay can nhanh hon, co the chuyen sang fire-and-forget voi logging.
+
+## Khong lam trong v1
+
+### Khong doi cache key format
+
+Cache key hien tai da include `timezone` va `preferredCurrency`, nen du lieu moi khong bi lay nham key cu. Feature nay cleanup key cu de giam stale/orphan cache.
+
+### Khong them frontend logic
+
+Frontend da co:
+
+- `user:profile-updated`
+- invalidate `analytics` khi `timezone` thay doi
+- invalidate `analytics` khi `preferredCurrency` thay doi
+
+Nen khong can event/query moi.
+
+## Test strategy
+
+### Backend unit tests
+
+Cap nhat `user.controller.test.ts`:
+
+- Update `timezone` thi goi `invalidateUserAnalyticsCache('user-123')`.
+- Update `preferredCurrency` thi goi `invalidateUserAnalyticsCache('user-123')`.
+- Update ca hai field thi chi goi mot lan.
+- Update `name` khong goi invalidation.
+- Invalidation reject/throw thi response van success va log warning.
+- Socket emit van hoat dong nhu hien tai.
+
+### Cache util tests
+
+Neu can tang confidence cho helper:
+
+- pattern scan dung `analytics:*:<escapedUserId>:*`
+- co keys thi goi `redis.unlink(...keys)`
+- empty scan thi resolve khong loi
+- scan error thi resolve va log
+
+V1 co the uu tien controller tests vi helper da ton tai va dang duoc dung o transaction flows.
+
+### Manual verification
+
+1. Tao analytics cache bang cach goi dashboard/analytics.
+2. Kiem tra Redis co keys `analytics:*:<userId>:*`.
+3. Update timezone hoac preferred currency.
+4. Kiem tra keys cu bi xoa.
+5. Refresh dashboard, analytics duoc tinh lai va cache moi duoc tao.
+

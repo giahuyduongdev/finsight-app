@@ -1,0 +1,127 @@
+# Analytics Cache Hygiene - Requirements
+
+## Trang thai
+
+Draft de review.
+
+## Muc tieu
+
+Dam bao Redis analytics cache cua user duoc cleanup khi cac profile fields anh huong den analytics thay doi, cu the la:
+
+- `timezone`
+- `preferredCurrency`
+
+Feature nay khong tao socket event moi. Frontend da co `user:profile-updated` de invalidate/refetch query. Feature nay chi xu ly backend cache hygiene de Redis khong giu analytics keys cu qua lau.
+
+## Context hien tai
+
+Analytics cache keys dang co dang:
+
+```text
+analytics:summary:<userId>:<range>:<timezone>:<preferredCurrency>:<from>:<to>
+analytics:chart:<userId>:<range>:<timezone>:<preferredCurrency>:<from>:<to>
+analytics:pie:<userId>:<range>:<timezone>:<preferredCurrency>:<from>:<to>
+```
+
+TTL hien tai:
+
+```text
+300 seconds
+```
+
+Da co helper:
+
+```ts
+invalidateUserAnalyticsCache(userId)
+```
+
+Helper nay scan pattern:
+
+```text
+analytics:*:<userId>:*
+```
+
+va `unlink` cac keys tim thay.
+
+## Van de
+
+Khi user update `timezone` hoac `preferredCurrency`:
+
+- frontend da refetch data moi qua `user:profile-updated`
+- analytics cache key moi se khac key cu
+- nhung key cu cua user co the van ton tai trong Redis toi khi TTL het han
+
+Du lieu tra ve thuong van dung vi key co timezone/currency rieng, nhung Redis bi giu cache rac va co the gay kho debug khi manual inspect cache.
+
+## Pham vi v1
+
+V1 chi invalidate analytics cache khi update user profile co field:
+
+- `timezone`
+- `preferredCurrency`
+
+Khong invalidate analytics cache khi chi update:
+
+- `name`
+- `profilePicture`
+
+## Ngoai pham vi
+
+- Khong them socket event moi.
+- Khong thay doi analytics cache key format.
+- Khong thay doi analytics TTL.
+- Khong thay doi frontend cache behavior.
+- Khong cleanup report cache trong Redis vi report hien tai khong co Redis cache rieng trong scope nay.
+- Khong flush toan bo Redis.
+
+## Requirement chuc nang
+
+### R1. Invalidate analytics cache sau khi profile update thanh cong
+
+Khi `PATCH /users/me` update thanh cong va request body co `timezone` hoac `preferredCurrency`, backend phai goi:
+
+```ts
+invalidateUserAnalyticsCache(userId)
+```
+
+### R2. Chi invalidate khi field anh huong analytics thay doi
+
+Neu request chi co `name` hoac `profilePicture`, khong can invalidate analytics cache.
+
+### R3. Cache invalidation failure khong lam fail profile update
+
+Neu Redis scan/unlink loi:
+
+- API update user van tra success neu user update da thanh cong.
+- Backend log warning/error de debug.
+
+Ly do:
+
+- Cache cleanup la best-effort.
+- Khong nen lam profile update fail vi Redis cleanup loi.
+
+### R4. Khong duplicate invalidation khong can thiet
+
+Trong mot request co ca `timezone` va `preferredCurrency`, chi can goi `invalidateUserAnalyticsCache(userId)` mot lan.
+
+### R5. Dung chung helper hien co
+
+Khong viet logic scan Redis moi trong controller/service neu helper `invalidateUserAnalyticsCache` da dap ung scope.
+
+## Acceptance criteria
+
+- Update `timezone` thanh cong thi analytics keys cua user bi unlink.
+- Update `preferredCurrency` thanh cong thi analytics keys cua user bi unlink.
+- Update ca `timezone` va `preferredCurrency` chi goi invalidation mot lan.
+- Update chi `name` khong goi analytics invalidation.
+- Update chi `profilePicture` khong goi analytics invalidation.
+- Redis invalidation loi khong lam fail `PATCH /users/me`.
+- Existing socket `user:profile-updated` van emit nhu hien tai.
+
+## Edge cases
+
+- Redis khong co analytics keys nao: helper resolve binh thuong, API success.
+- Redis scan error: log va tiep tuc response success.
+- User update body co field khong lien quan: khong invalidate.
+- User update timezone ve cung gia tri cu: v1 co the invalidate neu request body co `timezone`, vi controller khong can query old value de so sanh.
+

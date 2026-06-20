@@ -45,6 +45,13 @@ export const authApi = apiClient.injectEndpoints({
       })
     }),
 
+    logoutAll: builder.mutation({
+      query: () => ({
+        url: '/auth/logout-all',
+        method: 'POST'
+      })
+    }),
+
     refresh: builder.mutation({
       query: () => ({
         url: '/auth/refresh-token',
@@ -216,6 +223,7 @@ export const {
   useLoginMutation,
   useRefreshMutation,
   useLogoutMutation,
+  useLogoutAllMutation,
   useLazyGetMeQuery,
 
   // Đăng ký OTP

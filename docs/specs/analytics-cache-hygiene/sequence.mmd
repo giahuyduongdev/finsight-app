@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant API as User Controller
+  participant Svc as User Service
+  participant DB as MongoDB
+  participant Redis as Redis
+  participant Socket as Socket.IO
+
+  C->>API: PATCH /users/me { timezone/preferredCurrency }
+  API->>API: derive changedFields
+  API->>Svc: update(userId, body, profilePic)
+  Svc->>DB: update user
+  DB-->>Svc: updated user
+  Svc-->>API: updated user
+  API->>Redis: invalidate analytics:*:<userId>:*
+  Redis-->>API: best-effort cleanup done
+  API->>Socket: emit user:profile-updated
+  API-->>C: 200 user profile updated
+
