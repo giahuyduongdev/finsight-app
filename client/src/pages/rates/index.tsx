@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSocket } from '@/hooks/use-socket'
 import { useTypedSelector } from '@/app/hook'
 import {
@@ -30,6 +30,7 @@ const RatesPage = () => {
   const [rates, setRates] = useState<ExchangeRates | null>(null)
   const [showRefreshSpinner, setShowRefreshSpinner] = useState(false)
   const [isConnected, setIsConnected] = useState(socket?.connected || false)
+  const hasManualRefreshAttempted = useRef(false)
   const preferredCurrency =
     useTypedSelector((state) => state.auth.user?.preferredCurrency) || 'VND'
 
@@ -74,7 +75,7 @@ const RatesPage = () => {
       Date.now() - updatedAtTime < 30 * 60 * 1000
 
     try {
-      if (isCacheFresh) {
+      if (hasManualRefreshAttempted.current && isCacheFresh) {
         await minimumSpinner
         toast.success('Exchange rates updated')
         return
@@ -84,9 +85,11 @@ const RatesPage = () => {
         refreshExchangeRates().unwrap(),
         minimumSpinner
       ])
+      hasManualRefreshAttempted.current = true
       setRates(response.data)
       toast.success('Exchange rates updated')
     } finally {
+      hasManualRefreshAttempted.current = true
       setShowRefreshSpinner(false)
     }
   }

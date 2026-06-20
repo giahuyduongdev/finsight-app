@@ -22,11 +22,15 @@ import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
 import { REPORT_JOBS, ProcessReportJobData } from '../queues/report.queue'
 import { generateReportService } from '../services/report.service'
-import ReportModel, { ReportStatusEnum } from '../models/report.model'
+import ReportModel, {
+  ReportDocument,
+  ReportStatusEnum
+} from '../models/report.model'
 import ReportSettingModel from '../models/report-setting.model'
 import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
+import { emitReportListUpdated } from '../utils/report-socket.util'
 
 const MAX_RETRY_DELAY_MS = 30000
 
@@ -49,7 +53,7 @@ function getNextRetryDelay(job?: Job): number {
 /**
  * Xử lý tạo và gửi báo cáo cho 1 user
  */
-const processReportJob = async (job: Job<ProcessReportJobData>) => {
+export const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const { userId, settingId, timezone, preferredCurrency, frequency, dueDate } =
     job.data
   const now = new Date()
@@ -148,10 +152,11 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
       // Persist FAILED report before throwing (for audit trail)
       const session = await mongoose.startSession()
+      let failedReport: ReportDocument | undefined
       try {
         await session.withTransaction(
           async () => {
-            await ReportModel.create(
+            const createdReports = await ReportModel.create(
               [
                 {
                   userId,
@@ -166,11 +171,23 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
               ],
               { session }
             )
+            failedReport = createdReports[0]
           },
           { maxCommitTimeMS: 10000 }
         )
       } finally {
         await session.endSession()
+      }
+
+      if (failedReport) {
+        emitReportListUpdated({
+          userId,
+          reason: 'generated',
+          reportId: failedReport._id?.toString(),
+          status: ReportStatusEnum.FAILED,
+          period: failedReport.period,
+          source: 'worker'
+        })
       }
 
       // Always throw to mark job as failed
@@ -180,6 +197,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
 
   // 3. Lưu lịch sử + cập nhật nextReportDate trong transaction
   const session = await mongoose.startSession()
+  let persistedReport: ReportDocument | undefined
 
   try {
     await session.withTransaction(
@@ -187,7 +205,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
         const isSuccess = report && emailSent
 
         // Lưu lịch sử Report
-        await ReportModel.create(
+        const createdReports = await ReportModel.create(
           [
             {
               userId,
@@ -206,6 +224,7 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
           ],
           { session }
         )
+        persistedReport = createdReports[0]
 
         // Cập nhật ngày gửi tiếp theo
         await ReportSettingModel.updateOne(
@@ -224,6 +243,17 @@ const processReportJob = async (job: Job<ProcessReportJobData>) => {
     )
   } finally {
     await session.endSession()
+  }
+
+  if (persistedReport) {
+    emitReportListUpdated({
+      userId,
+      reason: 'generated',
+      reportId: persistedReport._id?.toString(),
+      status: persistedReport.status as ReportStatusEnum,
+      period: persistedReport.period,
+      source: 'worker'
+    })
   }
 
   return { success: true, userId }

@@ -5,7 +5,10 @@ import { useSocket } from './use-socket'
 import { apiClient } from '@/app/api-client'
 import { AppDispatch } from '@/app/store'
 import { userApi } from '@/features/user/userAPI'
-import { updateCredentials } from '@/features/auth/authSlice'
+import { logout, updateCredentials } from '@/features/auth/authSlice'
+import { redirectTo as navigateTo } from '@/lib/navigation'
+import { subscribeToLocalLogout } from '@/lib/local-logout-sync'
+import { saveFlashMessage } from '@/lib/flash-message'
 
 interface BulkImportProgressPayload {
   progress: number
@@ -51,14 +54,23 @@ interface ReportSettingsUpdatedPayload {
   }
 }
 
+interface ReportListUpdatedPayload {
+  source?: 'api' | 'worker'
+  status?: 'SENT' | 'FAILED' | 'NO_ACTIVITY' | 'PENDING'
+}
+
+interface AuthSessionRevokedPayload {
+  message?: string
+  redirectTo?: string
+}
+
 export const useAppSockets = () => {
   const socket = useSocket()
   const dispatch = useDispatch<AppDispatch>()
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const logoutHandledRef = useRef(false)
 
   useEffect(() => {
-    if (!socket) return
-
     const refreshTransactionData = () => {
       dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
     }
@@ -107,12 +119,66 @@ export const useAppSockets = () => {
       dispatch(apiClient.util.invalidateTags(['report']))
     }
 
+    const handleReportListUpdated = ({
+      source,
+      status
+    }: ReportListUpdatedPayload = {}) => {
+      dispatch(apiClient.util.invalidateTags(['report']))
+
+      if (source !== 'worker') return
+
+      if (status === 'SENT') {
+        toast.success('Monthly report generated')
+      } else if (status === 'FAILED') {
+        toast.error('Monthly report failed')
+      } else if (status === 'NO_ACTIVITY') {
+        toast.info('No activity found for this report period')
+      }
+    }
+
+    const handleAuthSessionRevoked = ({
+      message,
+      redirectTo: redirectUrl
+    }: AuthSessionRevokedPayload = {}) => {
+      if (logoutHandledRef.current) return
+      logoutHandledRef.current = true
+
+      saveFlashMessage({
+        message: message || 'Your session ended. Please sign in again',
+        type: 'info'
+      })
+      dispatch(logout())
+      dispatch(apiClient.util.resetApiState())
+      navigateTo(redirectUrl || '/')
+    }
+
+    const handleLocalLogout = () => {
+      if (logoutHandledRef.current) return
+      logoutHandledRef.current = true
+
+      saveFlashMessage({
+        message: 'Logged out successfully',
+        type: 'info'
+      })
+      dispatch(logout())
+      dispatch(apiClient.util.resetApiState())
+      navigateTo('/')
+    }
+
+    const unsubscribeLocalLogout = subscribeToLocalLogout(handleLocalLogout)
+
+    if (!socket) {
+      return unsubscribeLocalLogout
+    }
+
     socket.on('transaction:created', refreshTransactionData)
     socket.on('transaction:updated', refreshTransactionData)
     socket.on('transaction:deleted', refreshTransactionData)
     socket.on('transaction:bulk-deleted', refreshTransactionData)
     socket.on('user:profile-updated', handleProfileUpdated)
     socket.on('report:settings-updated', handleReportSettingsUpdated)
+    socket.on('report:list-updated', handleReportListUpdated)
+    socket.on('auth:session-revoked', handleAuthSessionRevoked)
 
     socket.on(
       'bulk-import:progress',
@@ -165,10 +231,13 @@ export const useAppSockets = () => {
       socket.off('transaction:bulk-deleted', refreshTransactionData)
       socket.off('user:profile-updated', handleProfileUpdated)
       socket.off('report:settings-updated', handleReportSettingsUpdated)
+      socket.off('report:list-updated', handleReportListUpdated)
+      socket.off('auth:session-revoked', handleAuthSessionRevoked)
       socket.off('bulk-import:progress')
       socket.off('bulk-import:completed')
       socket.off('bulk-import:failed')
       socket.off('recurring-transaction:processed')
+      unsubscribeLocalLogout()
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
   }, [socket, dispatch])

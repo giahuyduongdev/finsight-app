@@ -1,0 +1,35 @@
+sequenceDiagram
+  autonumber
+  actor User
+  participant DeviceA as Device A
+  participant AuthAPI as Auth API
+  participant UserDB as MongoDB User
+  participant TokenDB as Refresh Token Store
+  participant Socket as Socket.IO
+  participant DeviceB as Device B
+
+  Note over DeviceA,DeviceB: Both devices hold access tokens with tokenVersion 0
+  User->>DeviceA: Trigger logout all
+  DeviceA->>AuthAPI: POST /auth/logout-all with access token A
+  AuthAPI->>UserDB: Atomic $inc tokenVersion
+  UserDB-->>AuthAPI: tokenVersion is now 1
+  AuthAPI->>TokenDB: Revoke all refresh tokens
+  TokenDB-->>AuthAPI: Revocation persisted
+  AuthAPI->>Socket: Emit auth:session-revoked
+  AuthAPI-->>DeviceA: Success
+  Socket-->>DeviceA: Clear auth and redirect
+  Socket-->>DeviceB: Clear auth and redirect
+
+  opt Device B missed socket event
+    DeviceB->>AuthAPI: Protected request with tokenVersion 0
+    AuthAPI->>UserDB: Read current tokenVersion
+    UserDB-->>AuthAPI: tokenVersion 1
+    AuthAPI-->>DeviceB: 401 Token revoked
+  end
+
+  User->>DeviceB: Login again
+  DeviceB->>AuthAPI: Valid credentials
+  AuthAPI->>UserDB: Read current tokenVersion
+  UserDB-->>AuthAPI: tokenVersion 1
+  AuthAPI-->>DeviceB: New access token with tokenVersion 1
+

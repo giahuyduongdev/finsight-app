@@ -35,6 +35,7 @@ import { getUserId } from '../utils/getUserId.util'
 import crypto from 'crypto'
 import { ResponseFormatter } from '../utils/responseFormatter.util'
 import { normalizeTimezone } from '../utils/timezone.util'
+import { emitAuthSessionRevoked } from '../utils/auth-socket.util'
 
 const messageOnlyResponse = (message: string) =>
   ResponseFormatter.success(null, { message })
@@ -114,8 +115,15 @@ export const resetPasswordController = asyncHandler(
     const body = req.body
 
     const result = await resetPasswordService(body)
+    const response = res
+      .status(HTTPSTATUS.OK)
+      .json(messageOnlyResponse(result.message))
 
-    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
+    if (result.userId) {
+      emitAuthSessionRevoked(result.userId, 'password-reset')
+    }
+
+    return response
   }
 )
 
@@ -204,9 +212,13 @@ export const logoutAllController = asyncHandler(
       domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
     })
 
-    return res
+    const response = res
       .status(HTTPSTATUS.OK)
       .json(messageOnlyResponse('Logged out from all devices successfully'))
+
+    emitAuthSessionRevoked(userId, 'logout-all')
+
+    return response
   }
 )
 
@@ -327,7 +339,11 @@ export const verifyChangePasswordOTPController = asyncHandler(
     const userId = getUserId(req)
     const body = req.body
     const result = await verifyChangePasswordOTPService(userId, body)
-    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
+    const response = res
+      .status(HTTPSTATUS.OK)
+      .json(messageOnlyResponse(result.message))
+    emitAuthSessionRevoked(userId, 'password-changed')
+    return response
   }
 )
 
@@ -353,7 +369,11 @@ export const verifyChangeEmailOTPController = asyncHandler(
     const userId = getUserId(req)
     const body = req.body
     const result = await verifyChangeEmailOTPService(userId, body)
-    return res.status(HTTPSTATUS.OK).json(messageOnlyResponse(result.message))
+    const response = res
+      .status(HTTPSTATUS.OK)
+      .json(messageOnlyResponse(result.message))
+    emitAuthSessionRevoked(userId, 'email-changed')
+    return response
   }
 )
 

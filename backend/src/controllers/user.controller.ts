@@ -8,6 +8,7 @@ import { ResponseFormatter } from '../utils/responseFormatter.util'
 import { NotFoundException } from '../utils/errors'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
+import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 
 // Get UserService instance from DI container
 const userService = container.getUserService()
@@ -61,6 +62,30 @@ const emitProfileUpdated = (
   }
 }
 
+const shouldInvalidateAnalyticsCache = (changedFields: ProfileUpdatedField[]) =>
+  changedFields.includes('timezone') ||
+  changedFields.includes('preferredCurrency')
+
+const invalidateAnalyticsCacheForProfileChange = async (
+  userId: string,
+  changedFields: ProfileUpdatedField[]
+) => {
+  if (!shouldInvalidateAnalyticsCache(changedFields)) return
+
+  try {
+    await invalidateUserAnalyticsCache(userId)
+  } catch (error) {
+    logger.warn(
+      '[APP:User] Failed to invalidate analytics cache after profile update',
+      {
+        userId,
+        changedFields,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    )
+  }
+}
+
 export const getCurrentUserController = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req)
@@ -84,9 +109,11 @@ export const updateUserController = asyncHandler(
     const body = req.body
     const userId = getUserId(req)
     const profilePic = req.file
+    const changedFields = getChangedProfileFields(body, profilePic)
 
     const user = await userService.update(userId, body, profilePic)
-    emitProfileUpdated(userId, getChangedProfileFields(body, profilePic))
+    await invalidateAnalyticsCacheForProfileChange(userId, changedFields)
+    emitProfileUpdated(userId, changedFields)
 
     return res.status(HTTPSTATUS.OK).json(
       ResponseFormatter.success(sanitizeUser(user), {

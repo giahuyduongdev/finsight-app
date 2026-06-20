@@ -1,0 +1,42 @@
+# Analytics Cache Hygiene - Tasks
+
+## Implementation tasks
+
+- [ ] Backend: import `invalidateUserAnalyticsCache` vao `user.controller.ts`.
+- [ ] Backend: reuse `changedFields` trong `updateUserController`.
+- [ ] Backend: them helper `shouldInvalidateAnalyticsCache`.
+- [ ] Backend: goi analytics invalidation khi `timezone` hoac `preferredCurrency` co trong changed fields.
+- [ ] Backend: dam bao mot request chi goi invalidation mot lan.
+- [ ] Backend: catch/log invalidation failure, khong lam fail response.
+- [ ] Backend: giu behavior emit `user:profile-updated` nhu hien tai.
+- [ ] Test: update `timezone` goi invalidation.
+- [ ] Test: update `preferredCurrency` goi invalidation.
+- [ ] Test: update ca hai field chi goi invalidation mot lan.
+- [ ] Test: update `name` khong goi invalidation.
+- [ ] Test: invalidation failure van tra response success.
+- [ ] Verification: chay backend user controller tests.
+- [ ] Verification: chay backend lint/build.
+- [ ] Manual verification: tao analytics cache, update timezone/currency, kiem tra Redis keys cu bi unlink.
+
+## Thu tu lam de xuat
+
+1. Cap nhat user controller helper.
+2. Them unit tests vao `user.controller.test.ts`.
+3. Chay tests/lint/build.
+4. Manual verify Redis neu can.
+
+## Khong lam trong feature nay
+
+- Khong them socket event moi.
+- Khong sua frontend socket hook.
+- Khong sua analytics service aggregation.
+- Khong sua TTL analytics cache.
+- Khong sua transaction cache invalidation.
+- Khong flush Redis global.
+
+## Quyet dinh mac dinh
+
+- Invalidate dua tren request body co field `timezone`/`preferredCurrency`, khong so sanh old/new value.
+- Cache invalidation la best-effort.
+- Goi invalidation trong controller de gan voi profile update workflow va changed fields.
+

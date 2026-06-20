@@ -29,6 +29,11 @@ import {
   useResendChangePasswordOTPMutation
 } from '@/features/auth/authAPI'
 import { useRef, useEffect } from 'react'
+import { useAppDispatch } from '@/app/hook'
+import { logout } from '@/features/auth/authSlice'
+import { apiClient } from '@/app/api-client'
+import { saveFlashMessage } from '@/lib/flash-message'
+import { redirectTo } from '@/lib/navigation'
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -141,6 +146,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ChangePasswordDialog() {
+  const dispatch = useAppDispatch()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<'form' | 'otp'>('form')
 
@@ -194,11 +200,15 @@ export function ChangePasswordDialog() {
   const onOtpSubmit = async (values: OtpValues) => {
     try {
       await verifyOTP(values).unwrap()
-      toast.success('Password changed successfully. Please login again')
+      saveFlashMessage({
+        message: 'Password changed successfully. Please sign in again',
+        type: 'success'
+      })
       setOpen(false)
-      // Tự động logout hoặc để user tự logout theo logic BE trả về
-      // Ở đây BE trả về "Please login again" và xóa hết refresh token nên user sẽ bị kick
-      window.location.reload()
+      dispatch(logout())
+      dispatch(apiClient.util.resetApiState())
+      localStorage.removeItem('persist:root')
+      redirectTo('/')
     } catch (error) {
       const err = error as { data?: { message?: string } }
       toast.error(err.data?.message || 'Invalid verification code')
@@ -312,16 +322,19 @@ export function ChangePasswordDialog() {
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="flex justify-between items-center">
-                Check your email
+              <DialogTitle className="flex items-center gap-3">
                 <Button
+                  type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded-full"
+                  className="size-9 rounded-full text-muted-foreground hover:text-foreground"
                   onClick={() => setStep('form')}
+                  aria-label="Back"
+                  title="Back"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="size-5" />
                 </Button>
+                <span>Check your email</span>
               </DialogTitle>
               <DialogDescription>
                 We've sent a 6-digit code to your email.

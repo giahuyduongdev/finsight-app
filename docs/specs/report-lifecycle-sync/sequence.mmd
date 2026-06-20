@@ -1,0 +1,32 @@
+sequenceDiagram
+  autonumber
+  participant A as Tab A
+  participant API as Backend API
+  participant W as Report Worker
+  participant DB as Database
+  participant S as Socket.IO
+  participant B as Tab B
+  participant Cache as RTK Query Cache
+
+  rect rgb(245, 245, 245)
+    A->>API: POST /reports/resend/:reportId
+    API->>DB: update report status SENT
+    DB-->>API: success
+    API->>S: emit report:list-updated source=api reason=resent
+    API-->>A: 200 success
+    S-->>B: report:list-updated
+    B->>Cache: invalidate report tag
+    Cache->>API: refetch GET /reports
+    API-->>Cache: latest reports
+  end
+
+  rect rgb(245, 245, 245)
+    W->>DB: create report history and update setting in transaction
+    DB-->>W: committed
+    W->>S: emit report:list-updated source=worker reason=generated
+    S-->>B: report:list-updated
+    B->>Cache: invalidate report tag
+    Cache->>API: refetch GET /reports
+    API-->>Cache: latest reports
+  end
+
