@@ -135,10 +135,18 @@ revokeAllUserSessions(userId, reason)
 
 Responsibilities:
 
-1. Atomically increment `tokenVersion`.
-2. Revoke/delete all refresh tokens.
-3. Invalidate/update token-version cache when enabled.
-4. Return the new version internally if needed.
+1. Start a MongoDB session and transaction.
+2. Revoke/delete all refresh tokens using the transaction session.
+3. Atomically increment `tokenVersion` using the same session.
+4. Commit only when both writes succeed.
+5. Roll back both writes when either write fails.
+6. Invalidate/update token-version cache when enabled.
+7. Return the new version internally if needed.
+
+The implementation uses `mongoose.startSession()` and
+`session.withTransaction()`. This requires a MongoDB replica set, MongoDB Atlas,
+or a compatible sharded cluster. Local Docker MongoDB must enable a replica set;
+a standalone MongoDB process is not a supported runtime for this feature.
 
 The service must not emit socket events itself if existing controller-level emit patterns are retained. Controllers continue emitting `auth:session-revoked` only after the security operation succeeds.
 
@@ -167,7 +175,8 @@ Refresh-token exchange must:
 1. Verify the refresh token.
 2. Confirm its persisted record is active.
 3. Load the user's current `tokenVersion`.
-4. Issue the new access token with that version.
+4. Confirm the persisted refresh token is still active after the version read.
+5. Issue the new access token with that version.
 
 If an all-session event already revoked the refresh-token record, refresh fails before issuing an access token.
 
@@ -203,7 +212,8 @@ MongoDB/infrastructure failure:
 
 Revocation partially fails:
 
-- do not report success until version increment and refresh-token revocation complete
+- roll back both writes if either version increment or refresh-token revocation fails
+- do not report success until the transaction commits
 - socket failure remains non-fatal after security state is committed
 
 ## Migration And Rollout
@@ -276,4 +286,3 @@ Supports selected-session revocation but requires storing and managing every acc
 ### Rotate JWT signing secret
 
 Invalidates every user's token, not one account. Rejected.
-

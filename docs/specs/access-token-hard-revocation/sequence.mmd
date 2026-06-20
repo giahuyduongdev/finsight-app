@@ -11,10 +11,13 @@ sequenceDiagram
   Note over DeviceA,DeviceB: Both devices hold access tokens with tokenVersion 0
   User->>DeviceA: Trigger logout all
   DeviceA->>AuthAPI: POST /auth/logout-all with access token A
-  AuthAPI->>UserDB: Atomic $inc tokenVersion
-  UserDB-->>AuthAPI: tokenVersion is now 1
+  AuthAPI->>UserDB: Start MongoDB transaction
   AuthAPI->>TokenDB: Revoke all refresh tokens
-  TokenDB-->>AuthAPI: Revocation persisted
+  TokenDB-->>AuthAPI: Revocation staged
+  AuthAPI->>UserDB: Atomic $inc tokenVersion
+  UserDB-->>AuthAPI: tokenVersion 1 staged
+  AuthAPI->>UserDB: Commit transaction
+  UserDB-->>AuthAPI: Revocation persisted atomically
   AuthAPI->>Socket: Emit auth:session-revoked
   AuthAPI-->>DeviceA: Success
   Socket-->>DeviceA: Clear auth and redirect

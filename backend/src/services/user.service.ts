@@ -5,9 +5,9 @@ import {
 } from '../validators/user.validator'
 import { compareValue, hashValue } from '../utils/bcrypt.util'
 import { IUserRepository } from '../repositories/interfaces/user-repository.interface'
-import { IRefreshTokenRepository } from '../repositories/interfaces/refresh-token-repository.interface'
 import { UserDocument } from '../models/user.model'
 import { UserWithoutPassword } from '../types/user.type'
+import { revokeAllUserSessions } from './session-revocation.service'
 
 // ─── UserService Class (New - DI-based) ──────────────────────────────────────
 
@@ -16,10 +16,7 @@ import { UserWithoutPassword } from '../types/user.type'
  * Handles user-related business logic with dependency injection
  */
 export class UserService {
-  constructor(
-    private readonly userRepository: IUserRepository,
-    private readonly refreshTokenRepository: IRefreshTokenRepository
-  ) {}
+  constructor(private readonly userRepository: IUserRepository) {}
 
   /**
    * Find user by ID
@@ -106,8 +103,7 @@ export class UserService {
     // Update password
     await this.userRepository.updatePassword(userId, hashedPassword)
 
-    // Logout all devices by deleting all refresh tokens
-    await this.refreshTokenRepository.deleteByUserId(userId)
+    await revokeAllUserSessions(userId)
 
     return {
       message: 'Password changed successfully. Please login again.'

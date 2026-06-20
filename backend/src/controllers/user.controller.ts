@@ -9,6 +9,7 @@ import { NotFoundException } from '../utils/errors'
 import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
+import { emitAuthSessionRevoked } from '../utils/auth-socket.util'
 
 // Get UserService instance from DI container
 const userService = container.getUserService()
@@ -128,6 +129,7 @@ export const changeUserPasswordController = asyncHandler(
     const body = req.body
     const userId = getUserId(req)
     const result = await userService.changePassword(userId, body)
+    emitAuthSessionRevoked(userId, 'password-changed')
     return res
       .status(HTTPSTATUS.OK)
       .json(ResponseFormatter.success(null, { message: result.message }))

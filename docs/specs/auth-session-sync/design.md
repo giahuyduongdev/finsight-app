@@ -231,9 +231,10 @@ Scenarios:
 - Reset password from forgot-password flow while a logged-in tab is open; logged-in tab goes to login if backend emits the event.
 - Repeat with socket disconnected; next API call should still log out through 401/refresh failure.
 
-## Future Extension
+## Hard Revocation Extension
 
-If strict immediate server-side access-token invalidation is required, add a separate feature:
+Strict immediate server-side access-token invalidation is implemented in
+`docs/specs/access-token-hard-revocation/`:
 
 - store `tokenVersion` or `sessionVersion` on user
 - include version in access JWT

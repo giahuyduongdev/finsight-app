@@ -105,6 +105,20 @@ export class InternalServerException extends AppError {
 }
 
 /**
+ * 503 Service Unavailable
+ * Use when a required infrastructure dependency is temporarily unavailable
+ */
+export class ServiceUnavailableException extends AppError {
+  constructor(message = 'Service Unavailable', errorCode?: ErrorCodeEnumType) {
+    super(
+      message,
+      HTTPSTATUS.SERVICE_UNAVAILABLE,
+      errorCode || ErrorCodeEnum.INTERNAL_SERVER_ERROR
+    )
+  }
+}
+
+/**
  * 408 Request Timeout
  * Use when request takes too long to process
  */

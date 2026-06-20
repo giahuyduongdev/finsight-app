@@ -226,4 +226,5 @@ That means there are two possible security levels:
    - Increment it on logout-all/password/email/password-reset revocation.
    - Bigger auth refactor, higher security, more tests.
 
-Recommendation: implement option 1 first as `auth-session-sync`, then create a separate `auth-token-version-revocation` feature if strict immediate server-side access-token invalidation is required.
+Option 1 was implemented first as `auth-session-sync`. Option 2 is now
+implemented in `docs/specs/access-token-hard-revocation/`.

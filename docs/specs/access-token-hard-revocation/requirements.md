@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for review.
+Approved and implemented.
 
 ## Goal
 
@@ -92,6 +92,10 @@ The backend must atomically increment `tokenVersion` when any of these operation
 
 The increment must happen as part of the security outcome, before the API reports success.
 
+The token-version increment and refresh-token revocation must run in one
+MongoDB transaction. The deployment must therefore support transactions through
+a replica set, MongoDB Atlas, or a compatible sharded cluster.
+
 ### R5. Keep normal logout session-scoped
 
 Normal logout must not increment `tokenVersion`.
@@ -168,6 +172,7 @@ Token versioning handles account-wide revocation.
 - Login or refresh racing with token-version increment.
 - Redis unavailable during request validation.
 - Redis unavailable or stale during revocation.
+- MongoDB deployment does not support multi-document transactions.
 - User deleted after JWT issuance.
 - OAuth users and password users sharing the same validation path.
 - Access token expires normally before version validation matters.
@@ -192,6 +197,13 @@ Token versioning handles account-wide revocation.
 
 ## Decisions Required Before Implementation
 
+Approved decisions:
+
+- Reject legacy access tokens that do not contain `tokenVersion`.
+- Read the authoritative version from MongoDB on every authenticated request.
+- Return `503 Service Unavailable` when MongoDB cannot verify authentication state.
+- Keep `tokenVersion` internal.
+
 1. **Legacy access tokens**
    - Recommended: treat a missing `tokenVersion` claim as invalid and require login after deployment.
    - Alternative: temporarily interpret a missing claim as version `0`, which avoids mass logout but leaves old tokens valid until expiry.
@@ -207,4 +219,3 @@ Token versioning handles account-wide revocation.
 
 4. **Version field exposure**
    - Recommended: keep `tokenVersion` internal and omit it from API DTOs, Redux state, socket payloads, and logs.
-

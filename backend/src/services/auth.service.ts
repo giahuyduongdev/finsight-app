@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import UserModel from '../models/user.model'
+import UserModel, { UserDocument } from '../models/user.model'
 import {
   BadRequestException,
   ConflictException,
@@ -35,6 +35,7 @@ import {
   signRefreshToken,
   verifyRefreshToken
 } from '../utils/jwt.util'
+import { revokeAllUserSessions } from './session-revocation.service'
 import RefreshTokenModel from '../models/refresh-token.model'
 import ms from 'ms'
 import { Env } from '../config/env.config'
@@ -519,7 +520,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
   // 6. Dọn dẹp chiến trường
   await Promise.all([
     redis.del(REDIS_KEYS.resetToken(email)),
-    RefreshTokenModel.deleteMany({ userId: user._id })
+    revokeAllUserSessions(user.id)
   ])
 
   return {
@@ -533,7 +534,7 @@ export const loginService = async (
   userAgent: string
 ): Promise<LoginResponse> => {
   const { email, password, timezone } = body
-  const user = await UserModel.findOne({ email })
+  const user = await UserModel.findOne({ email }).select('+tokenVersion')
   if (!user) throw new NotFoundException('Email/password not found')
 
   const isValidPassword = await user.comparePassword(password)
@@ -544,7 +545,10 @@ export const loginService = async (
   user.timezone = timezone || user.timezone || 'UTC'
   await user.save()
 
-  const { token: accessToken, expiresAt } = signAccessToken({ userId: user.id })
+  const { token: accessToken, expiresAt } = signAccessToken({
+    userId: user.id,
+    tokenVersion: user.tokenVersion ?? 0
+  })
 
   const { token: refreshToken } = signRefreshToken({ userId: user.id })
 
@@ -618,11 +622,24 @@ export const refreshTokenService = async (token: string) => {
   }
 
   // 3. Kiểm tra user còn tồn tại không
-  const user = await UserModel.findById(decoded.userId)
+  const user = await UserModel.findById(decoded.userId).select('+tokenVersion')
   if (!user) throw new NotFoundException('User not found')
 
+  // Re-check after loading the version to close the refresh-vs-revocation race.
+  const refreshTokenStillActive = await RefreshTokenModel.exists({
+    _id: refreshToken._id,
+    isRevoked: false,
+    expiresAt: { $gt: new Date() }
+  })
+  if (!refreshTokenStillActive) {
+    throw new UnauthorizedException('Refresh token is invalid or expired')
+  }
+
   // 4. Tạo access token mới
-  const { token: accessToken, expiresAt } = signAccessToken({ userId: user.id })
+  const { token: accessToken, expiresAt } = signAccessToken({
+    userId: user.id,
+    tokenVersion: user.tokenVersion ?? 0
+  })
 
   return {
     accessToken,
@@ -659,10 +676,7 @@ export const logoutService = async (
 
 export const logoutAllService = async (userId: string, accessToken: string) => {
   // 1. Revoke tất cả refresh token của user
-  await RefreshTokenModel.updateMany(
-    { userId, isRevoked: false },
-    { isRevoked: true }
-  )
+  await revokeAllUserSessions(userId)
 
   // 2. Blacklist access token hiện tại
   const decoded = jwt.decode(accessToken) as JwtPayload | null
@@ -771,10 +785,14 @@ export const oauthCallbackService = async (
     const profile = (await profileResponse.json()) as Auth0Profile
 
     // 3. Tìm/Tạo/Liên kết user
-    let user = await UserModel.findOne({ auth0Ids: profile.sub })
+    let user: UserDocument | null = await UserModel.findOne({
+      auth0Ids: profile.sub
+    }).select('+tokenVersion')
 
     if (!user) {
-      user = await UserModel.findOne({ email: profile.email })
+      user = await UserModel.findOne({ email: profile.email }).select(
+        '+tokenVersion'
+      )
 
       if (user) {
         let needsSave = false
@@ -809,7 +827,8 @@ export const oauthCallbackService = async (
 
     // 4. Tạo JWT
     const { token: accessToken, expiresAt } = signAccessToken({
-      userId: user.id
+      userId: user.id,
+      tokenVersion: user.tokenVersion ?? 0
     })
     const refreshToken = await createRefreshToken(user.id)
 
@@ -982,7 +1001,7 @@ export const verifyChangePasswordOTPService = async (
     redis.del(REDIS_KEYS.changePasswordPending(email)),
     redis.del(REDIS_KEYS.changePasswordResend(email)),
     redis.del(attemptsKey),
-    RefreshTokenModel.deleteMany({ userId: user._id }) // Đăng xuất tất cả các phiên
+    revokeAllUserSessions(user.id)
   ])
 
   return {
@@ -1222,7 +1241,7 @@ export const verifyChangeEmailOTPService = async (
   await user.save()
 
   // 6.1. Thu hồi toàn bộ session cũ (vì email là định danh đăng nhập đã thay đổi)
-  await RefreshTokenModel.deleteMany({ userId: user._id })
+  await revokeAllUserSessions(user.id)
 
   // 7. Dọn dẹp Redis OTP
   await Promise.all([

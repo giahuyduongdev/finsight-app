@@ -3,6 +3,7 @@ import { Server as HTTPServer } from 'http'
 import { verifyAccessToken } from '../utils/jwt.util'
 import { Env } from './env.config'
 import { logger } from './logger.config'
+import { authenticateAccessToken } from '../services/access-token-auth.service'
 
 let io: Server
 
@@ -15,7 +16,7 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
   })
 
   // ─── Middleware xác thực JWT ──────────────────────────────────────────────
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token
 
@@ -25,9 +26,9 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
       }
 
       const decoded = verifyAccessToken(token)
-
-      if (!decoded.userId) {
-        return next(new Error('UNAUTHORIZED: Invalid token payload'))
+      const user = await authenticateAccessToken(decoded)
+      if (!user) {
+        return next(new Error('UNAUTHORIZED: Invalid or revoked token'))
       }
 
       socket.data.userId = decoded.userId

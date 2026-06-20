@@ -12,6 +12,7 @@ export interface UserDocument extends Document {
   timezone: string
   preferredCurrency: string
   role: string
+  tokenVersion: number
   auth0Ids?: string[]
   createdAt: Date
   updatedAt: Date
@@ -56,6 +57,12 @@ const userSchema = new Schema<UserDocument>(
       enum: Object.values(RoleUserEnum),
       default: RoleUserEnum.USER
     },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+      select: false
+    },
     auth0Ids: {
       type: [String],
       default: undefined, // Mặc định là mảng rỗng cho user mới
@@ -82,6 +89,7 @@ userSchema.pre('save', async function (next) {
 userSchema.methods.omitPassword = function (): UserWithoutPassword {
   const userObject = this.toObject()
   delete userObject.password
+  delete userObject.tokenVersion
   return userObject
 }
 
