@@ -3,6 +3,7 @@ import { HTTPSTATUS } from '../../config/http.config'
 
 const mockUpdate = jest.fn()
 const mockFindById = jest.fn()
+const mockChangePassword = jest.fn()
 const mockEmit = jest.fn()
 const mockTo = jest.fn(() => ({ emit: mockEmit }))
 const mockGetIO = jest.fn(() => ({ to: mockTo }))
@@ -13,7 +14,8 @@ jest.mock('../../container', () => ({
   container: {
     getUserService: () => ({
       findById: (...args: unknown[]) => mockFindById(...args),
-      update: (...args: unknown[]) => mockUpdate(...args)
+      update: (...args: unknown[]) => mockUpdate(...args),
+      changePassword: (...args: unknown[]) => mockChangePassword(...args)
     })
   }
 }))
@@ -40,7 +42,10 @@ jest.mock('../../utils/cache.util', () => ({
     mockInvalidateUserAnalyticsCache(...args)
 }))
 
-import { updateUserController } from '../../controllers/user.controller'
+import {
+  changeUserPasswordController,
+  updateUserController
+} from '../../controllers/user.controller'
 
 const createUser = (overrides: Record<string, unknown> = {}) => ({
   _id: { toString: () => 'user-123' },
@@ -249,6 +254,40 @@ describe('user.controller', () => {
           error: 'Socket unavailable'
         })
       )
+      expect(nextMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('changeUserPasswordController', () => {
+    it('emits session revoked after a successful password change', async () => {
+      mockChangePassword.mockResolvedValue({
+        message: 'Password changed successfully. Please login again.'
+      })
+      const mockRequest = {
+        body: {
+          currentPassword: 'old-password',
+          newPassword: 'new-password'
+        }
+      } as Request
+
+      await changeUserPasswordController(
+        mockRequest,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(mockChangePassword).toHaveBeenCalledWith(
+        'user-123',
+        mockRequest.body
+      )
+      expect(mockEmit).toHaveBeenCalledWith(
+        'auth:session-revoked',
+        expect.objectContaining({
+          userId: 'user-123',
+          reason: 'password-changed'
+        })
+      )
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
       expect(nextMock).not.toHaveBeenCalled()
     })
   })

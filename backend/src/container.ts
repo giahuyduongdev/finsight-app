@@ -51,10 +51,7 @@ class Container {
     this._importBatchRepository = new ImportBatchRepository()
 
     // Initialize services with repository dependencies
-    this._userService = new UserService(
-      this._userRepository,
-      this._refreshTokenRepository
-    )
+    this._userService = new UserService(this._userRepository)
     this._transactionService = new TransactionService(
       this._transactionRepository,
       this._importBatchRepository

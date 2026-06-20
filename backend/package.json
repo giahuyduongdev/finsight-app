@@ -13,6 +13,7 @@
     "build": "npm run clean && tsc --project tsconfig.build.json",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "normalize:timezones": "ts-node-dev --files src/scripts/normalize-timezones.ts",
+    "backfill:token-version": "ts-node-dev --files src/scripts/backfill-token-version.ts",
     "docs:api:validate": "redocly lint docs/openapi.yaml",
     "test": "jest",
     "test:watch": "jest --watch",

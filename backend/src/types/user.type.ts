@@ -50,5 +50,5 @@ import { UserDocument } from '../models/user.model'
  */
 export type UserWithoutPassword = Omit<
   UserDocument,
-  'password' | 'comparePassword'
+  'password' | 'tokenVersion' | 'comparePassword'
 >

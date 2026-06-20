@@ -5,42 +5,28 @@ import {
 } from 'passport-jwt'
 import passport from 'passport'
 import { Env } from '../config/env.config'
-import { container } from '../container'
-import { redis } from '../config/redis.config'
+import { authenticateAccessToken } from '../services/access-token-auth.service'
 
 interface JwtPayload {
-  userId: string
+  userId?: string
+  tokenVersion?: number
 }
 
 const options: StrategyOptions = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
   secretOrKey: Env.JWT_SECRET,
   audience: ['user'],
-  algorithms: ['HS256']
+  algorithms: ['HS256'],
+  issuer: Env.JWT_ISSUER
 }
 
 passport.use(
   new JwtStrategy(options, async (payload: JwtPayload, done) => {
     try {
-      if (!payload.userId) {
-        return done(null, false, { message: 'Invalid token payload' })
-      }
-
-      // Check Redis cache trước
-      const cached = await redis.get(`user:${payload.userId}`)
-      if (cached) {
-        return done(null, JSON.parse(cached))
-      }
-
-      // Get UserService from DI container
-      const userService = container.getUserService()
-      const user = await userService.findById(payload.userId)
+      const user = await authenticateAccessToken(payload)
       if (!user) {
-        return done(null, false)
+        return done(null, false, { message: 'Invalid or revoked token' })
       }
-
-      // Lưu Redis TTL = 15 phút (bằng accessToken)
-      await redis.set(`user:${payload.userId}`, JSON.stringify(user), 'EX', 900)
 
       return done(null, user)
     } catch (error) {

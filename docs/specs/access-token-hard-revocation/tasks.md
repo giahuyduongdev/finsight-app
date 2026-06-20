@@ -2,9 +2,9 @@
 
 ## Decision Gate
 
-- [ ] Decide legacy access-token behavior: reject missing version or temporary version `0` compatibility.
-- [ ] Decide v1 lookup: MongoDB on every request or Redis cache with documented fail-closed coherence.
-- [ ] Decide infrastructure failure response: recommended `503`, never fail open.
+- [x] Decide legacy access-token behavior: reject missing version.
+- [x] Decide v1 lookup: MongoDB on every request.
+- [x] Decide infrastructure failure response: `503`, never fail open.
 - [x] Keep `tokenVersion` internal and out of public DTOs.
 - [x] Keep normal logout session-scoped.
 - [x] Keep refresh-token revocation, blacklist, and socket sync.
@@ -13,79 +13,83 @@ Implementation must not start until the first three decisions are approved.
 
 ## Backend Model
 
-- [ ] Add `tokenVersion` to `UserDocument`.
-- [ ] Add schema field with default `0` and minimum `0`.
-- [ ] Prevent normal public user serialization from exposing the field.
-- [ ] Add a migration/backfill strategy for existing users.
+- [x] Add `tokenVersion` to `UserDocument`.
+- [x] Add schema field with default `0` and minimum `0`.
+- [x] Prevent normal public user serialization from exposing the field.
+- [x] Add a migration/backfill strategy for existing users.
 
 ## JWT Issuance
 
-- [ ] Extend `AccessTokenPayload` with `tokenVersion`.
-- [ ] Update password-login access-token issuance.
-- [ ] Update OAuth access-token issuance.
-- [ ] Update refresh-token access-token issuance.
-- [ ] Search for and update every other `signAccessToken` call.
+- [x] Extend `AccessTokenPayload` with `tokenVersion`.
+- [x] Update password-login access-token issuance.
+- [x] Update OAuth access-token issuance.
+- [x] Update refresh-token access-token issuance.
+- [x] Search for and update every other `signAccessToken` call.
 - [ ] Add tests proving all issuance paths include the claim.
 
 ## Authentication Validation
 
-- [ ] Add an auth-specific user/version lookup.
-- [ ] Compare JWT version with current user version in Passport.
-- [ ] Reject confirmed mismatch before route controllers.
-- [ ] Implement approved legacy-claim behavior.
-- [ ] Implement Redis fallback behavior if Redis caching is selected.
-- [ ] Ensure infrastructure failure fails closed.
-- [ ] Add safe structured logs without raw tokens or version values.
+- [x] Add an auth-specific user/version lookup.
+- [x] Compare JWT version with current user version in Passport and Socket.IO.
+- [x] Reject confirmed mismatch before route controllers.
+- [x] Implement approved legacy-claim behavior.
+- [x] Keep Redis out of the v1 authorization decision.
+- [x] Ensure infrastructure failure fails closed.
+- [x] Avoid logging raw tokens or version values.
 
 ## Account-Wide Revocation
 
-- [ ] Create a reusable account-wide revocation operation.
-- [ ] Atomically increment the user's version.
-- [ ] Revoke/delete all refresh tokens.
-- [ ] Invalidate/update auth-version cache if enabled.
-- [ ] Apply to logout-all.
-- [ ] Apply to password change verification.
-- [ ] Apply to password reset.
-- [ ] Apply to email change verification.
-- [ ] Emit existing socket event only after revocation succeeds.
+- [x] Create a reusable account-wide revocation operation.
+- [x] Atomically increment the user's version.
+- [x] Revoke/delete all refresh tokens.
+- [x] Run refresh-token deletion and version increment in one MongoDB transaction.
+- [x] Require a transaction-capable MongoDB replica set, Atlas cluster, or compatible sharded cluster.
+- [x] Keep auth-version caching disabled in v1.
+- [x] Apply to logout-all.
+- [x] Apply to password change verification and direct password change.
+- [x] Apply to password reset.
+- [x] Apply to email change verification.
+- [x] Emit existing socket event only after revocation succeeds.
 
 ## Normal Logout
 
-- [ ] Verify normal logout does not increment `tokenVersion`.
-- [ ] Preserve current refresh-token revoke.
-- [ ] Preserve current access-token blacklist TTL.
-- [ ] Preserve same-browser local logout sync.
+- [x] Verify normal logout does not call account-wide revocation.
+- [x] Preserve current refresh-token revoke.
+- [x] Preserve current access-token blacklist TTL.
+- [x] Preserve same-browser local logout sync.
 
 ## Automated Tests
 
-- [ ] Unit: JWT signing includes version.
-- [ ] Unit: matching version authenticates.
-- [ ] Unit: mismatched version returns unauthorized.
-- [ ] Unit: missing version follows approved migration policy.
-- [ ] Unit: deleted user is rejected.
+- [x] Unit: JWT signing includes version.
+- [x] Unit: matching version authenticates.
+- [x] Unit: mismatched version returns unauthorized.
+- [x] Unit: missing version follows approved migration policy.
+- [x] Unit: deleted user is rejected.
 - [ ] Unit: Redis failure falls back to MongoDB if cache is enabled.
-- [ ] Unit: both Redis and MongoDB failure do not fail open.
+- [x] Unit: MongoDB failure does not fail open.
 - [ ] Unit: normal logout does not increment.
-- [ ] Unit: logout-all increments.
+- [x] Unit: account-wide revocation uses atomic increment.
+- [x] Unit: both revocation writes receive the same MongoDB session.
+- [x] Integration: version-increment failure rolls back refresh-token deletion.
 - [ ] Unit: password change increments.
 - [ ] Unit: password reset increments.
 - [ ] Unit: email change increments.
-- [ ] Unit: concurrent increments are not lost.
-- [ ] Integration: two old tokens are rejected after logout-all.
-- [ ] Integration: newly issued token after revocation succeeds.
+- [x] Unit: concurrent increments use `$inc` and are not overwritten.
+- [x] Integration: two old tokens are rejected after account-wide revocation.
+- [x] Integration: newly issued token after revocation succeeds.
 - [ ] Integration: normal logout does not revoke another device.
 
 ## Verification
 
-- [ ] Run targeted auth unit tests.
-- [ ] Run auth integration tests.
-- [ ] Run backend lint.
-- [ ] Run backend type-check.
-- [ ] Run backend build.
+- [x] Run targeted auth unit tests.
+- [x] Run auth integration tests.
+- [x] Run backend lint.
+- [x] Run backend type-check.
+- [x] Run backend build.
 - [ ] Measure protected-route latency.
-- [ ] Complete security review.
-- [ ] Verify OpenAPI behavior remains compatible.
-- [ ] Update auth-session-sync docs to reference the completed hard-revocation feature.
+- [x] Complete security review.
+- [x] Verify OpenAPI behavior remains compatible.
+- [x] Update auth-session-sync docs to reference the completed hard-revocation feature.
 
 ## Manual Verification
 
@@ -97,4 +101,3 @@ Implementation must not start until the first three decisions are approved.
 - [ ] Repeat with Browser B disconnected from Socket.IO.
 - [ ] Confirm backend still rejects Browser B's old token.
 - [ ] Confirm normal logout on Browser A does not revoke Browser B.
-

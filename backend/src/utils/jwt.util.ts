@@ -4,6 +4,11 @@ import { Env } from '../config/env.config'
 
 export type AccessTokenPayload = {
   userId: string
+  tokenVersion: number
+}
+
+export type RefreshTokenPayload = {
+  userId: string
 }
 
 type TimeUnit = 's' | 'm' | 'h' | 'd' | 'w' | 'y'
@@ -56,7 +61,7 @@ export const signAccessToken = (payload: AccessTokenPayload) => {
 /**
  * Sign a refresh token. Does not expose expiresAt (managed via DB).
  */
-export const signRefreshToken = (payload: AccessTokenPayload) => {
+export const signRefreshToken = (payload: RefreshTokenPayload) => {
   const { secret, expiresIn, ...opts } = refreshTokenSignOptions
 
   const token = jwt.sign(payload, secret, {
@@ -88,8 +93,8 @@ export const verifyAccessToken = (
  */
 export const verifyRefreshToken = (
   token: string
-): JwtPayload & AccessTokenPayload => {
+): JwtPayload & RefreshTokenPayload => {
   return jwt.verify(token, Env.JWT_REFRESH_SECRET, {
     issuer: Env.JWT_ISSUER
-  }) as unknown as JwtPayload & AccessTokenPayload
+  }) as unknown as JwtPayload & RefreshTokenPayload
 }

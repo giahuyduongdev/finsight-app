@@ -6,11 +6,15 @@
 
 import { UserService } from '../../services/user.service'
 import { MockUserRepository } from '../mocks/user-repository.mock'
-import { MockRefreshTokenRepository } from '../mocks/refresh-token-repository.mock'
 import {
   NotFoundException,
   UnauthorizedException
 } from '../../utils/errors/index'
+import { revokeAllUserSessions } from '../../services/session-revocation.service'
+
+jest.mock('../../services/session-revocation.service', () => ({
+  revokeAllUserSessions: jest.fn().mockResolvedValue(1)
+}))
 
 // Mock bcrypt utilities
 jest.mock('../../utils/bcrypt.util', () => ({
@@ -26,24 +30,19 @@ jest.mock('../../utils/bcrypt.util', () => ({
 describe('UserService', () => {
   let userService: UserService
   let mockUserRepository: MockUserRepository
-  let mockRefreshTokenRepository: MockRefreshTokenRepository
 
   beforeEach(() => {
     // Initialize mocks
     mockUserRepository = new MockUserRepository()
-    mockRefreshTokenRepository = new MockRefreshTokenRepository()
 
     // Initialize service with mocks
-    userService = new UserService(
-      mockUserRepository,
-      mockRefreshTokenRepository
-    )
+    userService = new UserService(mockUserRepository)
   })
 
   afterEach(() => {
     // Clean up
     mockUserRepository.clear()
-    mockRefreshTokenRepository.clear()
+    jest.clearAllMocks()
   })
 
   // ─── findById Tests ───────────────────────────────────────────────────────
@@ -211,18 +210,6 @@ describe('UserService', () => {
         preferredCurrency: 'USD'
       })
 
-      // Create some refresh tokens
-      await mockRefreshTokenRepository.create({
-        userId: mockUser._id,
-        token: 'token1',
-        expiresAt: new Date(Date.now() + 86400000)
-      })
-      await mockRefreshTokenRepository.create({
-        userId: mockUser._id,
-        token: 'token2',
-        expiresAt: new Date(Date.now() + 86400000)
-      })
-
       const passwordData = {
         currentPassword: 'oldpassword',
         newPassword: 'newpassword123',
@@ -247,11 +234,9 @@ describe('UserService', () => {
       )
       expect(updatedUser?.password).toBe('hashed-newpassword123')
 
-      // Verify all refresh tokens were deleted
-      const remainingTokens = mockRefreshTokenRepository.countByUserId(
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(
         mockUser._id as unknown as string
       )
-      expect(remainingTokens).toBe(0)
     })
 
     it('should throw UnauthorizedException when current password is incorrect', async () => {
