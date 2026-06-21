@@ -1,0 +1,57 @@
+sequenceDiagram
+  autonumber
+  actor User
+  participant API as Auth API
+  participant Validator as Zod Validator
+  participant Redis
+  participant Crypto as AES-GCM Utility
+  participant Mongo as MongoDB
+
+  User->>API: POST /auth/register
+  API->>Validator: Validate registration input
+  Validator-->>API: Canonical email + validated password
+  API->>Mongo: Find user by canonical email
+  Mongo-->>API: Not found
+  API->>Crypto: Encrypt password
+  Crypto-->>API: Authenticated ciphertext
+  API->>Redis: Store pending user with encryptedPassword
+  API->>Redis: Store hashed OTP and retry state
+  API-->>User: OTP sent
+
+  User->>API: POST /auth/register/verify-otp
+  API->>Validator: Canonicalize email and validate OTP
+  API->>Redis: Read and validate OTP
+  Redis-->>API: OTP valid
+  API->>Redis: Read pending registration
+  Redis-->>API: name, canonical email, encryptedPassword
+  API->>Crypto: Decrypt encryptedPassword
+  Crypto-->>API: Plaintext password in process memory
+  API->>Mongo: Transactionally create user and report settings
+
+  alt Email remains available
+    Mongo-->>API: Transaction committed
+    API->>Redis: Delete registration state
+    API-->>User: Account verified
+  else Concurrent request already created email
+    Mongo-->>API: Duplicate key code 11000
+    API->>Redis: Delete stale registration state
+    API-->>User: 409 Email already exists
+  end
+
+  User->>API: POST /auth/login
+  API->>Validator: Canonicalize email; preserve password bytes
+  API->>Mongo: Find user by canonical email
+
+  alt User exists
+    Mongo-->>API: User and password hash
+    API->>API: bcrypt compare submitted password
+  else User does not exist
+    Mongo-->>API: Not found
+    API->>API: bcrypt compare against dummy hash
+  end
+
+  alt Missing user or comparison failed
+    API-->>User: 401 Invalid email or password
+  else Valid credentials
+    API-->>User: Existing successful login response
+  end

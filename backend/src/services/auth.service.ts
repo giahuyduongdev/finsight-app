@@ -57,6 +57,10 @@ import {
 } from '../mailers/auth.mailer'
 import crypto from 'crypto'
 import { encrypt, decrypt } from '../utils/encryption.util'
+import { compareValue } from '../utils/bcrypt.util'
+
+const DUMMY_PASSWORD_HASH =
+  '$2b$10$F3DNdQ/Me66xU/A0fX9oke/NFB7oOoZxnWQwvpZA5Zp5lYzPnK6/2'
 
 export const registerService = async (
   body: RegisterSchemaType
@@ -127,7 +131,8 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
   // 3. Generate OTP
   const otp = generateSecureOTP()
   const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
-  const pendingUser = { name, email, password }
+  const encryptedPassword = await encrypt(password)
+  const pendingUser = { name, email, encryptedPassword }
 
   // 4. Lưu Redis pipeline — 1 round-trip
   const results = await redis
@@ -153,6 +158,39 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
 }
 
 type RegisterResult = RegisterResponse
+
+const clearRegisterState = async (email: string) =>
+  redis
+    .pipeline()
+    .del(REDIS_KEYS.registerOtp(email))
+    .del(REDIS_KEYS.registerPending(email))
+    .del(REDIS_KEYS.registerResend(email))
+    .del(REDIS_KEYS.registerAttempts(email))
+    .exec()
+
+const isDuplicateEmailError = (
+  error: unknown
+): error is {
+  code: number
+  keyPattern?: { email?: unknown }
+  keyValue?: { email?: unknown }
+} => {
+  if (typeof error !== 'object' || error === null || !('code' in error)) {
+    return false
+  }
+
+  const mongoError = error as {
+    code?: unknown
+    keyPattern?: { email?: unknown }
+    keyValue?: { email?: unknown }
+  }
+
+  return (
+    mongoError.code === 11000 &&
+    (mongoError.keyPattern?.email !== undefined ||
+      mongoError.keyValue?.email !== undefined)
+  )
+}
 
 export const verifyRegisterOTPService = async (
   body: VerifyOTPSchemaType
@@ -209,7 +247,31 @@ export const verifyRegisterOTPService = async (
     )
   }
 
-  const { name, password } = JSON.parse(pendingData)
+  let name: string
+  let password: string
+
+  try {
+    const parsedPending: unknown = JSON.parse(pendingData)
+    if (
+      typeof parsedPending !== 'object' ||
+      parsedPending === null ||
+      !('name' in parsedPending) ||
+      !('encryptedPassword' in parsedPending) ||
+      typeof parsedPending.name !== 'string' ||
+      typeof parsedPending.encryptedPassword !== 'string'
+    ) {
+      throw new Error('Invalid pending registration data')
+    }
+
+    name = parsedPending.name
+    password = await decrypt(parsedPending.encryptedPassword)
+  } catch {
+    await clearRegisterState(email)
+    throw new BadRequestException(
+      'Registration session expired. Please register again.',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
 
   const session = await mongoose.startSession()
   let result: RegisterResult | null = null // ← type rõ ràng
@@ -232,18 +294,22 @@ export const verifyRegisterOTPService = async (
 
     if (!result) throw new InternalServerException('Failed to create user')
 
-    await redis
-      .pipeline()
-      .del(REDIS_KEYS.registerOtp(email))
-      .del(REDIS_KEYS.registerPending(email))
-      .del(REDIS_KEYS.registerResend(email))
-      .del(REDIS_KEYS.registerAttempts(email))
-      .exec()
+    await clearRegisterState(email)
 
     return {
       message: 'Account verified successfully',
       ...(result as RegisterResult) // ← cast trước khi spread
     }
+  } catch (error) {
+    if (isDuplicateEmailError(error)) {
+      await clearRegisterState(email)
+      throw new ConflictException(
+        'Email already exists',
+        ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
+      )
+    }
+
+    throw error
   } finally {
     await session.endSession()
   }
@@ -535,11 +601,14 @@ export const loginService = async (
 ): Promise<LoginResponse> => {
   const { email, password, timezone } = body
   const user = await UserModel.findOne({ email }).select('+tokenVersion')
-  if (!user) throw new NotFoundException('Email/password not found')
+  if (!user) {
+    await compareValue(password, DUMMY_PASSWORD_HASH)
+    throw new UnauthorizedException('Invalid email or password')
+  }
 
   const isValidPassword = await user.comparePassword(password)
   if (!isValidPassword) {
-    throw new UnauthorizedException('Invalid email/password')
+    throw new UnauthorizedException('Invalid email or password')
   }
 
   user.timezone = timezone || user.timezone || 'UTC'
