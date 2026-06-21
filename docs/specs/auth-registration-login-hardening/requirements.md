@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved for implementation.
+Implemented and verified.
 
 ## Goal
 

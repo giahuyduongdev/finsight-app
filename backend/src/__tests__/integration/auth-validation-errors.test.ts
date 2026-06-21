@@ -73,7 +73,7 @@ describe('Auth Routes - Validation Error Handling', () => {
     it('should return 400 with field-level errors for multiple validation failures', async () => {
       const response = await request(app).post('/api/v1/auth/login').send({
         email: 'not-an-email',
-        password: '123'
+        password: ''
       })
 
       expect(response.status).toBe(400)

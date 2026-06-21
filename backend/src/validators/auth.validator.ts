@@ -21,6 +21,7 @@ const timezoneSchema = z
 export const emailSchema = z
   .string()
   .trim()
+  .toLowerCase()
   .email('Invalid email address')
   .min(1)
   .max(255)
@@ -36,6 +37,11 @@ export const passwordSchema = z
     'Password must contain at least one special character'
   )
 
+const loginPasswordSchema = z
+  .string()
+  .min(1, 'Password is required')
+  .max(1024, 'Password is too long')
+
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 export const registerSchema = z.object({
@@ -48,7 +54,7 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
+  password: loginPasswordSchema,
   timezone: timezoneSchema
 })
 
