@@ -367,3 +367,12 @@ transactionWorker.on('failed', async (job, err) => {
     }
   }
 })
+
+transactionWorker.on('error', (error) => {
+  logger.error('[SYS:BullMQ] Transaction worker infrastructure error', {
+    queueName: 'TRANSACTION_QUEUE',
+    eventType: 'error',
+    error: error.message,
+    stack: error.stack
+  })
+})

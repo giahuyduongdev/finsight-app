@@ -3,6 +3,7 @@ import { reportQueue, REPORT_JOBS } from '../../queues/report.queue'
 import { logger } from '../../config/logger.config'
 import { container } from '../../container'
 import { v4 as uuidv4 } from 'uuid'
+import { buildReportJobId } from '../../utils/report-delivery.util'
 
 export const processReportJob = async () => {
   const now = new Date()
@@ -33,6 +34,7 @@ export const processReportJob = async () => {
       })
       .map((setting) => {
         const user = setting.userId as unknown as UserDocument
+        const dueDate = setting.nextReportDate || now
         // Validate frequency before using
         const frequency = setting.frequency || 'MONTHLY'
         return {
@@ -43,12 +45,12 @@ export const processReportJob = async () => {
             timezone: user.timezone || 'UTC',
             preferredCurrency: user.preferredCurrency,
             frequency,
-            dueDate: setting.nextReportDate?.toISOString() || now.toISOString(),
+            dueDate: dueDate.toISOString(),
             correlationId: uuidv4()
           },
           opts: {
             // jobId duy nhất để tránh enqueue trùng nếu cron chạy lại
-            jobId: `process-report-${setting._id}-${setting.nextReportDate?.toISOString() || now.toISOString()}`
+            jobId: buildReportJobId(setting._id.toString(), dueDate)
           }
         }
       })

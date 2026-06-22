@@ -8,6 +8,7 @@ type Params = {
   text: string
   html: string
   from?: string
+  idempotencyKey?: string
 }
 
 const mailer_sender = `Finsight <${Env.RESEND_MAILER_SENDER}>`
@@ -17,17 +18,21 @@ export const sendEmail = async ({
   from = mailer_sender,
   subject,
   text,
-  html
+  html,
+  idempotencyKey
 }: Params) => {
   return await resendCircuitBreaker.execute(
     () =>
-      resend.emails.send({
-        from,
-        to: Array.isArray(to) ? to : [to],
-        text,
-        subject,
-        html
-      }),
+      resend.emails.send(
+        {
+          from,
+          to: Array.isArray(to) ? to : [to],
+          text,
+          subject,
+          html
+        },
+        idempotencyKey ? { idempotencyKey } : undefined
+      ),
     'Resend Email'
   )
 }

@@ -31,6 +31,11 @@ import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
 import { emitReportListUpdated } from '../utils/report-socket.util'
+import { buildReportDeliveryKey } from '../utils/report-delivery.util'
+import {
+  getJobAttemptContext,
+  JobOutcome
+} from '../utils/bullmq/job-reliability.util'
 
 const MAX_RETRY_DELAY_MS = 30000
 
@@ -53,11 +58,14 @@ function getNextRetryDelay(job?: Job): number {
 /**
  * Xử lý tạo và gửi báo cáo cho 1 user
  */
-export const processReportJob = async (job: Job<ProcessReportJobData>) => {
+export const processReportJob = async (
+  job: Job<ProcessReportJobData>
+): Promise<JobOutcome> => {
   const { userId, settingId, timezone, preferredCurrency, frequency, dueDate } =
     job.data
   const now = new Date()
   const scheduledDate = new Date(dueDate)
+  const deliveryKey = buildReportDeliveryKey(settingId, scheduledDate)
 
   // 0. Fetch user for PII (email/username)
   const user = await UserModel.findById(userId).lean()
@@ -107,7 +115,39 @@ export const processReportJob = async (job: Job<ProcessReportJobData>) => {
   const from = fromZonedTime(fromInTz, timezone)
   const to = fromZonedTime(toInTz, timezone)
 
-  // 1. Generate báo cáo
+  const fallbackPeriod = `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`
+
+  const delivery = await ReportModel.findOneAndUpdate(
+    { deliveryKey },
+    {
+      $setOnInsert: {
+        userId,
+        settingId,
+        dueDate: scheduledDate,
+        deliveryKey,
+        sentDate: now,
+        period: fallbackPeriod,
+        status: ReportStatusEnum.PENDING,
+        attemptCount: 0,
+        createdAt: now,
+        updatedAt: now
+      }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  )
+
+  if (
+    delivery.status === ReportStatusEnum.SENT ||
+    delivery.status === ReportStatusEnum.NO_ACTIVITY
+  ) {
+    return {
+      status: 'skipped',
+      reason: 'delivery-already-terminal',
+      details: { deliveryKey, reportId: delivery._id.toString() }
+    }
+  }
+
+  // 1. Generate báo cáo only after the delivery replay guard.
   const report = await generateReportService(
     userId,
     from,
@@ -121,13 +161,17 @@ export const processReportJob = async (job: Job<ProcessReportJobData>) => {
     period: report?.period
   })
 
+  const period = report?.period || fallbackPeriod
+
   // 2. Gửi email
   let emailSent = false
+  let providerMessageId: string | undefined
   if (report && email) {
     try {
-      await sendReportEmail({
+      const emailResponse = await sendReportEmail({
         email,
         username,
+        idempotencyKey: deliveryKey,
         report: {
           period: report.period,
           totalIncome: report.summary.income,
@@ -140,6 +184,7 @@ export const processReportJob = async (job: Job<ProcessReportJobData>) => {
         },
         frequency
       })
+      providerMessageId = emailResponse.data?.id
       emailSent = true
       logger.info('[JOB:Report] Email sent successfully', { userId })
     } catch (error) {
@@ -150,47 +195,18 @@ export const processReportJob = async (job: Job<ProcessReportJobData>) => {
         attemptsStarted: job.attemptsStarted
       })
 
-      // Persist FAILED report before throwing (for audit trail)
-      const session = await mongoose.startSession()
-      let failedReport: ReportDocument | undefined
-      try {
-        await session.withTransaction(
-          async () => {
-            const createdReports = await ReportModel.create(
-              [
-                {
-                  userId,
-                  sentDate: now,
-                  period:
-                    report?.period ||
-                    `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
-                  status: ReportStatusEnum.FAILED,
-                  createdAt: now,
-                  updatedAt: now
-                }
-              ],
-              { session }
-            )
-            failedReport = createdReports[0]
-          },
-          { maxCommitTimeMS: 10000 }
-        )
-      } finally {
-        await session.endSession()
-      }
+      await ReportModel.updateOne(
+        { _id: delivery._id },
+        {
+          $inc: { attemptCount: 1 },
+          $set: {
+            lastError:
+              error instanceof Error ? error.message : 'Unknown email error',
+            updatedAt: new Date()
+          }
+        }
+      )
 
-      if (failedReport) {
-        emitReportListUpdated({
-          userId,
-          reason: 'generated',
-          reportId: failedReport._id?.toString(),
-          status: ReportStatusEnum.FAILED,
-          period: failedReport.period,
-          source: 'worker'
-        })
-      }
-
-      // Always throw to mark job as failed
       throw error
     }
   }
@@ -202,36 +218,37 @@ export const processReportJob = async (job: Job<ProcessReportJobData>) => {
   try {
     await session.withTransaction(
       async () => {
-        const isSuccess = report && emailSent
+        const status =
+          report && emailSent
+            ? ReportStatusEnum.SENT
+            : ReportStatusEnum.NO_ACTIVITY
 
-        // Lưu lịch sử Report
-        const createdReports = await ReportModel.create(
-          [
-            {
-              userId,
-              sentDate: now,
-              period:
-                report?.period ||
-                `${formatInTimeZone(from, timezone, 'MMMM d')}–${formatInTimeZone(to, timezone, 'd, yyyy')}`,
-              status: isSuccess
-                ? ReportStatusEnum.SENT
-                : report
-                  ? ReportStatusEnum.FAILED
-                  : ReportStatusEnum.NO_ACTIVITY,
-              createdAt: now,
+        await ReportModel.updateOne(
+          { _id: delivery._id },
+          {
+            $set: {
+              status,
+              period,
+              ...(providerMessageId ? { providerMessageId } : {}),
+              lastError: null,
               updatedAt: now
             }
-          ],
+          },
           { session }
         )
-        persistedReport = createdReports[0]
+
+        delivery.status = status
+        delivery.period = period
+        persistedReport = delivery
 
         // Cập nhật ngày gửi tiếp theo
         await ReportSettingModel.updateOne(
           { _id: settingId },
           {
             $set: {
-              ...(isSuccess ? { lastSentDate: now } : {}),
+              ...(status === ReportStatusEnum.SENT
+                ? { lastSentDate: now }
+                : {}),
               nextReportDate: calculateNextReportDate(scheduledDate, frequency),
               updatedAt: now
             }
@@ -256,7 +273,10 @@ export const processReportJob = async (job: Job<ProcessReportJobData>) => {
     })
   }
 
-  return { success: true, userId }
+  return {
+    status: 'succeeded',
+    details: { userId, deliveryKey, reportId: persistedReport?._id.toString() }
+  }
 }
 
 // ─── Worker ───────────────────────────────────────────────────────────────────
@@ -288,9 +308,11 @@ reportWorker.on('completed', (job) => {
 })
 
 reportWorker.on('failed', (job, err) => {
-  const attemptsMade = job?.attemptsMade ?? 0
-  const maxAttempts = job?.opts?.attempts ?? 1
-  const isRetrying = attemptsMade < maxAttempts
+  const attemptContext = job
+    ? getJobAttemptContext(job)
+    : { attemptsMade: 0, maxAttempts: 1, isFinalAttempt: true }
+  const { attemptsMade, maxAttempts, isFinalAttempt } = attemptContext
+  const isRetrying = !isFinalAttempt
 
   const logMetadata = {
     error: err.message,
@@ -306,5 +328,48 @@ reportWorker.on('failed', (job, err) => {
     return
   }
 
+  if (job) {
+    const deliveryKey = buildReportDeliveryKey(
+      job.data.settingId,
+      job.data.dueDate
+    )
+    void ReportModel.updateOne(
+      { deliveryKey },
+      {
+        $set: {
+          status: ReportStatusEnum.FAILED,
+          lastError: err.message,
+          updatedAt: new Date()
+        }
+      }
+    )
+      .then(() => {
+        emitReportListUpdated({
+          userId: job.data.userId,
+          reason: 'generated',
+          status: ReportStatusEnum.FAILED,
+          source: 'worker'
+        })
+      })
+      .catch((updateError) => {
+        logger.error('[JOB:Report] Failed to persist terminal delivery state', {
+          deliveryKey,
+          error:
+            updateError instanceof Error
+              ? updateError.message
+              : String(updateError)
+        })
+      })
+  }
+
   logger.error(`[JOB:Report] Report failed: ${job?.id}`, logMetadata)
+})
+
+reportWorker.on('error', (error) => {
+  logger.error('[SYS:BullMQ] Report worker infrastructure error', {
+    queueName: 'REPORT_QUEUE',
+    eventType: 'error',
+    error: error.message,
+    stack: error.stack
+  })
 })

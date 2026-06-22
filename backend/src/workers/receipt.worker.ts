@@ -304,3 +304,12 @@ receiptWorker.on('failed', (job, err) => {
 
   logger.error(`[JOB:Receipt] Receipt scan failed: ${job?.id}`, logMetadata)
 })
+
+receiptWorker.on('error', (error) => {
+  logger.error('[SYS:BullMQ] Receipt worker infrastructure error', {
+    queueName: 'RECEIPT_QUEUE',
+    eventType: 'error',
+    error: error.message,
+    stack: error.stack
+  })
+})

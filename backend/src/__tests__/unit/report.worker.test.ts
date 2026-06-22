@@ -2,7 +2,8 @@ const mockQueue = jest.fn()
 const mockWorker = jest.fn()
 const mockGenerateReportService = jest.fn()
 const mockSendReportEmail = jest.fn()
-const mockReportCreate = jest.fn()
+const mockReportFindOneAndUpdate = jest.fn()
+const mockReportUpdateOne = jest.fn()
 const mockReportSettingUpdateOne = jest.fn()
 const mockUserLean = jest.fn()
 const mockUserFindById = jest.fn((_userId?: unknown) => ({
@@ -12,6 +13,9 @@ const mockCalculateNextReportDate = jest.fn()
 const mockEmit = jest.fn()
 const mockTo = jest.fn(() => ({ emit: mockEmit }))
 const mockLoggerWarn = jest.fn()
+const mockLoggerError = jest.fn()
+const mockWorkerOn = jest.fn()
+const workerEventHandlers = new Map<string, (...args: unknown[]) => void>()
 
 jest.mock('bullmq', () => ({
   Queue: mockQueue.mockImplementation(() => ({
@@ -19,7 +23,11 @@ jest.mock('bullmq', () => ({
     close: jest.fn()
   })),
   Worker: mockWorker.mockImplementation(() => ({
-    on: jest.fn(),
+    on: mockWorkerOn.mockImplementation(
+      (event: string, handler: (...args: unknown[]) => void) => {
+        workerEventHandlers.set(event, handler)
+      }
+    ),
     close: jest.fn()
   }))
 }))
@@ -34,7 +42,7 @@ jest.mock('../../config/bull/bullmq.config', () => ({
 jest.mock('../../config/logger.config', () => ({
   logger: {
     warn: (...args: unknown[]) => mockLoggerWarn(...args),
-    error: jest.fn(),
+    error: (...args: unknown[]) => mockLoggerError(...args),
     info: jest.fn(),
     debug: jest.fn()
   }
@@ -69,7 +77,9 @@ jest.mock('../../models/user.model', () => ({
 jest.mock('../../models/report.model', () => ({
   __esModule: true,
   default: {
-    create: (...args: unknown[]) => mockReportCreate(...args)
+    findOneAndUpdate: (...args: unknown[]) =>
+      mockReportFindOneAndUpdate(...args),
+    updateOne: (...args: unknown[]) => mockReportUpdateOne(...args)
   },
   ReportStatusEnum: {
     SENT: 'SENT',
@@ -139,7 +149,7 @@ const createGeneratedReport = () => ({
 })
 
 const createPersistedReport = (
-  status: 'SENT' | 'FAILED' | 'NO_ACTIVITY',
+  status: 'PENDING' | 'SENT' | 'FAILED' | 'NO_ACTIVITY',
   id = `report-${status.toLowerCase()}`
 ) => ({
   _id: { toString: () => id },
@@ -155,7 +165,14 @@ describe('report.worker', () => {
       email: 'user@example.com',
       name: 'Test User'
     })
-    mockSendReportEmail.mockResolvedValue(undefined)
+    mockSendReportEmail.mockResolvedValue({
+      data: { id: 'provider-message-123' },
+      error: null
+    })
+    mockReportFindOneAndUpdate.mockResolvedValue(
+      createPersistedReport('PENDING', 'report-delivery')
+    )
+    mockReportUpdateOne.mockResolvedValue({ modifiedCount: 1 })
     mockCalculateNextReportDate.mockReturnValue(
       new Date('2026-07-01T00:00:00.000Z')
     )
@@ -164,19 +181,29 @@ describe('report.worker', () => {
 
   it('emits report list update after persisting a sent report', async () => {
     mockGenerateReportService.mockResolvedValue(createGeneratedReport())
-    mockReportCreate.mockResolvedValue([createPersistedReport('SENT')])
 
     await processReportJob(createJob())
 
-    expect(mockReportCreate).toHaveBeenCalledWith(
-      [expect.objectContaining({ status: 'SENT' })],
+    expect(mockSendReportEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'report/setting-123/2026-06-01T00:00:00.000Z'
+      })
+    )
+    expect(mockReportUpdateOne).toHaveBeenCalledWith(
+      { _id: expect.anything() },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          status: 'SENT',
+          providerMessageId: 'provider-message-123'
+        })
+      }),
       expect.any(Object)
     )
     expect(mockTo).toHaveBeenCalledWith('user-123')
     expect(mockEmit).toHaveBeenCalledWith('report:list-updated', {
       userId: 'user-123',
       reason: 'generated',
-      reportId: 'report-sent',
+      reportId: 'report-delivery',
       status: 'SENT',
       period: 'May 1 - 31, 2026',
       source: 'worker',
@@ -184,52 +211,100 @@ describe('report.worker', () => {
     })
   })
 
+  it('registers an infrastructure error listener for the report worker', () => {
+    expect(workerEventHandlers.get('error')).toEqual(expect.any(Function))
+  })
+
+  it('skips a replay when the scheduled delivery is already sent', async () => {
+    mockReportFindOneAndUpdate.mockResolvedValue(
+      createPersistedReport('SENT', 'report-existing')
+    )
+
+    await expect(processReportJob(createJob())).resolves.toEqual({
+      status: 'skipped',
+      reason: 'delivery-already-terminal',
+      details: {
+        deliveryKey: 'report/setting-123/2026-06-01T00:00:00.000Z',
+        reportId: 'report-existing'
+      }
+    })
+
+    expect(mockGenerateReportService).not.toHaveBeenCalled()
+    expect(mockSendReportEmail).not.toHaveBeenCalled()
+    expect(mockReportUpdateOne).not.toHaveBeenCalled()
+  })
+
   it('emits report list update after persisting a no-activity report', async () => {
     mockGenerateReportService.mockResolvedValue(null)
-    mockReportCreate.mockResolvedValue([
-      createPersistedReport('NO_ACTIVITY', 'report-no-activity')
-    ])
 
     await processReportJob(createJob())
 
     expect(mockSendReportEmail).not.toHaveBeenCalled()
-    expect(mockReportCreate).toHaveBeenCalledWith(
-      [expect.objectContaining({ status: 'NO_ACTIVITY' })],
+    expect(mockReportUpdateOne).toHaveBeenCalledWith(
+      { _id: expect.anything() },
+      expect.objectContaining({
+        $set: expect.objectContaining({ status: 'NO_ACTIVITY' })
+      }),
       expect.any(Object)
     )
     expect(mockEmit).toHaveBeenCalledWith('report:list-updated', {
       userId: 'user-123',
       reason: 'generated',
-      reportId: 'report-no-activity',
+      reportId: 'report-delivery',
       status: 'NO_ACTIVITY',
-      period: 'May 1 - 31, 2026',
+      period: 'May 1–31, 2026',
       source: 'worker',
       updatedAt: expect.any(String)
     })
   })
 
-  it('emits failed report update after persisting email failure and still rejects', async () => {
+  it('records an attempt failure without emitting a terminal notification', async () => {
     const emailError = new Error('Email provider unavailable')
     mockGenerateReportService.mockResolvedValue(createGeneratedReport())
     mockSendReportEmail.mockRejectedValue(emailError)
-    mockReportCreate.mockResolvedValue([createPersistedReport('FAILED')])
 
     await expect(processReportJob(createJob())).rejects.toThrow(
       'Email provider unavailable'
     )
 
-    expect(mockReportCreate).toHaveBeenCalledWith(
-      [expect.objectContaining({ status: 'FAILED' })],
-      expect.any(Object)
+    expect(mockReportUpdateOne).toHaveBeenCalledWith(
+      { _id: expect.anything() },
+      expect.objectContaining({
+        $inc: { attemptCount: 1 },
+        $set: expect.objectContaining({
+          lastError: 'Email provider unavailable'
+        })
+      })
     )
-    expect(mockEmit).toHaveBeenCalledWith('report:list-updated', {
-      userId: 'user-123',
-      reason: 'generated',
-      reportId: 'report-failed',
-      status: 'FAILED',
-      period: 'May 1 - 31, 2026',
-      source: 'worker',
-      updatedAt: expect.any(String)
-    })
+    expect(mockEmit).not.toHaveBeenCalled()
+  })
+
+  it('persists and emits terminal failure only after the final attempt', async () => {
+    const failedHandler = workerEventHandlers.get('failed')
+    const job = createJob()
+    Object.assign(job, { attemptsMade: 3 })
+
+    failedHandler?.(job, new Error('Email provider unavailable'))
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(mockReportUpdateOne).toHaveBeenCalledWith(
+      {
+        deliveryKey: 'report/setting-123/2026-06-01T00:00:00.000Z'
+      },
+      {
+        $set: expect.objectContaining({
+          status: 'FAILED',
+          lastError: 'Email provider unavailable'
+        })
+      }
+    )
+    expect(mockEmit).toHaveBeenCalledWith(
+      'report:list-updated',
+      expect.objectContaining({
+        userId: 'user-123',
+        status: 'FAILED',
+        source: 'worker'
+      })
+    )
   })
 })
