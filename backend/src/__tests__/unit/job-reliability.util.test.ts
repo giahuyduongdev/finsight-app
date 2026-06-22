@@ -1,4 +1,5 @@
 import {
+  getSafeJobErrorMessage,
   getJobAttemptContext,
   isFinalAttempt
 } from '../../utils/bullmq/job-reliability.util'
@@ -43,5 +44,17 @@ describe('job reliability semantics', () => {
       maxAttempts: 1,
       isFinalAttempt: true
     })
+  })
+
+  it('redacts email addresses and bounds persisted error messages', () => {
+    const error = new Error(
+      `Delivery to user@example.com failed: ${'x'.repeat(600)}`
+    )
+
+    const message = getSafeJobErrorMessage(error)
+
+    expect(message).not.toContain('user@example.com')
+    expect(message).toContain('[REDACTED_EMAIL]')
+    expect(message.length).toBeLessThanOrEqual(500)
   })
 })

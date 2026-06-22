@@ -279,13 +279,34 @@ describe('report.worker', () => {
     expect(mockEmit).not.toHaveBeenCalled()
   })
 
+  it('reuses the provider idempotency key after a crash before DB commit', async () => {
+    mockGenerateReportService.mockResolvedValue(createGeneratedReport())
+    mockReportUpdateOne
+      .mockRejectedValueOnce(new Error('Database commit failed'))
+      .mockResolvedValue({ modifiedCount: 1 })
+
+    await expect(processReportJob(createJob())).rejects.toThrow(
+      'Database commit failed'
+    )
+    await expect(processReportJob(createJob())).resolves.toEqual(
+      expect.objectContaining({ status: 'succeeded' })
+    )
+
+    expect(mockSendReportEmail).toHaveBeenCalledTimes(2)
+    expect(mockSendReportEmail.mock.calls[0][0].idempotencyKey).toBe(
+      'report/setting-123/2026-06-01T00:00:00.000Z'
+    )
+    expect(mockSendReportEmail.mock.calls[1][0].idempotencyKey).toBe(
+      mockSendReportEmail.mock.calls[0][0].idempotencyKey
+    )
+  })
+
   it('persists and emits terminal failure only after the final attempt', async () => {
     const failedHandler = workerEventHandlers.get('failed')
     const job = createJob()
     Object.assign(job, { attemptsMade: 3 })
 
-    failedHandler?.(job, new Error('Email provider unavailable'))
-    await new Promise((resolve) => setImmediate(resolve))
+    await failedHandler?.(job, new Error('Email provider unavailable'))
 
     expect(mockReportUpdateOne).toHaveBeenCalledWith(
       {
@@ -296,7 +317,8 @@ describe('report.worker', () => {
           status: 'FAILED',
           lastError: 'Email provider unavailable'
         })
-      }
+      },
+      expect.any(Object)
     )
     expect(mockEmit).toHaveBeenCalledWith(
       'report:list-updated',
@@ -305,6 +327,16 @@ describe('report.worker', () => {
         status: 'FAILED',
         source: 'worker'
       })
+    )
+    expect(mockReportSettingUpdateOne).toHaveBeenCalledWith(
+      { _id: 'setting-123' },
+      {
+        $set: {
+          nextReportDate: new Date('2026-07-01T00:00:00.000Z'),
+          updatedAt: expect.any(Date)
+        }
+      },
+      expect.any(Object)
     )
   })
 })

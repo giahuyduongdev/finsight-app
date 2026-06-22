@@ -12,6 +12,7 @@ import {
 import { getDateRange } from '../utils/dates/index'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 import { normalizeSearchKeyword } from '../utils/query-parser.util'
+import { ClientSession } from 'mongoose'
 
 /**
  * Transaction Repository Implementation
@@ -23,9 +24,16 @@ export class TransactionRepository implements ITransactionRepository {
    * Invalidates user analytics cache
    */
   async create(
-    transactionData: Partial<TransactionDocument>
+    transactionData: Partial<TransactionDocument>,
+    session?: ClientSession
   ): Promise<TransactionDocument> {
-    const transaction = await TransactionModel.create(transactionData)
+    const transaction = session
+      ? (
+          await TransactionModel.create([transactionData], {
+            session
+          })
+        )[0]
+      : await TransactionModel.create(transactionData)
 
     // Invalidate analytics cache
     if (transactionData.userId) {
@@ -42,7 +50,20 @@ export class TransactionRepository implements ITransactionRepository {
   async bulkCreate(
     transactions: Partial<TransactionDocument>[]
   ): Promise<BulkInsertResult> {
-    const bulkOps = transactions.map((tx) => ({ insertOne: { document: tx } }))
+    const bulkOps = transactions.map((tx) =>
+      tx.importBatchId !== undefined && tx.importRowIndex !== undefined
+        ? {
+            updateOne: {
+              filter: {
+                importBatchId: tx.importBatchId,
+                importRowIndex: tx.importRowIndex
+              },
+              update: { $setOnInsert: tx },
+              upsert: true
+            }
+          }
+        : { insertOne: { document: tx } }
+    )
     const result = await TransactionModel.bulkWrite(bulkOps, { ordered: true })
 
     // Invalidate cache for all affected users
@@ -57,7 +78,9 @@ export class TransactionRepository implements ITransactionRepository {
       userIds.map((userId) => invalidateUserAnalyticsCache(userId))
     )
 
-    return { insertedCount: result.insertedCount }
+    return {
+      insertedCount: result.insertedCount + result.upsertedCount
+    }
   }
 
   /**
@@ -158,12 +181,13 @@ export class TransactionRepository implements ITransactionRepository {
   async update(
     transactionId: string,
     userId: string,
-    updates: Partial<TransactionDocument>
+    updates: Partial<TransactionDocument>,
+    session?: ClientSession
   ): Promise<TransactionDocument | null> {
     const transaction = await TransactionModel.findOneAndUpdate(
       { _id: transactionId, userId },
       updates,
-      { new: true }
+      { new: true, ...(session ? { session } : {}) }
     )
 
     // Invalidate analytics cache

@@ -29,6 +29,19 @@ export class MockImportBatchRepository implements IImportBatchRepository {
     return this.batches.get(batchId) || null
   }
 
+  async claimForProcessing(batchId: string): Promise<IImportBatch | null> {
+    const batch = this.batches.get(batchId)
+    if (!batch || batch.status !== 'PENDING') return null
+
+    const claimed = {
+      ...batch,
+      status: 'PROCESSING',
+      updatedAt: new Date()
+    } as IImportBatch
+    this.batches.set(batchId, claimed)
+    return claimed
+  }
+
   async findByUserId(
     userId: string,
     pagination: { pageNumber: number; pageSize: number }

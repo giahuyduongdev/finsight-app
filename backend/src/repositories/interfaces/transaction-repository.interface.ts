@@ -1,4 +1,5 @@
 import { TransactionDocument } from '../../models/transaction.model'
+import { ClientSession } from 'mongoose'
 import {
   PaginationParams,
   PaginatedResult,
@@ -18,7 +19,8 @@ export interface ITransactionRepository {
    * @returns Created transaction document
    */
   create(
-    transactionData: Partial<TransactionDocument>
+    transactionData: Partial<TransactionDocument>,
+    session?: ClientSession
   ): Promise<TransactionDocument>
 
   /**
@@ -84,7 +86,8 @@ export interface ITransactionRepository {
   update(
     transactionId: string,
     userId: string,
-    updates: Partial<TransactionDocument>
+    updates: Partial<TransactionDocument>,
+    session?: ClientSession
   ): Promise<TransactionDocument | null>
 
   /**

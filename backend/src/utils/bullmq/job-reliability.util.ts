@@ -30,3 +30,11 @@ export const getJobAttemptContext = (job: Job): JobAttemptContext => {
 
 export const isFinalAttempt = (job: Job): boolean =>
   getJobAttemptContext(job).isFinalAttempt
+
+export const getSafeJobErrorMessage = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error)
+
+  return message
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
+    .slice(0, 500)
+}

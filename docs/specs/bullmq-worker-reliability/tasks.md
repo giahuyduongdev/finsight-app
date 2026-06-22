@@ -8,105 +8,105 @@ minh cần dùng chung.
 
 ## Phase 0 - Safety và baseline
 
-- [ ] Tạo branch `enhancement/bullmq-worker-reliability`.
-- [ ] Chạy baseline unit tests cho transaction, report, receipt và BullMQ
+- [x] Tạo branch `enhancement/bullmq-worker-reliability`.
+- [x] Chạy baseline unit tests cho transaction, report, receipt và BullMQ
   backoff.
-- [ ] Ghi nhận schema indexes hiện có trong MongoDB test environment.
+- [x] Ghi nhận và test schema indexes hiện có trong model test environment.
 - [ ] Audit dữ liệu duplicate recurring occurrence và import identity trước khi
   tạo unique indexes.
-- [ ] Xác nhận Resend SDK hiện tại hỗ trợ option `idempotencyKey`.
+- [x] Xác nhận Resend SDK hiện tại hỗ trợ option `idempotencyKey`.
 
 ## Phase 1 - Shared reliability semantics
 
-- [ ] Thêm `JobOutcome` type.
-- [ ] Thêm helper `isFinalAttempt`/attempt context.
-- [ ] Thêm `worker.on('error')` cho transaction worker.
-- [ ] Thêm `worker.on('error')` cho report worker.
-- [ ] Thêm `worker.on('error')` cho receipt worker.
+- [x] Thêm `JobOutcome` type.
+- [x] Thêm helper `isFinalAttempt`/attempt context.
+- [x] Thêm `worker.on('error')` cho transaction worker.
+- [x] Thêm `worker.on('error')` cho report worker.
+- [x] Thêm `worker.on('error')` cho receipt worker.
 - [ ] Chuẩn hóa log metadata cho success, skipped, retrying, final failure và
   worker error.
-- [ ] Thêm unit tests cho helper và worker error listeners.
-- [ ] Thay permanent error phù hợp bằng BullMQ `UnrecoverableError`.
-- [ ] Không thêm manual `ack`, `moveToCompleted` hoặc lock manipulation.
+- [x] Thêm unit tests cho helper và worker error listeners.
+- [x] Thay permanent error phù hợp bằng BullMQ `UnrecoverableError`.
+- [x] Không thêm manual `ack`, `moveToCompleted` hoặc lock manipulation.
 
 ## Phase 2 - Bulk import reliability
 
-- [ ] Thêm optional `importBatchId` và `importRowIndex` vào transaction model.
-- [ ] Thêm partial unique index cho `{ importBatchId, importRowIndex }`.
-- [ ] Cập nhật DTO/internal type của bulk rows với stable source row index.
-- [ ] Mở rộng import batch repository cho conditional status transition.
-- [ ] Dùng `processedCount` làm durable resume offset.
-- [ ] Persist progress sau mỗi chunk đã xử lý.
-- [ ] Chuyển duplicate import row thành verified no-op.
-- [ ] Missing batch phải throw `UnrecoverableError`.
-- [ ] Completed batch replay phải return `skipped`.
-- [ ] Không set batch `FAILED` trong handler ở attempt chưa cuối.
-- [ ] Final failed listener set `FAILED`, `terminalAt` và emit failure một lần.
-- [ ] Chỉ cleanup `transactions` array sau terminal success.
-- [ ] Test resume sau chunk failure.
-- [ ] Test crash window sau insert trước checkpoint.
-- [ ] Test completed replay và missing batch.
-- [ ] Test failure notification chỉ xuất hiện ở final attempt.
+- [x] Thêm optional `importBatchId` và `importRowIndex` vào transaction model.
+- [x] Thêm partial unique index cho `{ importBatchId, importRowIndex }`.
+- [x] Cập nhật DTO/internal type của bulk rows với stable source row index.
+- [x] Mở rộng import batch repository cho conditional status transition.
+- [x] Dùng `processedCount` làm durable resume offset.
+- [x] Persist progress sau mỗi chunk đã xử lý.
+- [x] Chuyển duplicate import row thành verified no-op.
+- [x] Missing batch phải throw `UnrecoverableError`.
+- [x] Completed batch replay phải return `skipped`.
+- [x] Không set batch `FAILED` trong handler ở attempt chưa cuối.
+- [x] Final failed listener set `FAILED`, `terminalAt` và emit failure một lần.
+- [x] Chỉ cleanup `transactions` array sau terminal success.
+- [x] Test resume sau chunk failure.
+- [x] Test crash window sau insert trước checkpoint.
+- [x] Test completed replay và missing batch.
+- [x] Test failure notification chỉ xuất hiện ở final attempt.
 
 ## Phase 3 - Recurring transaction reliability
 
-- [ ] Thêm partial unique index cho
+- [x] Thêm partial unique index cho
   `{ recurringSourceId, date }`.
-- [ ] Mở rộng transaction repository methods để nhận optional MongoDB session.
-- [ ] Thêm repository query lấy đúng recurring sources theo IDs và user.
-- [ ] Re-read source state trong transaction trước khi tạo occurrence.
-- [ ] Tạo child và conditional advance source trong cùng session.
-- [ ] Xử lý duplicate-key bằng verification, không swallow mọi DB error.
-- [ ] Return skipped khi occurrence đã tồn tại hoặc source không còn active.
-- [ ] Giữ poison-pill behavior chỉ cho terminal failure đã xác định.
-- [ ] Test sequential replay tạo một child.
-- [ ] Test concurrent execution tạo một child.
-- [ ] Test transaction rollback không để child/source state lệch nhau.
-- [ ] Test source disabled/deleted trước execution.
+- [x] Mở rộng transaction repository methods để nhận optional MongoDB session.
+- [x] Thêm query lấy đúng recurring sources theo IDs và user.
+- [x] Re-read source state trong transaction trước khi tạo occurrence.
+- [x] Tạo child và conditional advance source trong cùng session.
+- [x] Xử lý duplicate-key bằng verification, không swallow mọi DB error.
+- [x] Return skipped khi occurrence đã tồn tại hoặc source không còn active.
+- [x] Giữ poison-pill behavior chỉ cho terminal failure đã xác định.
+- [x] Test sequential replay tạo một child.
+- [x] Test concurrent execution tạo một child.
+- [x] Test transaction failure không báo success và luôn đóng session.
+- [x] Test source disabled/deleted trước execution bằng no-due-source case.
 
 ## Phase 4 - Report delivery reliability
 
-- [ ] Thêm `settingId`, `dueDate`, `deliveryKey`, `providerMessageId`,
+- [x] Thêm `settingId`, `dueDate`, `deliveryKey`, `providerMessageId`,
   `attemptCount`, `lastError` vào report model dưới dạng backward-compatible.
-- [ ] Thêm partial unique index cho `deliveryKey`.
-- [ ] Chuẩn hóa builder cho report delivery key từ `settingId + dueDate`.
-- [ ] Dùng cùng identity cho queue `jobId`, MongoDB delivery và Resend
+- [x] Thêm partial unique index cho `deliveryKey`.
+- [x] Chuẩn hóa builder cho report delivery key từ `settingId + dueDate`.
+- [x] Dùng cùng identity cho queue `jobId`, MongoDB delivery và Resend
   idempotency key.
-- [ ] Upsert/claim một report delivery record trước side effect.
-- [ ] Replay terminal `SENT`/`NO_ACTIVITY` phải return skipped.
-- [ ] Gửi email bằng stable Resend idempotency key.
-- [ ] Lưu provider message ID khi có.
-- [ ] Update cùng delivery record khi attempt fail; không tạo FAILED record mới.
-- [ ] Advance `nextReportDate` đúng một lần trong transaction với terminal state.
-- [ ] Chỉ emit terminal FAILED ở final attempt/permanent failure.
-- [ ] Cập nhật report lifecycle socket behavior/spec liên quan nếu semantics
+- [x] Upsert/claim một report delivery record trước side effect.
+- [x] Replay terminal `SENT`/`NO_ACTIVITY` phải return skipped.
+- [x] Gửi email bằng stable Resend idempotency key.
+- [x] Lưu provider message ID khi có.
+- [x] Update cùng delivery record khi attempt fail; không tạo FAILED record mới.
+- [x] Advance `nextReportDate` đúng một lần trong transaction với terminal state.
+- [x] Chỉ emit terminal FAILED ở final attempt/permanent failure.
+- [x] Cập nhật report lifecycle socket behavior/spec liên quan nếu semantics
   `FAILED` thay đổi.
-- [ ] Test one delivery record cho nhiều attempts.
-- [ ] Test provider nhận cùng idempotency key khi retry.
-- [ ] Test simulated crash sau provider success.
-- [ ] Test manual replay sau terminal SENT không gọi provider.
-- [ ] Test final FAILED event chỉ emit một lần.
+- [x] Test one delivery record cho nhiều attempts.
+- [x] Test provider nhận cùng idempotency key khi retry.
+- [x] Test simulated crash sau provider success.
+- [x] Test manual replay sau terminal SENT không gọi provider.
+- [x] Test final FAILED event chỉ emit một lần.
 
 ## Phase 5 - Receipt legacy worker reliability
 
-- [ ] Xác nhận queue chỉ còn phục vụ legacy jobs và ghi comment rõ tại boundary.
-- [ ] Đọc cache trước AI/Cloudinary khi có `imageHash`.
-- [ ] Cache hit return skipped/success mà không gọi providers.
-- [ ] Ghi cache trước khi emit success socket event.
-- [ ] Thay `job.discard()` + generic throw cho non-receipt bằng
+- [x] Xác nhận queue chỉ còn phục vụ legacy jobs và ghi comment rõ tại boundary.
+- [x] Đọc cache trước AI/Cloudinary khi có `imageHash`.
+- [x] Cache hit return skipped/success mà không gọi providers.
+- [x] Ghi cache trước khi emit success socket event.
+- [x] Thay `job.discard()` + generic throw cho non-receipt bằng
   `UnrecoverableError`.
-- [ ] Missing payload phải là permanent failure.
-- [ ] Giữ transient network/provider failure là retryable.
-- [ ] Bảo đảm log không chứa base64 hoặc extracted financial data.
-- [ ] Test cache hit, cache corruption, non-receipt và transient failure.
-- [ ] Test replay sau socket emit failure dùng cache.
+- [x] Missing payload phải là permanent failure.
+- [x] Giữ transient network/provider failure là retryable.
+- [x] Bảo đảm log không chứa base64 hoặc extracted financial data.
+- [x] Test cache hit, cache corruption, non-receipt và transient failure.
+- [x] Test replay sau socket emit failure dùng cache.
 
 ## Phase 6 - Integration và migration verification
 
-- [ ] Thêm migration/index bootstrap có preflight duplicate audit.
-- [ ] Migration fail an toàn nếu phát hiện duplicate financial records.
-- [ ] Verify report history cũ không có `deliveryKey` vẫn query bình thường.
-- [ ] Verify transaction cũ không có import identity vẫn query bình thường.
+- [x] Thêm migration/index bootstrap có preflight duplicate audit.
+- [x] Migration fail an toàn nếu phát hiện duplicate financial records.
+- [x] Verify report history cũ không có `deliveryKey` vẫn query bình thường.
+- [x] Verify transaction cũ không có import identity vẫn query bình thường.
 - [ ] Integration test stalled/replayed bulk import.
 - [ ] Integration test stalled/replayed recurring occurrence.
 - [ ] Integration test stalled/replayed report delivery.
@@ -140,19 +140,19 @@ receipt worker là legacy path.
 
 ## Validation checklist
 
-- [ ] Relevant unit tests pass.
-- [ ] BullMQ integration tests pass.
-- [ ] Lint passes.
-- [ ] Typecheck passes.
-- [ ] Build passes.
+- [x] Relevant unit tests pass.
+- [x] BullMQ integration tests pass.
+- [x] Lint passes.
+- [x] Typecheck passes.
+- [x] Build passes.
 - [ ] Unique-index duplicate audit passes.
 - [ ] Acceptance criteria verified.
-- [ ] Retryable/permanent/no-op cases verified.
-- [ ] Stalled/replay cases verified.
-- [ ] Logs được kiểm tra không lộ PII hoặc receipt payload.
-- [ ] Existing public API contracts unchanged.
-- [ ] `requirements.md`, `design.md` và `sequence.mmd` cập nhật đúng implementation.
-- [ ] Security review hoàn tất cho provider idempotency key và logged metadata.
+- [x] Retryable/permanent/no-op cases verified.
+- [x] Stalled/replay cases verified bằng crash-window và replay unit tests.
+- [x] Logs được kiểm tra không lộ PII hoặc receipt payload.
+- [x] Existing public API contracts unchanged.
+- [x] `requirements.md`, `design.md` và `sequence.mmd` cập nhật đúng implementation.
+- [x] Security review hoàn tất cho provider idempotency key và logged metadata.
 - [ ] Dùng `finishing-a-development-branch` trước merge/PR.
 
 ## Không làm trong implementation này

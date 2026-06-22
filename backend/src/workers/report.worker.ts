@@ -1,4 +1,4 @@
-import { Worker, Job } from 'bullmq'
+import { Worker, Job, UnrecoverableError } from 'bullmq'
 import {
   endOfDay,
   endOfMonth,
@@ -33,6 +33,7 @@ import { calculateNextReportDate } from '../utils/dates/index'
 import { emitReportListUpdated } from '../utils/report-socket.util'
 import { buildReportDeliveryKey } from '../utils/report-delivery.util'
 import {
+  getSafeJobErrorMessage,
   getJobAttemptContext,
   JobOutcome
 } from '../utils/bullmq/job-reliability.util'
@@ -70,7 +71,7 @@ export const processReportJob = async (
   // 0. Fetch user for PII (email/username)
   const user = await UserModel.findById(userId).lean()
   if (!user) {
-    throw new Error(`User not found: ${userId}`)
+    throw new UnrecoverableError(`User not found: ${userId}`)
   }
 
   const email = user.email
@@ -79,7 +80,7 @@ export const processReportJob = async (
   // Validate email before proceeding
   if (!email) {
     logger.error('[JOB:Report] User email not found', { userId })
-    throw new Error(`User email not found for userId: ${userId}`)
+    throw new UnrecoverableError(`User email not found for userId: ${userId}`)
   }
 
   // Tính khoảng thời gian báo cáo theo timezone của user dựa trên ngày đến hạn (dueDate)
@@ -200,8 +201,7 @@ export const processReportJob = async (
         {
           $inc: { attemptCount: 1 },
           $set: {
-            lastError:
-              error instanceof Error ? error.message : 'Unknown email error',
+            lastError: getSafeJobErrorMessage(error),
             updatedAt: new Date()
           }
         }
@@ -307,12 +307,13 @@ reportWorker.on('completed', (job) => {
   )
 })
 
-reportWorker.on('failed', (job, err) => {
+reportWorker.on('failed', async (job, err) => {
   const attemptContext = job
     ? getJobAttemptContext(job)
     : { attemptsMade: 0, maxAttempts: 1, isFinalAttempt: true }
   const { attemptsMade, maxAttempts, isFinalAttempt } = attemptContext
-  const isRetrying = !isFinalAttempt
+  const isPermanentFailure = err.name === 'UnrecoverableError'
+  const isRetrying = !isFinalAttempt && !isPermanentFailure
 
   const logMetadata = {
     error: err.message,
@@ -333,33 +334,57 @@ reportWorker.on('failed', (job, err) => {
       job.data.settingId,
       job.data.dueDate
     )
-    void ReportModel.updateOne(
-      { deliveryKey },
-      {
-        $set: {
-          status: ReportStatusEnum.FAILED,
-          lastError: err.message,
-          updatedAt: new Date()
-        }
-      }
-    )
-      .then(() => {
-        emitReportListUpdated({
-          userId: job.data.userId,
-          reason: 'generated',
-          status: ReportStatusEnum.FAILED,
-          source: 'worker'
-        })
+
+    const session = await mongoose.startSession()
+    try {
+      await session.withTransaction(
+        async () => {
+          const now = new Date()
+          await ReportModel.updateOne(
+            { deliveryKey },
+            {
+              $set: {
+                status: ReportStatusEnum.FAILED,
+                lastError: getSafeJobErrorMessage(err),
+                updatedAt: now
+              }
+            },
+            { session }
+          )
+          await ReportSettingModel.updateOne(
+            { _id: job.data.settingId },
+            {
+              $set: {
+                nextReportDate: calculateNextReportDate(
+                  new Date(job.data.dueDate),
+                  job.data.frequency
+                ),
+                updatedAt: now
+              }
+            },
+            { session }
+          )
+        },
+        { maxCommitTimeMS: 10000 }
+      )
+
+      emitReportListUpdated({
+        userId: job.data.userId,
+        reason: 'generated',
+        status: ReportStatusEnum.FAILED,
+        source: 'worker'
       })
-      .catch((updateError) => {
-        logger.error('[JOB:Report] Failed to persist terminal delivery state', {
-          deliveryKey,
-          error:
-            updateError instanceof Error
-              ? updateError.message
-              : String(updateError)
-        })
+    } catch (updateError) {
+      logger.error('[JOB:Report] Failed to persist terminal delivery state', {
+        deliveryKey,
+        error:
+          updateError instanceof Error
+            ? updateError.message
+            : String(updateError)
       })
+    } finally {
+      await session.endSession()
+    }
   }
 
   logger.error(`[JOB:Report] Report failed: ${job?.id}`, logMetadata)

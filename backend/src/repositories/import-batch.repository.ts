@@ -51,6 +51,14 @@ export class ImportBatchRepository implements IImportBatchRepository {
     }
   }
 
+  async claimForProcessing(batchId: string): Promise<IImportBatch | null> {
+    return await ImportBatchModel.findOneAndUpdate(
+      { _id: batchId, status: 'PENDING' },
+      { $set: { status: 'PROCESSING' } },
+      { new: true }
+    ).exec()
+  }
+
   /**
    * Find batches by user ID with pagination
    */

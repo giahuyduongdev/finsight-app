@@ -118,13 +118,20 @@ Toast text de xuat:
 - `FAILED`: `Monthly report failed`
 - `NO_ACTIVITY`: `No activity found for this report period`
 
-### R6. Worker email failure van emit sau khi persist FAILED
+### R6. Worker chi emit FAILED khi delivery da terminal
 
-Khi worker gui email loi nhung da persist report record voi status `FAILED`:
+Khi mot attempt gui email loi:
 
+- worker cap nhat attempt metadata tren cung delivery record
+- worker throw error de BullMQ retry
+- khong emit `FAILED` khi van con attempt
+
+Khi permanent failure hoac da het attempts:
+
+- update cung delivery record sang `FAILED`
+- advance `nextReportDate` mot lan
 - emit `report:list-updated` voi `source: 'worker'`, `status: 'FAILED'`
 - client refetch report list va show toast failure
-- worker van throw error theo behavior hien tai de BullMQ mark failed/retry/log
 
 Socket emit failure khong duoc che mat email error goc.
 
@@ -135,7 +142,7 @@ Socket emit failure khong duoc che mat email error goc.
 - Event chi gui den user room cua report owner.
 - User khac khong nhan event.
 - Socket emit failure khong lam fail API/worker.
-- Worker email failure da persist report `FAILED` thi UI nhan event va refetch, trong khi job van fail/retry theo logic hien tai.
+- Worker chi emit report `FAILED` khi permanent failure hoac het attempts; attempt con retry khong hien terminal failure tren UI.
 - Backend tests cover resend emit, worker emit, emit failure.
 - Frontend test hoac manual verification cover listener invalidate `report`.
 

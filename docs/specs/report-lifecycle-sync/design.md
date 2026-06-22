@@ -106,12 +106,13 @@ Sau transaction success, emit:
 }
 ```
 
-Voi branch email failed tao report `FAILED` roi throw, v1 can chot:
+Voi branch email failed:
 
 Da chot:
 
-- tao record `FAILED` xong emit `report:list-updated`
-- sau do van throw de BullMQ mark job failed/retry/log nhu hien tai
+- cap nhat attempt metadata tren cung delivery record va throw de BullMQ retry
+- khong emit terminal event khi con retry
+- permanent failure hoac final attempt moi update `FAILED`, advance schedule va emit `report:list-updated`
 - socket emit failure khong duoc che mat email error goc
 
 ## Frontend design
@@ -174,7 +175,7 @@ Worker:
 
 - generate success tao report `SENT` va emit sau persistence.
 - no activity tao report `NO_ACTIVITY` va emit.
-- email failure tao report `FAILED`, emit, sau do job van fail/retry theo business behavior.
+- email attempt failure khong emit; permanent/final failure update mot delivery record va emit mot lan.
 - socket emit loi khong lam thay doi ket qua job/business error.
 
 ### Frontend tests

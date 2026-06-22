@@ -25,6 +25,11 @@ export interface IImportBatchRepository {
   findById(batchId: string): Promise<IImportBatch | null>
 
   /**
+   * Atomically transition a pending batch to processing.
+   */
+  claimForProcessing(batchId: string): Promise<IImportBatch | null>
+
+  /**
    * Find batches by user ID with pagination
    * @param userId - User ID
    * @param pagination - Pagination parameters

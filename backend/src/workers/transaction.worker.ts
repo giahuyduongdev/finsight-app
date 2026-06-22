@@ -1,4 +1,4 @@
-import { Worker, Job } from 'bullmq'
+import { Worker, Job, UnrecoverableError } from 'bullmq'
 import mongoose from 'mongoose'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
@@ -16,6 +16,7 @@ import TransactionModel, {
 } from '../models/transaction.model'
 import { calculateNextOccurrence } from '../utils/dates/index'
 import { container } from '../container'
+import { getJobAttemptContext } from '../utils/bullmq/job-reliability.util'
 
 function isBulkWriteError(
   error: unknown
@@ -31,33 +32,62 @@ function isBulkWriteError(
   )
 }
 
+function isMongoDuplicateKeyError(error: unknown): error is { code: 11000 } {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    error.code === 11000
+  )
+}
+
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 /**
  * Xử lý Import hàng loạt giao dịch
  */
-const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
+export const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
   const { userId, importBatchId } = job.data
 
   // Get repositories from DI container
   const importBatchRepository = container.getImportBatchRepository()
   const transactionRepository = container.getTransactionRepository()
 
-  const batchDoc = await importBatchRepository.updateStatus(
-    importBatchId,
-    'PROCESSING'
-  )
+  const existingBatch = await importBatchRepository.findById(importBatchId)
+
+  if (!existingBatch) {
+    logger.warn(`[JOB:Transaction] Import batch ${importBatchId} not found`)
+    throw new UnrecoverableError(`Import batch not found: ${importBatchId}`)
+  }
+
+  if (existingBatch.status === 'COMPLETED') {
+    return {
+      status: 'skipped',
+      reason: 'import-batch-already-completed',
+      details: { importBatchId }
+    }
+  }
+
+  if (existingBatch.status === 'FAILED') {
+    throw new UnrecoverableError(
+      `Import batch is already terminal: ${importBatchId}`
+    )
+  }
+
+  const batchDoc =
+    existingBatch.status === 'PENDING'
+      ? await importBatchRepository.claimForProcessing(importBatchId)
+      : existingBatch
 
   if (!batchDoc) {
-    logger.warn(`[JOB:Transaction] Import batch ${importBatchId} not found`)
-    return { insertedCount: 0, success: false }
+    throw new Error(`Failed to claim import batch: ${importBatchId}`)
   }
 
   const { transactions } = batchDoc
   const BATCH_SIZE = 150
-  let totalProcessed = 0
-  let totalInserted = 0
-  let rejectedCount = 0
+  let totalProcessed = batchDoc.processedCount
+  let rejectedCount = batchDoc.rejectedCount
+  let totalInserted = totalProcessed - rejectedCount
 
   // Lấy io instance để emit progress
   let io: ReturnType<typeof getIO> | null = null
@@ -69,124 +99,120 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     })
   }
 
-  try {
-    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
-      const chunk = transactions.slice(i, i + BATCH_SIZE)
+  for (
+    let i = batchDoc.processedCount;
+    i < transactions.length;
+    i += BATCH_SIZE
+  ) {
+    const chunk = transactions.slice(i, i + BATCH_SIZE)
 
-      const transactionsToInsert = chunk
-        .map((tx) => {
-          // Reject rows without a date or with an invalid date
-          if (!tx.date) return null
+    const transactionsToInsert = chunk
+      .map((tx, chunkIndex) => {
+        // Reject rows without a date or with an invalid date
+        if (!tx.date) return null
 
-          const parsedDate = new Date(tx.date)
-          if (isNaN(parsedDate.getTime())) return null
+        const parsedDate = new Date(tx.date)
+        if (isNaN(parsedDate.getTime())) return null
 
-          const cleanUserId =
-            typeof userId === 'string' &&
-            mongoose.Types.ObjectId.isValid(userId)
-              ? new mongoose.Types.ObjectId(userId)
-              : (userId as unknown as mongoose.Types.ObjectId)
+        const cleanUserId =
+          typeof userId === 'string' && mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : (userId as unknown as mongoose.Types.ObjectId)
 
-          return {
-            ...tx,
-            userId: cleanUserId,
-            date: parsedDate,
-            status: tx.status || TransactionStatusEnum.COMPLETED, // Tôn trọng status người dùng đã sửa, mặc định là COMPLETED
-            recurringSourceId: undefined
-          }
-        })
-        .filter((tx) => tx !== null) as Partial<TransactionDocument>[]
+        return {
+          ...tx,
+          userId: cleanUserId,
+          date: parsedDate,
+          status: tx.status || TransactionStatusEnum.COMPLETED, // Tôn trọng status người dùng đã sửa, mặc định là COMPLETED
+          recurringSourceId: undefined,
+          importBatchId: new mongoose.Types.ObjectId(importBatchId),
+          importRowIndex: i + chunkIndex
+        }
+      })
+      .filter((tx) => tx !== null) as Partial<TransactionDocument>[]
 
-      let insertedInThisBatch = 0
-      if (transactionsToInsert.length > 0) {
-        try {
-          const result =
-            await transactionRepository.bulkCreate(transactionsToInsert)
-          insertedInThisBatch = result.insertedCount
-        } catch (error: unknown) {
-          if (isBulkWriteError(error)) {
-            insertedInThisBatch =
-              error.result?.nInserted ?? error.insertedCount ?? 0
-            const dbRejections =
-              transactionsToInsert.length - insertedInThisBatch
-            logger.warn(
-              `[JOB:Transaction] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${dbRejections} rejected by DB`
-            )
-          } else {
-            // Re-throw serious errors (connection, etc.) so BullMQ can retry.
-            // insertedInThisBatch remains 0 as initialized at line 82.
-            throw error
-          }
+    let insertedInThisBatch = 0
+    let databaseRejections = 0
+    if (transactionsToInsert.length > 0) {
+      try {
+        const result =
+          await transactionRepository.bulkCreate(transactionsToInsert)
+        insertedInThisBatch = result.insertedCount
+      } catch (error: unknown) {
+        if (isBulkWriteError(error)) {
+          insertedInThisBatch =
+            error.result?.nInserted ?? error.insertedCount ?? 0
+          databaseRejections = transactionsToInsert.length - insertedInThisBatch
+          logger.warn(
+            `[JOB:Transaction] Partial success in bulk insert: ${insertedInThisBatch} inserted, ${databaseRejections} rejected by DB`
+          )
+        } else {
+          // Re-throw serious errors (connection, etc.) so BullMQ can retry.
+          // insertedInThisBatch remains 0 as initialized at line 82.
+          throw error
         }
       }
-
-      const validationRejections = chunk.length - transactionsToInsert.length
-      totalInserted += insertedInThisBatch
-      totalProcessed += chunk.length
-      rejectedCount +=
-        validationRejections +
-        (transactionsToInsert.length - insertedInThisBatch)
-
-      const progress = Math.round((totalProcessed / transactions.length) * 100)
-      await job.updateProgress(progress)
-
-      // Emit progress qua Socket.IO
-      io?.to(userId.toString()).emit('bulk-import:progress', {
-        progress,
-        totalProcessed,
-        totalInserted,
-        rejectedCount,
-        total: transactions.length
-      })
-
-      logger.info(
-        `[JOB:Transaction] Batch ${Math.ceil((i + 1) / BATCH_SIZE)}: Processed ${totalProcessed}/${transactions.length} (Inserted: ${totalInserted}, Rejected: ${rejectedCount})`
-      )
     }
 
-    await importBatchRepository.updateStatus(importBatchId, 'COMPLETED')
-    await importBatchRepository.removeTransactionsArray(importBatchId)
-    logger.info(`[JOB:Transaction] Cleaned up import batch: ${importBatchId}`)
+    const validationRejections = chunk.length - transactionsToInsert.length
+    totalProcessed += chunk.length
+    rejectedCount += validationRejections + databaseRejections
+    totalInserted = totalProcessed - rejectedCount
 
-    // Xóa cache analytics của user
-    await invalidateUserAnalyticsCache(userId)
-
-    //  Emit completed
-    const room = userId.toString()
-    logger.info(
-      `[JOB:Transaction] Emitting bulk-import:completed to room: ${room}`
+    await importBatchRepository.updateProgress(
+      importBatchId,
+      totalProcessed,
+      rejectedCount
     )
 
-    try {
-      io?.to(room).emit('bulk-import:completed', {
-        totalInserted,
-        rejectedCount,
-        totalProcessed,
-        message: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`
-      })
-    } catch (error) {
-      logger.error('[JOB:Transaction] Failed to emit completion event', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
+    const progress = Math.round((totalProcessed / transactions.length) * 100)
+    await job.updateProgress(progress)
 
-    return { insertedCount: totalInserted, rejectedCount, success: true }
-  } catch (error) {
-    await importBatchRepository.updateStatus(importBatchId, 'FAILED')
+    // Emit progress qua Socket.IO
+    io?.to(userId.toString()).emit('bulk-import:progress', {
+      progress,
+      totalProcessed,
+      totalInserted,
+      rejectedCount,
+      total: transactions.length
+    })
 
-    // Emit failed
-    try {
-      io?.to(userId.toString()).emit('bulk-import:failed', {
-        message: 'Import failed, please try again'
-      })
-    } catch (error) {
-      logger.error('[JOB:Transaction] Failed to emit failure event', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-
-    throw error
+    logger.info(
+      `[JOB:Transaction] Batch ${Math.ceil((i + 1) / BATCH_SIZE)}: Processed ${totalProcessed}/${transactions.length} (Inserted: ${totalInserted}, Rejected: ${rejectedCount})`
+    )
   }
+
+  await importBatchRepository.updateStatus(
+    importBatchId,
+    'COMPLETED',
+    new Date()
+  )
+  await importBatchRepository.removeTransactionsArray(importBatchId)
+  logger.info(`[JOB:Transaction] Cleaned up import batch: ${importBatchId}`)
+
+  // Xóa cache analytics của user
+  await invalidateUserAnalyticsCache(userId)
+
+  //  Emit completed
+  const room = userId.toString()
+  logger.info(
+    `[JOB:Transaction] Emitting bulk-import:completed to room: ${room}`
+  )
+
+  try {
+    io?.to(room).emit('bulk-import:completed', {
+      totalInserted,
+      rejectedCount,
+      totalProcessed,
+      message: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`
+    })
+  } catch (error) {
+    logger.error('[JOB:Transaction] Failed to emit completion event', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+
+  return { insertedCount: totalInserted, rejectedCount, success: true }
 }
 
 /**
@@ -195,7 +221,7 @@ const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
 /**
  * Xử lý Từng mẻ giao dịch định kỳ (Job CON)
  */
-const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
+export const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
   const { transactionIds, userId } = job.data
   const now = new Date()
 
@@ -206,73 +232,128 @@ const processRecurringChildJob = async (job: Job<RecurringJobData>) => {
     return
   }
 
-  // Get TransactionRepository from DI container
-  const transactionRepository = container.getTransactionRepository()
+  let processedCount = 0
+  let skippedCount = 0
 
-  // Tìm nạp toàn bộ TX trong mẻ này
-  const allDueTransactions = await transactionRepository.findRecurringDue(now)
+  for (const transactionId of transactionIds) {
+    const session = await mongoose.startSession()
+    let occurrenceDateForVerification: Date | undefined
 
-  // Filter by transactionIds
-  const transactions = allDueTransactions.filter((tx) =>
-    transactionIds.includes(tx._id.toString())
-  )
+    try {
+      await session.withTransaction(async () => {
+        const source = await TransactionModel.findOne({
+          _id: transactionId,
+          userId,
+          isRecurring: true,
+          nextRecurringDate: { $lte: now }
+        }).session(session)
 
-  if (!transactions.length) {
-    logger.warn(
-      `[JOB:Transaction] No due transactions found in DB for batch of ${transactionIds.length} ids (User: ${userId})`
-    )
-    return
-  }
+        if (!source?.nextRecurringDate || !source.recurringInterval) {
+          skippedCount += 1
+          return
+        }
 
-  const session = await mongoose.startSession()
-  session.startTransaction()
+        const occurrenceDate = source.nextRecurringDate
+        occurrenceDateForVerification = occurrenceDate
+        const nextDate = calculateNextOccurrence(
+          occurrenceDate,
+          source.recurringInterval
+        )
+        const existingOccurrence = await TransactionModel.findOne({
+          recurringSourceId: source._id,
+          date: occurrenceDate
+        }).session(session)
 
-  try {
-    for (const tx of transactions) {
-      const nextDate = calculateNextOccurrence(
-        tx.nextRecurringDate!,
-        tx.recurringInterval!
-      )
+        if (!existingOccurrence) {
+          await TransactionModel.create(
+            [
+              {
+                userId: source.userId,
+                title: source.title,
+                amount: source.amount,
+                type: source.type,
+                category: source.category,
+                description: source.description,
+                date: occurrenceDate,
+                currency: source.currency,
+                paymentMethod: source.paymentMethod,
+                status: source.status || TransactionStatusEnum.COMPLETED,
+                isRecurring: false,
+                recurringSourceId: source._id
+              }
+            ],
+            { session }
+          )
+        }
 
-      // 1. Tạo giao dịch mới
-      await transactionRepository.create({
-        userId: tx.userId,
-        title: tx.title,
-        amount: tx.amount,
-        type: tx.type,
-        category: tx.category,
-        description: tx.description,
-        date: tx.nextRecurringDate!,
-        currency: tx.currency,
-        paymentMethod: tx.paymentMethod,
-        status: tx.status || TransactionStatusEnum.COMPLETED,
-        isRecurring: false,
-        recurringSourceId: tx._id // Fix: dùng đúng trường recurringSourceId thay vì parentId
+        const updateResult = await TransactionModel.updateOne(
+          {
+            _id: source._id,
+            userId,
+            nextRecurringDate: occurrenceDate
+          },
+          {
+            $set: {
+              nextRecurringDate: nextDate,
+              lastProcessed: now
+            }
+          },
+          { session }
+        )
+
+        if (updateResult.modifiedCount === 0) {
+          skippedCount += 1
+          return
+        }
+
+        if (existingOccurrence) {
+          skippedCount += 1
+        } else {
+          processedCount += 1
+        }
       })
+    } catch (error) {
+      if (isMongoDuplicateKeyError(error) && occurrenceDateForVerification) {
+        const occurrenceExists = await TransactionModel.exists({
+          recurringSourceId: transactionId,
+          date: occurrenceDateForVerification
+        })
 
-      // 2. Cập nhật ngày tiếp theo cho bản mẫu
-      await transactionRepository.update(
-        tx._id.toString(),
-        tx.userId.toString(),
+        if (!occurrenceExists) {
+          throw error
+        }
+
+        skippedCount += 1
+        logger.info('[JOB:Transaction] Recurring occurrence already exists', {
+          transactionId,
+          userId
+        })
+        continue
+      }
+
+      logger.error(
+        `[JOB:Transaction] Failed to process recurring occurrence for ${userId}`,
         {
-          nextRecurringDate: nextDate
+          transactionId,
+          error: error instanceof Error ? error.message : String(error)
         }
       )
+      throw error
+    } finally {
+      await session.endSession()
     }
+  }
 
-    await session.commitTransaction()
-    logger.info(
-      `[JOB:Transaction] Batch Processed: ${transactions.length} txs for user ${userId}`
-    )
-  } catch (error) {
-    await session.abortTransaction()
-    logger.error(
-      `[JOB:Transaction] Failed to process child batch for ${userId}`,
-      { error: error instanceof Error ? error.message : String(error) }
-    )
-    throw error
-  } finally {
-    session.endSession()
+  logger.info(
+    `[JOB:Transaction] Batch Processed: ${processedCount} created, ${skippedCount} skipped for user ${userId}`
+  )
+
+  return {
+    status: processedCount > 0 ? 'succeeded' : 'skipped',
+    ...(processedCount === 0
+      ? { reason: 'recurring-occurrences-already-processed' }
+      : {}),
+    details: { processedCount, skippedCount }
   }
 }
 
@@ -341,6 +422,29 @@ transactionWorker.on('failed', async (job, err) => {
   logger.error(
     `[JOB:Transaction] Job ${job?.id} (${job?.name}) failed: ${err.message}`
   )
+
+  if (
+    job?.name === TRANSACTION_JOBS.BULK_IMPORT &&
+    getJobAttemptContext(job).isFinalAttempt
+  ) {
+    const importBatchRepository = container.getImportBatchRepository()
+    await importBatchRepository.updateStatus(
+      job.data.importBatchId,
+      'FAILED',
+      new Date()
+    )
+
+    try {
+      getIO().to(job.data.userId.toString()).emit('bulk-import:failed', {
+        message: 'Import failed, please try again'
+      })
+    } catch (emitError) {
+      logger.error('[JOB:Transaction] Failed to emit terminal failure event', {
+        error:
+          emitError instanceof Error ? emitError.message : String(emitError)
+      })
+    }
+  }
 
   // Xử lý Poison Pill cho Recurring nếu cần
   if (
