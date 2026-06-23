@@ -147,6 +147,27 @@ Allowed labels are bounded enums only. Queue gauges may be refreshed
 periodically with `getJobCounts()`; request processing must not block on metric
 collection.
 
+### Sentry
+
+Prometheus answers how often and how slow; Sentry answers why an unexpected
+terminal or infrastructure failure occurred.
+
+Add a background-safe capture helper that accepts sanitized queue metadata
+without requiring an Express request. Capture only:
+
+- worker infrastructure errors;
+- circuit-breaker open events;
+- final BullMQ failure;
+- unexpected permanent invariant failures.
+
+Retry attempts, cache misses, duplicate jobs and user-caused non-receipt errors
+remain logs/metrics only.
+
+Extend `beforeSend` beyond sensitive headers to remove receipt data from request
+bodies, query strings, breadcrumbs, contexts and extras. Configure release and
+trace sampling from environment variables. A Sentry SDK failure must remain
+best-effort and never change the BullMQ outcome.
+
 ## Capacity model
 
 For average processing time `T` seconds:
@@ -241,6 +262,8 @@ new jobs and wait for active work within a configured shutdown timeout.
 - Reject downloads larger than a configured maximum.
 - Process only URLs created by server-side Cloudinary upload.
 - Do not log signed URLs, base64 or extracted financial fields.
+- Do not send signed URLs, filenames, job payloads or extracted financial fields
+  to Sentry.
 - Protect `/metrics` in production through network policy, reverse proxy or
   explicit credentials.
 - Protect status endpoint with JWT and job ownership checks.

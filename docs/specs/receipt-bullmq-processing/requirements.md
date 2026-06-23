@@ -162,6 +162,15 @@ other high-cardinality/sensitive labels.
 Bull Board remains an operational UI, but it does not replace time-series
 metrics.
 
+Sentry remains the exception and tracing system. Receipt processing must capture
+worker infrastructure errors, circuit-breaker open events and terminal failures,
+but must not capture each retry, cache miss, duplicate or user-caused
+non-receipt failure.
+
+Sentry events must include bounded operational metadata and must scrub receipt
+payloads, image URLs, filenames, provider responses and financial data from
+request data, breadcrumbs, contexts and extras.
+
 ### R8. Security and privacy
 
 - Never log or expose base64 image data.

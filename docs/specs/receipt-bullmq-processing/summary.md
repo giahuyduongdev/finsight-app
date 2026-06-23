@@ -134,6 +134,19 @@ tài chính từ hóa đơn.
 Bull Board dùng để xem từng job. Prometheus/Grafana hoặc metrics endpoint dùng
 để xem xu hướng theo thời gian. Hai công cụ không thay thế nhau.
 
+Sentry tiếp tục dùng để điều tra nguyên nhân của lỗi bất thường:
+
+- worker infrastructure error;
+- circuit breaker open;
+- terminal failure sau khi hết retry;
+- lỗi intake/status `5xx`.
+
+Không gửi từng retry, cache miss, duplicate hoặc ảnh không phải hóa đơn lên
+Sentry. Sentry event không được chứa base64, image URL, filename, raw job
+payload hoặc dữ liệu tài chính. Feature cần bổ sung worker capture helper,
+release/trace configuration và scrub cả body, query, breadcrumbs, contexts và
+extras thay vì chỉ scrub headers.
+
 ## Localhost và VPS
 
 Localhost vẫn dùng cùng kiến trúc:

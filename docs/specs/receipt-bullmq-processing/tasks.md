@@ -21,6 +21,15 @@
 - [ ] Verify metric labels contain no user, image or financial data.
 - [ ] Add optional local Prometheus/Grafana Docker profile or documented curl
       workflow.
+- [ ] Add background-safe Sentry capture helper for workers.
+- [ ] Add Sentry release and trace-sampling environment configuration.
+- [ ] Extend Sentry scrubbing to request body, query, breadcrumbs, contexts and
+      extras.
+- [ ] Capture Receipt Worker infrastructure error, circuit-breaker open and
+      final failure.
+- [ ] Verify retries, cache misses, duplicates and user non-receipt errors do
+      not create Sentry noise.
+- [ ] Verify Sentry failure cannot change job outcome.
 
 ## Phase 2 - Durable receipt intake
 
@@ -68,6 +77,10 @@
 - [ ] Unit test retryable and permanent failures.
 - [ ] Unit test status authorization and sanitization.
 - [ ] Unit test metrics and bounded labels.
+- [ ] Unit test Sentry worker capture allowlist.
+- [ ] Unit test Sentry receipt payload and URL scrubbing.
+- [ ] Unit test retry/non-receipt paths do not capture Sentry events.
+- [ ] Unit test terminal/infrastructure failure capture.
 - [ ] Redis integration test duplicate enqueue.
 - [ ] Redis integration test configured concurrency.
 - [ ] Restart/stalled integration test.
@@ -91,6 +104,10 @@
 - [ ] If there is no `429` and the queue remains backlogged, test 15 jobs/minute
       before considering 20.
 - [ ] Verify Cloudinary failure prevents enqueue and prevents a `202` response.
+- [ ] Trigger one terminal worker failure and verify a sanitized Sentry event.
+- [ ] Trigger retryable failures and verify they affect metrics without creating
+      one Sentry issue per attempt.
+- [ ] Run load tests with trace sampling disabled or reduced.
 - [ ] Run lint, typecheck, unit tests, integration tests and build.
 
 ## Phase 7 - VPS rollout

@@ -280,13 +280,114 @@ Không dùng các metric labels sau:
 - Bull Board dùng để xem và debug từng job.
 - Prometheus dùng để lưu time-series metrics.
 - Grafana dùng để xem dashboard.
+- Sentry dùng để điều tra exception, terminal failure và trace bất thường.
 - Localhost có thể chạy Prometheus/Grafana bằng Docker Compose profile tùy
   chọn.
 - Production VPS chạy Prometheus/Grafana nếu tài nguyên thực tế cho phép.
 - Nếu monitoring tạo áp lực VPS, giữ Prometheus retention ngắn hoặc chuyển
   monitoring ra ngoài; application metrics contract không thay đổi.
 
-## 15. MongoDB và Redis trên VPS
+## 15. Sentry
+
+### Vai trò đã chốt
+
+Sentry không thay thế Prometheus metrics.
+
+```text
+Bull Board  -> trạng thái và payload của từng BullMQ job
+Prometheus  -> counters, gauges, latency và capacity theo thời gian
+Grafana     -> dashboard từ Prometheus
+Sentry      -> exception, terminal failure và distributed trace
+```
+
+### Những sự kiện Receipt phải gửi lên Sentry
+
+- Receipt Worker infrastructure error.
+- Final failure sau khi đã hết BullMQ attempts.
+- Permanent failure bất thường do payload nội bộ hoặc invariant bị vi phạm.
+- Gemini hoặc Cloudinary circuit breaker chuyển sang trạng thái open.
+- Status endpoint hoặc queue intake phát sinh lỗi server `5xx`.
+- Graceful shutdown timeout khiến active job không đóng sạch.
+
+### Những sự kiện không gửi lên Sentry
+
+- Retryable attempt thông thường khi BullMQ vẫn còn retry.
+- Cache miss.
+- Duplicate enqueue hoặc completed skip.
+- Ảnh không phải hóa đơn do người dùng upload.
+- Validation error hoặc HTTP `4xx` thông thường.
+- Mỗi Gemini `429` riêng lẻ nếu hệ thống vẫn retry đúng policy.
+
+Các sự kiện này được theo dõi bằng Prometheus counters và structured logs để
+tránh Sentry noise.
+
+### Metadata được phép
+
+Sentry event có thể chứa:
+
+- environment;
+- release/commit SHA;
+- queue name;
+- job name;
+- attempt number và max attempts;
+- safe error class;
+- correlation/request ID;
+- worker instance/version.
+
+`jobId` chỉ được đặt trong Sentry context để điều tra, không dùng làm tag vì có
+cardinality cao.
+
+### Dữ liệu cấm gửi lên Sentry
+
+- base64 hoặc image bytes;
+- Cloudinary signed/full image URL;
+- filename do user cung cấp;
+- email;
+- API key, token, cookie hoặc authorization header;
+- receipt title, amount, date, description, category hoặc payment method;
+- raw BullMQ job payload;
+- raw Gemini/Cloudinary response.
+
+### Cải thiện Sentry hiện tại
+
+Sentry hiện đã capture HTTP `5xx`, gắn request ID/path/method/user ID và redact
+sensitive headers. Feature này phải mở rộng:
+
+1. Thêm helper capture lỗi background worker, không phụ thuộc Express request.
+2. Mở rộng `beforeSend` để scrub:
+   - request body;
+   - query string;
+   - cookies;
+   - breadcrumbs;
+   - contexts/extra chứa receipt payload hoặc URL.
+3. Thêm cấu hình:
+
+```env
+SENTRY_RELEASE=
+SENTRY_TRACES_SAMPLE_RATE=0.1
+SENTRY_WORKER_ERRORS_ENABLED=true
+```
+
+4. Production release lấy từ commit SHA hoặc deployment version.
+5. Không hardcode sampling:
+   - development bình thường có thể dùng `1.0`;
+   - capacity/load test dùng `0` hoặc giá trị thấp để tránh tạo quá nhiều event;
+   - production bắt đầu `0.1`.
+6. Sentry capture failure không được làm job fail thêm hoặc làm backend crash.
+
+### Alert ban đầu
+
+Thiết lập alert cho:
+
+- Receipt final failure tăng bất thường;
+- worker infrastructure error;
+- circuit breaker open;
+- lỗi status/intake `5xx`.
+
+Prometheus vẫn là nguồn alert chính cho Gemini `429`, queue depth, latency và
+retry rate.
+
+## 16. MongoDB và Redis trên VPS
 
 ### Đã chốt
 
@@ -305,7 +406,7 @@ Khi có user thật hoặc cần độ tin cậy cao:
 
 Application chỉ phụ thuộc connection strings nên không cần đổi kiến trúc code.
 
-## 16. VPS profile
+## 17. VPS profile
 
 ### Đã chốt
 
@@ -330,7 +431,7 @@ Deployment đầu:
 
 Cần cấu hình swap để chống OOM bất ngờ, nhưng không xem swap là RAM chính.
 
-## 17. Security và privacy
+## 18. Security và privacy
 
 ### Đã chốt
 
@@ -340,10 +441,12 @@ Cần cấu hình swap để chống OOM bất ngờ, nhưng không xem swap là
 - Worker chỉ xử lý Cloudinary URL do server tạo.
 - Không log base64, signed URL, receipt data hoặc dữ liệu tài chính.
 - Không đưa dữ liệu nhạy cảm vào Sentry breadcrumbs/metrics.
+- Sentry `beforeSend` phải scrub cả headers, body, query, breadcrumbs, context
+  và extra.
 - Status endpoint phải kiểm tra ownership.
 - Client error messages phải được sanitize.
 
-## 18. Socket semantics
+## 19. Socket semantics
 
 ### Đã chốt
 
@@ -353,7 +456,7 @@ Cần cấu hình swap để chống OOM bất ngờ, nhưng không xem swap là
 - FE phải chịu được duplicate completion event.
 - Event tiếp tục mang `jobId`.
 
-## 19. Graceful shutdown
+## 20. Graceful shutdown
 
 ### Đã chốt
 
@@ -362,7 +465,7 @@ Cần cấu hình swap để chống OOM bất ngờ, nhưng không xem swap là
 - Shutdown không được tạo terminal failure giả.
 - API và worker containers có shutdown lifecycle độc lập.
 
-## 20. Feature flags và biến môi trường
+## 21. Feature flags và biến môi trường
 
 ### Đã chốt
 
@@ -378,16 +481,19 @@ RECEIPT_DOWNLOAD_TIMEOUT_MS=10000
 RECEIPT_PROCESSING_TIMEOUT_MS=60000
 RECEIPT_SCAN_CACHE_TTL_SECONDS=86400
 METRICS_ENABLED=true
+SENTRY_RELEASE=
+SENTRY_TRACES_SAMPLE_RATE=0.1
+SENTRY_WORKER_ERRORS_ENABLED=true
 ```
 
 Các biến phải được parse và validate tập trung. Giá trị không hợp lệ phải fail
 fast hoặc fallback theo policy được test, không để `NaN` đi vào worker options.
 
-## 21. Rollout
+## 22. Rollout
 
 ### Đã chốt
 
-1. Thêm configuration và metrics.
+1. Thêm configuration, metrics và Sentry worker capture.
 2. Thêm Receipt Intake Service.
 3. Enqueue URL-only jobs sau Cloudinary upload.
 4. Giữ legacy payload support.
@@ -399,7 +505,7 @@ fast hoặc fallback theo policy được test, không để `NaN` đi vào work
 9. Giảm concurrency hoặc limiter nếu metrics cho thấy quá tải.
 10. Xóa Promise background cũ và legacy base64 branch theo rollout gate.
 
-## 22. Không làm trong phase này
+## 23. Không làm trong phase này
 
 - Không hỗ trợ cancel job.
 - Không lưu extraction result lâu dài trong MongoDB.
@@ -410,7 +516,7 @@ fast hoặc fallback theo policy được test, không để `NaN` đi vào work
 - Không thay provider.
 - Không cam kết exactly-once delivery.
 
-## 23. Việc chỉ cần xác minh, không cần quyết định lại
+## 24. Việc chỉ cần xác minh, không cần quyết định lại
 
 Các mục sau là checklist vận hành, không còn là câu hỏi thiết kế:
 
@@ -422,8 +528,11 @@ Các mục sau là checklist vận hành, không còn là câu hỏi thiết k�
 - kiểm tra API container không chạy worker;
 - kiểm tra worker container chỉ có một instance;
 - kiểm tra Bull Board được bảo vệ ở production.
+- kiểm tra Sentry release đúng commit/deployment;
+- kiểm tra capacity test không dùng trace sampling `1.0`;
+- kiểm tra Sentry event không chứa receipt payload hoặc Cloudinary URL.
 
-## 24. Quy trình test quota và capacity
+## 25. Quy trình test quota và capacity
 
 ### Cấu hình khởi đầu
 
@@ -563,7 +672,14 @@ Mỗi lần capacity test cần ghi:
 - CPU/RAM;
 - quyết định giữ, tăng hoặc giảm cấu hình.
 
-## 25. Điều kiện bắt đầu implementation
+Trong capacity test:
+
+- đặt `SENTRY_TRACES_SAMPLE_RATE=0` hoặc mức thấp;
+- không tạo alert từ từng retry/429;
+- xác nhận final failure và infrastructure error thử nghiệm vẫn được capture khi
+  `SENTRY_WORKER_ERRORS_ENABLED=true`.
+
+## 26. Điều kiện bắt đầu implementation
 
 Feature đủ quyết định để bắt đầu implementation.
 
