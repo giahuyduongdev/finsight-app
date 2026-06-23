@@ -1,0 +1,58 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant FE as Client
+  participant API as Receipt Intake API
+  participant C as Cloudinary
+  participant R as Redis/BullMQ
+  participant W as Receipt Worker
+  participant G as Gemini
+  participant S as Socket.IO
+
+  U->>FE: Upload receipt image
+  FE->>API: POST /transactions/scan-receipt
+  API->>API: Validate, compress, hash
+  API->>R: Read cache(userId + imageHash)
+
+  alt Valid cache hit
+    R-->>API: Cached result
+    API-->>FE: 200 cached receipt
+  else Cache miss
+    API->>C: Upload/reuse deterministic asset
+    C-->>API: imageUrl
+    API->>R: Add job with stable jobId and imageUrl
+    R-->>API: Job accepted or duplicate existing job
+    API-->>FE: 202 + stable jobId
+
+    R->>W: Deliver job within concurrency/rate limit
+    W->>R: Recheck cache
+    alt Cache became valid
+      R-->>W: Cached result
+      W->>S: receipt:scan-completed
+      W-->>R: return skipped
+    else Still missing
+      W->>C: Download bounded image
+      C-->>W: Image bytes
+      W->>G: Extract receipt data
+      alt Permanent non-receipt
+        G--xW: NonReceiptImageError
+        W->>S: receipt:scan-failed
+        W--xR: UnrecoverableError
+      else Transient provider failure
+        G--xW: 429/503/timeout
+        W--xR: throw retryable Error
+        R->>R: Backoff and retry
+      else Success
+        G-->>W: Valid receipt data
+        W->>R: Write result cache
+        W->>S: receipt:scan-completed
+        W-->>R: return succeeded
+      end
+    end
+  end
+
+  opt Client reloads or misses socket
+    FE->>API: GET /transactions/scan-receipt/:jobId
+    API->>R: Read owned job state/cache
+    API-->>FE: waiting/active/completed/failed
+  end
