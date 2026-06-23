@@ -1,0 +1,32 @@
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant API as Backend API
+  participant M as Metrics Registry
+  participant Q as BullMQ Worker
+  participant P as External Provider
+  participant S as Sentry
+  participant PM as Prometheus
+  participant G as Grafana
+
+  C->>API: HTTP request
+  API->>M: Increment active request
+  API-->>C: HTTP response
+  API->>M: Record normalized route/status/duration
+
+  Q->>M: Record job start and queue wait
+  Q->>P: Provider operation
+  P-->>Q: Result or error
+  Q->>M: Record provider and job outcome
+
+  alt Unexpected terminal/infrastructure failure
+    Q->>S: Sanitized background exception
+  else Retry or expected business outcome
+    Q->>M: Counter only
+  end
+
+  PM->>API: Scrape GET /metrics every 30s
+  API-->>PM: Prometheus text format
+  G->>PM: Query metrics
+  PM-->>G: Time-series data
+

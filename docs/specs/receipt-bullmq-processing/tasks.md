@@ -14,17 +14,12 @@
 
 ## Phase 1 - Metrics foundation
 
-- [ ] Add Prometheus-compatible metric registry and `/metrics` endpoint.
-- [ ] Protect production metrics exposure.
-- [ ] Add receipt counters, gauges and duration histograms.
-- [ ] Add periodic queue-count collection without blocking requests.
+- [ ] Confirm `project-observability-foundation` contracts are available.
+- [ ] Register Receipt queue lifecycle with shared BullMQ metrics.
+- [ ] Add receipt cache/outcome metrics through the shared registry.
+- [ ] Use shared provider metrics for Gemini and Cloudinary.
 - [ ] Verify metric labels contain no user, image or financial data.
-- [ ] Add optional local Prometheus/Grafana Docker profile or documented curl
-      workflow.
-- [ ] Add background-safe Sentry capture helper for workers.
-- [ ] Add Sentry release and trace-sampling environment configuration.
-- [ ] Extend Sentry scrubbing to request body, query, breadcrumbs, contexts and
-      extras.
+- [ ] Use the shared background-safe Sentry capture helper.
 - [ ] Capture Receipt Worker infrastructure error, circuit-breaker open and
       final failure.
 - [ ] Verify retries, cache misses, duplicates and user non-receipt errors do

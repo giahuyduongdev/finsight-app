@@ -229,11 +229,15 @@ FE sử dụng endpoint này khi:
 
 ### Đã chốt
 
-Dùng `prom-client` và cung cấp:
+Receipt sử dụng foundation tại:
 
 ```text
-GET /metrics
+docs/specs/project-observability-foundation
 ```
+
+Foundation sở hữu `prom-client`, registry, `/metrics`, Sentry helpers,
+Prometheus/Grafana và privacy/cardinality rules. Receipt chỉ đăng ký metrics và
+events đặc thù.
 
 Metrics bắt buộc:
 

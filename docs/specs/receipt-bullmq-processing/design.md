@@ -126,9 +126,9 @@ return values. Failed output returns a sanitized message.
 
 ### Metrics
 
-Add `prom-client` and a protected or infrastructure-only `/metrics` endpoint.
-For local development, the endpoint can be read directly or scraped by an
-optional Docker Compose Prometheus/Grafana profile.
+Use the shared registry, helpers and `/metrics` endpoint defined by
+`docs/specs/project-observability-foundation`. Receipt does not create a second
+registry or monitoring stack.
 
 Use counters, gauges and histograms:
 
@@ -149,8 +149,8 @@ collection.
 
 ### Sentry
 
-Prometheus answers how often and how slow; Sentry answers why an unexpected
-terminal or infrastructure failure occurred.
+Use the shared Sentry background helper and sanitization policy defined by
+`docs/specs/project-observability-foundation`.
 
 Add a background-safe capture helper that accepts sanitized queue metadata
 without requiring an Express request. Capture only:
@@ -163,10 +163,9 @@ without requiring an Express request. Capture only:
 Retry attempts, cache misses, duplicate jobs and user-caused non-receipt errors
 remain logs/metrics only.
 
-Extend `beforeSend` beyond sensitive headers to remove receipt data from request
-bodies, query strings, breadcrumbs, contexts and extras. Configure release and
-trace sampling from environment variables. A Sentry SDK failure must remain
-best-effort and never change the BullMQ outcome.
+Receipt supplies only bounded domain metadata and never attaches raw job or
+provider payloads. A Sentry SDK failure remains best-effort and never changes
+the BullMQ outcome.
 
 ## Capacity model
 
