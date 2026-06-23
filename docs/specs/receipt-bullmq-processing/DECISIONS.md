@@ -423,7 +423,147 @@ Các mục sau là checklist vận hành, không còn là câu hỏi thiết k�
 - kiểm tra worker container chỉ có một instance;
 - kiểm tra Bull Board được bảo vệ ở production.
 
-## 24. Điều kiện bắt đầu implementation
+## 24. Quy trình test quota và capacity
+
+### Cấu hình khởi đầu
+
+Localhost bắt đầu với:
+
+```env
+RECEIPT_WORKER_CONCURRENCY=2
+RECEIPT_AI_RATE_LIMIT_MAX=10
+RECEIPT_AI_RATE_LIMIT_DURATION_MS=60000
+```
+
+Hiện môi trường local có năm Gemini API keys và một cấu hình Cloudinary account.
+Số API keys chỉ là thông tin vận hành, không được dùng để tự động nhân limiter.
+
+Theo Gemini API:
+
+- quota được đo theo RPM, input TPM và RPD;
+- chỉ cần vượt một trong các giới hạn là request có thể nhận rate-limit error;
+- quota áp dụng theo Google Cloud project, không áp dụng riêng cho từng API key;
+- quota thay đổi theo model và usage tier;
+- giới hạn đang có hiệu lực phải được đọc từ Google AI Studio.
+
+Vì vậy, năm API keys thuộc cùng một project vẫn dùng chung quota. Nếu keys thuộc
+nhiều projects thì mỗi project có quota riêng, nhưng application không được dựa
+vào key rotation để né hoặc cộng quota một cách mặc định.
+
+Nguồn chính thức:
+
+- <https://ai.google.dev/gemini-api/docs/rate-limits>
+- <https://aistudio.google.com/rate-limit>
+
+### Test chức năng cơ bản
+
+1. Upload một receipt hợp lệ.
+2. Xác nhận API trả `202` và `jobId`.
+3. Xác nhận Bull Board hiển thị job trong `RECEIPT_QUEUE`.
+4. Xác nhận job payload có `imageUrl` và không có base64.
+5. Xác nhận job completed và FE nhận kết quả.
+6. Upload lại cùng ảnh và xác nhận cache/deduplication không gọi Gemini lần hai.
+
+### Test concurrency
+
+1. Chuẩn bị ít nhất sáu receipt images hợp lệ.
+2. Gửi sáu request gần như đồng thời.
+3. Quan sát Bull Board và metrics.
+4. Xác nhận số job `active` không vượt quá `2`.
+5. Xác nhận các job còn lại ở `waiting`.
+6. Xác nhận job tiếp theo chỉ chuyển sang `active` khi có active slot trống.
+
+### Test limiter 10 jobs/phút
+
+Trước khi chạy:
+
+1. Mở Google AI Studio Rate Limits.
+2. Ghi lại project, usage tier và RPM/TPM/RPD của từng model Receipt đang dùng.
+3. Xác định năm API keys thuộc một project hay nhiều projects mà không ghi key
+   value vào tài liệu hoặc log.
+4. Nếu RPM nhỏ nhất của model/project đang dùng thấp hơn 10, đặt limiter bằng
+   hoặc thấp hơn RPM đó trước khi test.
+
+Sau đó:
+
+1. Gửi hơn 10 receipt jobs khác nhau trong vòng một phút.
+2. Xác nhận không có hơn 10 jobs được bắt đầu trong cửa sổ limiter.
+3. Xác nhận job vượt giới hạn vẫn ở queue và không bị fail.
+4. Xác nhận chúng tiếp tục được xử lý ở cửa sổ tiếp theo.
+
+### Metrics bắt buộc phải quan sát
+
+- `active` và `waiting` jobs;
+- queue wait p95;
+- processing duration p95;
+- Gemini calls;
+- Gemini `429`;
+- Gemini retry;
+- final failure;
+- Cloudinary upload duration/error;
+- cache hit/miss;
+- CPU, RAM và event-loop lag.
+
+### Quy tắc điều chỉnh Gemini limiter
+
+- Có Gemini `429` trong bài test tải ổn định:
+  - giảm từ 10 xuống 5 jobs/phút;
+  - chạy lại cùng test;
+  - không tăng cho đến khi không còn `429`.
+- Không có `429`, CPU ổn định và queue thường xuyên ùn:
+  - tăng từ 10 lên 15 jobs/phút;
+  - chạy lại toàn bộ test;
+  - sau đó mới cân nhắc 20 jobs/phút.
+- Không thay đổi limiter dựa trên một request đơn lẻ.
+- Mỗi lần điều chỉnh chỉ thay một biến và ghi lại kết quả.
+
+### Quy tắc điều chỉnh concurrency
+
+- Giữ concurrency `2` làm mặc định.
+- Giảm xuống `1` nếu:
+  - CPU duy trì ở mức cao;
+  - event-loop lag vượt ngưỡng vận hành;
+  - timeout tăng rõ rệt;
+  - MongoDB/Redis trên cùng VPS bị tranh tài nguyên.
+- Không tăng trên `2` trong phase này.
+
+### Test Cloudinary
+
+1. Upload nhiều ảnh khác nhau và theo dõi upload duration/error.
+2. Upload lại cùng ảnh và xác nhận deterministic asset được reuse.
+3. Mô phỏng Cloudinary failure và xác nhận API không trả `202`.
+4. Xác nhận enqueue không xảy ra khi upload thất bại.
+5. Chỉ thêm Cloudinary limiter nếu metrics thực tế xuất hiện `429` hoặc quota
+   failure.
+
+### Test restart và recovery
+
+1. Enqueue nhiều jobs để có cả `active` và `waiting`.
+2. Dừng worker nhưng giữ Redis.
+3. Khởi động lại worker.
+4. Xác nhận waiting jobs tiếp tục chạy.
+5. Xác nhận active/stalled job được recover mà không tạo duplicate result.
+6. Reload FE hoặc ngắt socket và xác nhận status endpoint lấy lại được trạng
+   thái.
+
+### Ghi nhận kết quả
+
+Mỗi lần capacity test cần ghi:
+
+- ngày test;
+- môi trường và cấu hình;
+- số worker instances;
+- concurrency;
+- limiter;
+- số jobs;
+- tỷ lệ success/retry/failure;
+- Gemini `429`;
+- queue wait p95;
+- processing p95;
+- CPU/RAM;
+- quyết định giữ, tăng hoặc giảm cấu hình.
+
+## 25. Điều kiện bắt đầu implementation
 
 Feature đủ quyết định để bắt đầu implementation.
 

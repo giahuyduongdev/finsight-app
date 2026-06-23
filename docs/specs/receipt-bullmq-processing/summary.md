@@ -197,3 +197,33 @@ Sau khi hoàn thành:
 - duplicate request không tạo duplicate Gemini work;
 - FE khôi phục được kết quả khi mất socket hoặc reload;
 - metrics đủ để điều chỉnh localhost và VPS dựa trên dữ liệu thực tế.
+
+## Cách test capacity ban đầu
+
+Cấu hình test:
+
+```env
+RECEIPT_WORKER_CONCURRENCY=2
+RECEIPT_AI_RATE_LIMIT_MAX=10
+RECEIPT_AI_RATE_LIMIT_DURATION_MS=60000
+```
+
+Google áp quota theo project, model và usage tier, không theo từng API key. Năm
+keys trong `.env` không mặc định tạo ra quota gấp năm lần. Trước khi test tải,
+cần xem RPM, input TPM và RPD đang có hiệu lực trong Google AI Studio. Nếu RPM
+thực tế thấp hơn 10, limiter phải được giảm tương ứng.
+
+Các bài test chính:
+
+1. Gửi ít nhất sáu jobs đồng thời và xác nhận chỉ có tối đa hai jobs `active`.
+2. Gửi hơn 10 jobs khác nhau trong một phút và xác nhận jobs dư tiếp tục
+   `waiting`, không bị fail.
+3. Theo dõi queue wait p95, processing p95, Gemini `429`, retry, CPU và RAM.
+4. Nếu có `429`, giảm limiter xuống 5 jobs/phút rồi chạy lại.
+5. Nếu không có `429` nhưng queue thường xuyên ùn, thử 15 jobs/phút trước khi
+   cân nhắc 20.
+6. Không tăng concurrency trên `2` trong phase này.
+7. Mô phỏng Cloudinary failure và xác nhận API không enqueue cũng không trả
+   `202`.
+
+Quy trình đầy đủ và mẫu thông tin cần ghi lại nằm trong `DECISIONS.md`.

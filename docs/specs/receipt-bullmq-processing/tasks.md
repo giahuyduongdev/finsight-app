@@ -6,7 +6,11 @@
 - [ ] Add validated receipt worker environment configuration.
 - [ ] Add feature flag `RECEIPT_QUEUE_INTAKE_ENABLED`.
 - [ ] Document local and all-in-one VPS profiles.
-- [ ] Confirm current Gemini quota before production rollout.
+- [ ] Record active Gemini RPM, input TPM and RPD from Google AI Studio for each
+      Receipt model/project without recording API key values.
+- [ ] Confirm whether the five configured Gemini keys belong to one project or
+      multiple projects.
+- [ ] Confirm current Gemini quota again before production rollout.
 
 ## Phase 1 - Metrics foundation
 
@@ -74,9 +78,19 @@
 - [ ] Upload a receipt and observe it in Bull Board.
 - [ ] Confirm job payload has URL and no base64.
 - [ ] Submit more jobs than concurrency and observe waiting jobs.
+- [ ] Submit at least six jobs concurrently and verify active jobs never exceed
+      `2`.
+- [ ] Submit more than 10 distinct jobs within one minute and verify the global
+      limiter delays excess jobs without failing them.
 - [ ] Upload the same image concurrently and verify one Gemini execution.
 - [ ] Restart worker with waiting jobs and verify recovery.
 - [ ] Verify `/metrics` changes for success, cache hit, retry and failure.
+- [ ] Record queue wait p95, processing p95, Gemini `429`, CPU and RAM.
+- [ ] If Gemini returns `429`, reduce the limiter to 5 jobs/minute and rerun the
+      same test.
+- [ ] If there is no `429` and the queue remains backlogged, test 15 jobs/minute
+      before considering 20.
+- [ ] Verify Cloudinary failure prevents enqueue and prevents a `202` response.
 - [ ] Run lint, typecheck, unit tests, integration tests and build.
 
 ## Phase 7 - VPS rollout
