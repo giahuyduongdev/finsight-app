@@ -92,14 +92,15 @@
 - [ ] Do not increase above `2` without a new capacity review.
 - [ ] Remove legacy base64 branch after retention window expires.
 
-## Deployment gates still requiring a decision
+## Production verification gates
 
-- [ ] Actual Gemini quota/API-key pool.
-- [ ] API and worker process/container topology.
-- [ ] Self-hosted or managed MongoDB/Redis for first production deployment.
-- [ ] Production metrics access policy.
-- [ ] Required receipt result/status retention.
-- [ ] Whether cancellation is required.
+- [ ] Read the actual Gemini quota and lower the initial 10 RPM limiter if
+      required.
+- [ ] Verify API and worker run in separate containers.
+- [ ] Verify self-hosted Redis persistence and MongoDB external backup.
+- [ ] Verify metrics are reachable only through the private monitoring network.
+- [ ] Verify receipt result/status retention is 24 hours.
+- [ ] Verify cancellation remains out of scope.
 
 ## Validation checklist
 

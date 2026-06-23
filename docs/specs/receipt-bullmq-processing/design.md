@@ -294,16 +294,15 @@ must be deleted rather than maintained permanently.
 - Start all-in-one VPS receipt concurrency at `2`.
 - Provide metrics from localhost onward.
 
-## Decisions still to confirm
+## Final decisions
 
-These do not block writing the implementation plan, but deployment values must
-be confirmed before production:
+`DECISIONS.md` is the authoritative decision record for this feature.
 
-1. Actual Gemini RPM/TPM quota and number of API keys.
-2. Whether production runs API and worker in one process or separate containers.
-3. Whether Redis and MongoDB initially share the VPS.
-4. Metrics exposure method in production: private network, reverse-proxy auth
-   or a managed collector.
-5. How long completed receipt status/result must remain queryable beyond the
-   current 24-hour cache.
-6. Whether users need cancel-job functionality; default is no.
+The remaining production work is verification, not design:
+
+1. Read the actual Gemini quota and lower the initial 10 RPM limiter if needed.
+2. Run API and worker in separate production containers.
+3. Allow Redis and MongoDB on the learning VPS initially.
+4. Expose metrics only through the private Docker monitoring network.
+5. Keep receipt result cache for 24 hours.
+6. Do not support job cancellation in this phase.

@@ -174,18 +174,16 @@ RECEIPT_SCAN_CACHE_TTL_SECONDS=
 Rate limit Gemini phải là global limiter của queue để thêm worker instance không
 vô tình nhân số request gửi tới provider.
 
-## Các vấn đề cần chốt trước production
+## Các quyết định production
 
-Không cản trở việc triển khai và test trên localhost, nhưng cần chốt trước khi
-đưa lên production:
+Các mục trước đây còn mở đã được chốt trong `DECISIONS.md`:
 
-1. Quota RPM/TPM thực tế của Gemini và số API keys.
-2. API và worker chạy chung process hay tách container.
-3. MongoDB và Redis chạy cùng VPS hay dùng managed services.
-4. `/metrics` được bảo vệ bằng private network, reverse-proxy authentication hay
-   managed collector.
-5. Kết quả và trạng thái receipt cần giữ trong bao lâu sau 24 giờ cache hiện tại.
-6. Có cần chức năng hủy job hay không; mặc định hiện tại là không.
+1. Rate limiter mặc định 10 RPM và giảm nếu quota Gemini thực tế thấp hơn.
+2. API và worker chạy thành hai containers riêng trên production.
+3. MongoDB và Redis được phép chạy cùng VPS trong giai đoạn học tập.
+4. `/metrics` chỉ truy cập qua private Docker monitoring network.
+5. Kết quả và trạng thái receipt giữ 24 giờ.
+6. Không hỗ trợ hủy job trong phase này.
 
 ## Kết quả mong đợi
 
