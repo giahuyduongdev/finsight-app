@@ -9,6 +9,12 @@ export enum ReportStatusEnum {
 
 export interface ReportDocument extends Document {
   userId: mongoose.Types.ObjectId
+  settingId?: mongoose.Types.ObjectId
+  dueDate?: Date
+  deliveryKey?: string
+  providerMessageId?: string
+  attemptCount: number
+  lastError?: string
   period: string
   sentDate: Date
   status: keyof typeof ReportStatusEnum
@@ -22,6 +28,27 @@ const reportSchema = new mongoose.Schema<ReportDocument>(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: 'User'
+    },
+    settingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ReportSetting'
+    },
+    dueDate: {
+      type: Date
+    },
+    deliveryKey: {
+      type: String
+    },
+    providerMessageId: {
+      type: String
+    },
+    attemptCount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    lastError: {
+      type: String
     },
     period: {
       type: String,
@@ -39,6 +66,16 @@ const reportSchema = new mongoose.Schema<ReportDocument>(
   },
   {
     timestamps: true
+  }
+)
+
+reportSchema.index(
+  { deliveryKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      deliveryKey: { $type: 'string' }
+    }
   }
 )
 

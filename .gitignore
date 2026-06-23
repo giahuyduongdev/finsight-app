@@ -49,5 +49,8 @@ client/node_modules
 client/dist
 client/.env
 
+# Local Git worktrees
+.worktrees/
+
 
 

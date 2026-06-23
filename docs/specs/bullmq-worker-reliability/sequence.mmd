@@ -1,0 +1,89 @@
+sequenceDiagram
+  autonumber
+  participant Q as BullMQ
+  participant W as Worker
+  participant DB as MongoDB
+  participant P as External Provider
+  participant S as Socket.IO
+
+  rect rgb(245, 245, 245)
+    Note over Q,S: Common auto-completion and replay behavior
+    Q->>W: Deliver job and acquire lock
+    W->>DB: Read durable business state
+    alt State already terminal
+      DB-->>W: Completed state exists
+      W-->>Q: return skipped
+      Q->>Q: Move job to completed
+    else Permanent invalid state
+      DB-->>W: Cannot recover with same input
+      W-->>Q: throw UnrecoverableError
+      Q->>Q: Move job to failed without retry
+    else Retryable work
+      W->>DB: Claim/checkpoint unique business identity
+      W->>P: Perform external side effect with stable identity
+      P-->>W: Result
+      W->>DB: Persist durable success/checkpoint
+      DB-->>W: Commit
+      W->>S: Emit best-effort domain event
+      W-->>Q: return succeeded
+      Q->>Q: Move job to completed
+    end
+  end
+
+  rect rgb(245, 245, 245)
+    Note over Q,S: Retry after transient failure
+    Q->>W: Deliver attempt
+    W->>DB: Read or claim same domain identity
+    W->>P: Call provider
+    P--xW: Transient failure
+    W--xQ: throw Error
+    alt Attempts remain
+      Q->>Q: Backoff then return to waiting
+      Q->>W: Redeliver same job
+    else Final attempt exhausted
+      Q->>Q: Move job to failed
+      W->>DB: Persist one terminal failure state
+      W->>S: Emit one terminal failure event
+    end
+  end
+
+  rect rgb(245, 245, 245)
+    Note over Q,S: Report crash after provider success
+    Q->>W: Deliver report settingId + dueDate
+    W->>DB: Upsert deliveryKey
+    W->>P: Send email with same idempotency key
+    P-->>W: Accepted
+    W--xQ: Process crashes before BullMQ completion
+    Q->>Q: Lock expires / job becomes stalled
+    Q->>W: Redeliver job
+    W->>DB: Read same deliveryKey
+    W->>P: Retry with same idempotency key if DB not terminal
+    P-->>W: Return original provider result
+    W->>DB: Persist SENT
+    W-->>Q: return succeeded
+  end
+
+  rect rgb(245, 245, 245)
+    Note over Q,S: Bulk import resume
+    Q->>W: Deliver importBatchId
+    W->>DB: Load processedCount checkpoint
+    loop Remaining chunks
+      W->>DB: Insert rows with importBatchId + rowIndex
+      DB-->>W: Insert or duplicate no-op
+      W->>DB: Persist processedCount and rejectedCount
+    end
+    W->>DB: Set COMPLETED and terminalAt
+    W->>S: Emit bulk-import completed
+    W-->>Q: return succeeded
+  end
+
+  rect rgb(245, 245, 245)
+    Note over Q,S: Recurring occurrence
+    Q->>W: Deliver source IDs
+    W->>DB: Start transaction and re-read source
+    W->>DB: Insert child unique by source + occurrence
+    W->>DB: Conditionally advance nextRecurringDate
+    DB-->>W: Commit
+    W-->>Q: return succeeded or verified skipped
+  end
+

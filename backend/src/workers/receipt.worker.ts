@@ -1,4 +1,4 @@
-import { Worker, Job } from 'bullmq'
+import { Worker, Job, UnrecoverableError } from 'bullmq'
 import { bullMQConnection } from '../config/bull/bullmq.config'
 import { logger } from '../config/logger.config'
 import { getIO } from '../config/socket.config'
@@ -9,7 +9,8 @@ import {
   CachedReceiptScanData,
   getReceiptCloudinaryPublicId,
   getReceiptScanCacheKey,
-  getReceiptScanCacheTtlSeconds
+  getReceiptScanCacheTtlSeconds,
+  parseCachedReceiptScan
 } from '../utils/receipt/scan-cache.util'
 import { uploadReceiptImageToCloudinary } from '../utils/receipt/upload.util'
 import {
@@ -84,12 +85,43 @@ async function cacheReceiptScan(
 /**
  * Process receipt scanning job with async upload and cleanup
  */
-async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
+export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
   const { userId, fileBuffer, imageUrl, fileName, fileSize, correlationId } =
     job.data
   const { imageHash } = job.data
 
   try {
+    if (imageHash) {
+      const cacheKey = getReceiptScanCacheKey(userId, imageHash)
+
+      try {
+        const cachedReceipt = parseCachedReceiptScan(await redis.get(cacheKey))
+
+        if (cachedReceipt) {
+          getIO().to(userId).emit('receipt:scan-completed', {
+            jobId: job.id,
+            data: cachedReceipt.data
+          })
+
+          return {
+            status: 'skipped',
+            reason: 'receipt-scan-cache-hit',
+            details: { imageHash }
+          }
+        }
+      } catch (cacheError) {
+        logger.warn('[JOB:Receipt] Receipt scan cache read failed', {
+          userId,
+          imageHash,
+          cacheKey,
+          error:
+            cacheError instanceof Error
+              ? cacheError.message
+              : String(cacheError)
+        })
+      }
+    }
+
     let finalImageUrl: string
     let base64ForAI: string
 
@@ -204,7 +236,9 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
       return { success: true, data }
     } else {
-      throw new Error('Invalid job data: missing both fileBuffer and imageUrl')
+      throw new UnrecoverableError(
+        'Invalid job data: missing both fileBuffer and imageUrl'
+      )
     }
   } catch (error) {
     const err = error as Error
@@ -222,6 +256,7 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     // Catch Gemini Rate Limit (429) details
     let friendlyMessage = err.message || 'Receipt scanning failed'
     const isNonReceiptImage = err instanceof NonReceiptImageError
+    const isPermanentFailure = err instanceof UnrecoverableError
 
     if (
       friendlyMessage.includes('429') ||
@@ -232,7 +267,6 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     }
 
     if (isNonReceiptImage) {
-      job.discard()
       friendlyMessage =
         'This image does not look like a receipt. Please upload a clear receipt image'
     }
@@ -240,12 +274,20 @@ async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     // Only emit failure on final attempt (when all attempts are exhausted)
     const maxAttempts = job.opts.attempts || 3
     const currentAttemptNumber = (job.attemptsMade ?? 0) + 1
-    if (isNonReceiptImage || currentAttemptNumber >= maxAttempts) {
+    if (
+      isNonReceiptImage ||
+      isPermanentFailure ||
+      currentAttemptNumber >= maxAttempts
+    ) {
       const io = getIO()
       io.to(userId).emit('receipt:scan-failed', {
         jobId: job.id,
         error: friendlyMessage
       })
+    }
+
+    if (isNonReceiptImage) {
+      throw new UnrecoverableError(friendlyMessage)
     }
 
     throw error // Trigger retry for transient failures
@@ -303,4 +345,13 @@ receiptWorker.on('failed', (job, err) => {
   }
 
   logger.error(`[JOB:Receipt] Receipt scan failed: ${job?.id}`, logMetadata)
+})
+
+receiptWorker.on('error', (error) => {
+  logger.error('[SYS:BullMQ] Receipt worker infrastructure error', {
+    queueName: 'RECEIPT_QUEUE',
+    eventType: 'error',
+    error: error.message,
+    stack: error.stack
+  })
 })

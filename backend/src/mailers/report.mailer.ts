@@ -8,10 +8,11 @@ type ReportEmailParams = {
   username: string
   report: ReportType
   frequency: string
+  idempotencyKey?: string
 }
 
 export const sendReportEmail = async (params: ReportEmailParams) => {
-  const { email, username, report, frequency } = params
+  const { email, username, report, frequency, idempotencyKey } = params
   const currency = report.currency || 'USD'
 
   const html = getReportEmailTemplate(
@@ -35,6 +36,7 @@ export const sendReportEmail = async (params: ReportEmailParams) => {
     to: email,
     subject: `${frequency} Financial Report - ${report.period}`,
     text,
-    html
+    html,
+    idempotencyKey
   })
 }

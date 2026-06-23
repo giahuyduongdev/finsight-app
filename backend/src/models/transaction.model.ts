@@ -47,6 +47,8 @@ export interface TransactionDocument extends Document {
   createdAt: Date
   updatedAt: Date
   recurringSourceId?: mongoose.Types.ObjectId
+  importBatchId?: mongoose.Types.ObjectId
+  importRowIndex?: number
 }
 
 const transactionSchema = new Schema<TransactionDocument>(
@@ -119,6 +121,14 @@ const transactionSchema = new Schema<TransactionDocument>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Transaction',
       default: null
+    },
+    importBatchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ImportBatch'
+    },
+    importRowIndex: {
+      type: Number,
+      min: 0
     }
   },
   {
@@ -144,6 +154,28 @@ transactionSchema.index({ isRecurring: 1, nextRecurringDate: 1 })
 
 // 5. Expandable rows — lấy children của parent
 transactionSchema.index({ recurringSourceId: 1, date: -1 })
+
+// 5b. A recurring source can create at most one child per occurrence date.
+transactionSchema.index(
+  { recurringSourceId: 1, date: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      recurringSourceId: { $type: 'objectId' }
+    }
+  }
+)
+
+transactionSchema.index(
+  { importBatchId: 1, importRowIndex: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      importBatchId: { $type: 'objectId' },
+      importRowIndex: { $type: 'number' }
+    }
+  }
+)
 
 // 6. Analytics — tính tổng theo khoảng thời gian
 transactionSchema.index({ userId: 1, date: -1 })
