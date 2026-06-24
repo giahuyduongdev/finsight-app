@@ -1,6 +1,7 @@
 import { apiClient } from '@/app/api-client'
 import {
   AIScanReceiptResponse,
+  ReceiptScanStatusResponse,
   BulkImportTransactionPayload,
   CreateTransactionBody,
   GetAllTransactionParams,
@@ -26,6 +27,13 @@ export const transactionApi = apiClient.injectEndpoints({
         url: '/transactions/scan-receipt',
         method: 'POST',
         body: formData
+      })
+    }),
+
+    getReceiptScanStatus: builder.query<ReceiptScanStatusResponse, string>({
+      query: (jobId) => ({
+        url: `/transactions/scan-receipt/${encodeURIComponent(jobId)}`,
+        method: 'GET'
       })
     }),
 
@@ -149,6 +157,7 @@ export const {
   useCreateTransactionMutation,
   useGetAllTransactionsQuery,
   useAiScanReceiptMutation,
+  useLazyGetReceiptScanStatusQuery,
   useGetSingleTransactionQuery,
   useGetChildTransactionsQuery,
   useLazyGetChildTransactionsQuery,

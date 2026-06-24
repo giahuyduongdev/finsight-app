@@ -7,6 +7,7 @@ import {
 import { Env } from './env.config'
 import { logger } from './logger.config'
 import { geminiCircuitBreaker } from '../utils/circuitBreaker.util'
+import { observeProviderCall } from '../observability'
 
 const apiKeys = Env.GEMINI_API_KEY.split(',')
   .map((key) => key.trim())
@@ -16,10 +17,10 @@ if (apiKeys.length === 0) {
   throw new Error('GEMINI_API_KEY is not configured in environment variables')
 }
 
-// Model priority sequence — cập nhật 27/4/2026
-// gemini-2.5-flash     → hết hạn 17/6/2026
-// gemini-2.5-flash-lite → hết hạn 22/7/2026
-// gemini-3-flash-preview → chưa có ngày hết hạn
+// Authoritative verification (2026-06-23):
+// - gemini-2.5-flash and gemini-2.5-flash-lite: earliest shutdown 2026-10-16.
+// - gemini-3-flash-preview: no shutdown date announced.
+// Source: https://ai.google.dev/gemini-api/docs/deprecations
 export const AI_MODELS = [
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
@@ -63,27 +64,55 @@ const isFatalError = (message: string): boolean => {
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
+type GenerateWithFallbackOptions = {
+  maxElapsedMs?: number
+}
+
 const generateWithFallbackInternal = async (
   contents: ContentListUnion,
-  config: GenerateContentConfig = {}
+  config: GenerateContentConfig = {},
+  options: GenerateWithFallbackOptions = {}
 ): Promise<GenerateContentResponse> => {
   let lastError: Error | null = null
   let attemptCount = 0 // Track total attempts for exponential backoff
+  const startedAt = Date.now()
+  const remainingMs = () =>
+    options.maxElapsedMs === undefined
+      ? Number.POSITIVE_INFINITY
+      : options.maxElapsedMs - (Date.now() - startedAt)
 
   for (const modelName of AI_MODELS) {
     for (const { instance, keyIndex } of aiPool) {
       try {
+        const attemptTimeoutMs = Math.min(30000, remainingMs())
+        if (attemptTimeoutMs <= 0) {
+          throw new Error('Gemini processing deadline exceeded')
+        }
+
         attemptCount++
         logger.info(`[APP:AI] Attempting: ${modelName} | Key ${keyIndex}`)
 
-        const response = await instance.models.generateContent({
-          model: modelName,
-          contents,
-          config: {
-            ...config,
-            httpOptions: { timeout: 30000, ...config.httpOptions }
-          }
-        })
+        const response = await observeProviderCall(
+          {
+            provider: 'gemini',
+            operation: 'generate_content'
+          },
+          () =>
+            instance.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                ...config,
+                httpOptions: {
+                  ...config.httpOptions,
+                  timeout: Math.min(
+                    Number(config.httpOptions?.timeout ?? attemptTimeoutMs),
+                    attemptTimeoutMs
+                  )
+                }
+              }
+            })
+        )
 
         logger.info(`[APP:AI] Success: ${modelName} | Key ${keyIndex}`)
         return response
@@ -110,7 +139,11 @@ const generateWithFallbackInternal = async (
               maxDelay
             )
             const jitter = Math.random() * 1000 // Add jitter to avoid thundering herd
-            await delay(backoffDelay + jitter)
+            const retryDelay = backoffDelay + jitter
+            if (retryDelay >= remainingMs()) {
+              throw new Error('Gemini processing deadline exceeded')
+            }
+            await delay(retryDelay)
           } else if (
             msg.includes('503') ||
             msg.includes('504') ||
@@ -118,6 +151,9 @@ const generateWithFallbackInternal = async (
             msg.includes('UNAVAILABLE')
           ) {
             // Fixed delay for server errors
+            if (2000 >= remainingMs()) {
+              throw new Error('Gemini processing deadline exceeded')
+            }
             await delay(2000)
           }
           continue
@@ -135,10 +171,11 @@ const generateWithFallbackInternal = async (
 
 export const generateWithFallback = async (
   contents: ContentListUnion,
-  config: GenerateContentConfig = {}
+  config: GenerateContentConfig = {},
+  options: GenerateWithFallbackOptions = {}
 ): Promise<GenerateContentResponse> => {
   return geminiCircuitBreaker.execute(
-    () => generateWithFallbackInternal(contents, config),
+    () => generateWithFallbackInternal(contents, config, options),
     'Gemini AI'
   )
 }

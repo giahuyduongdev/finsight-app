@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary'
 import { cloudinaryCircuitBreaker } from '../circuitBreaker.util'
+import { observeProviderCall } from '../../observability'
 
 export type ReceiptImageUploadResult = {
   secure_url: string
@@ -41,46 +42,50 @@ export const uploadReceiptImageToCloudinary = (
   buffer: Buffer,
   options: UploadReceiptImageOptions = {}
 ): Promise<ReceiptImageUploadResult> =>
-  cloudinaryCircuitBreaker.execute(async () => {
-    if (options.publicId) {
-      const existingImage = await getExistingReceiptImage(options.publicId)
-      if (existingImage) return existingImage
-    }
+  observeProviderCall(
+    { provider: 'cloudinary', operation: 'receipt_upload' },
+    () =>
+      cloudinaryCircuitBreaker.execute(async () => {
+        if (options.publicId) {
+          const existingImage = await getExistingReceiptImage(options.publicId)
+          if (existingImage) return existingImage
+        }
 
-    return await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: options.publicId ? undefined : 'receipts',
-          public_id: options.publicId,
-          overwrite: false,
-          resource_type: 'image',
-          timeout: 10000
-        },
-        async (error, result) => {
-          if (error && options.publicId && isExistingAssetError(error)) {
-            try {
-              const existingImage = await getExistingReceiptImage(
-                options.publicId
-              )
-              if (existingImage) {
-                resolve(existingImage)
+        return await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: options.publicId ? undefined : 'receipts',
+              public_id: options.publicId,
+              overwrite: false,
+              resource_type: 'image',
+              timeout: 10000
+            },
+            async (error, result) => {
+              if (error && options.publicId && isExistingAssetError(error)) {
+                try {
+                  const existingImage = await getExistingReceiptImage(
+                    options.publicId
+                  )
+                  if (existingImage) {
+                    resolve(existingImage)
+                    return
+                  }
+                } catch (lookupError) {
+                  reject(lookupError)
+                  return
+                }
+              }
+
+              if (error || !result) {
+                reject(error || new Error('Upload failed'))
                 return
               }
-            } catch (lookupError) {
-              reject(lookupError)
-              return
+
+              resolve(result)
             }
-          }
+          )
 
-          if (error || !result) {
-            reject(error || new Error('Upload failed'))
-            return
-          }
-
-          resolve(result)
-        }
-      )
-
-      uploadStream.end(buffer)
-    })
-  }, 'Cloudinary Receipt Upload')
+          uploadStream.end(buffer)
+        })
+      }, 'Cloudinary Receipt Upload')
+  )

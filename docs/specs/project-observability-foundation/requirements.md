@@ -22,6 +22,7 @@ and proves it through Receipt integration.
 - Extend Sentry safely to background workers and scheduled jobs.
 - Define privacy and cardinality rules shared by the entire backend.
 - Provide optional local Prometheus and Grafana services.
+- Define host-level VPS metrics through Node Exporter.
 - Keep production defaults suitable for a 2 shared vCPU / 8 GB VPS.
 - Instrument Receipt as the first reference domain.
 
@@ -33,6 +34,7 @@ and proves it through Receipt integration.
 - Do not collect logs in Prometheus.
 - Do not add OpenTelemetry Collector, Loki, Elasticsearch or distributed trace
   infrastructure in the first phase.
+- Do not use Node Exporter for application, user or Receipt domain metrics.
 - Do not expose `/metrics` publicly in production.
 
 ## Functional requirements
@@ -249,6 +251,37 @@ Initial alerts:
 
 Alert thresholds must be configurable and initially conservative.
 
+### R13. Node Exporter host metrics
+
+Node Exporter must be added as an optional monitoring service for localhost and
+the production VPS.
+
+It must expose host-level metrics for:
+
+- total CPU usage and load average;
+- total and available memory;
+- filesystem capacity and free space;
+- disk read/write activity;
+- network receive/transmit activity;
+- host uptime.
+
+Requirements:
+
+- Prometheus scrapes Node Exporter through the monitoring network;
+- the Node Exporter port is not publicly exposed in production;
+- collectors use a bounded allowlist suitable for the deployment host;
+- virtual, temporary and container-only filesystems are excluded where
+  practical;
+- Grafana includes a host/VPS dashboard;
+- alerts cover sustained host CPU, memory and filesystem pressure.
+
+Node Exporter complements, but does not replace, backend `prom-client` metrics:
+
+```text
+prom-client   -> Node.js process, HTTP, BullMQ, provider and domain metrics
+Node Exporter -> whole VPS CPU, memory, disk, network and filesystem metrics
+```
+
 ## Acceptance criteria
 
 - `/metrics` exposes valid Prometheus output.
@@ -260,6 +293,8 @@ Alert thresholds must be configurable and initially conservative.
 - Receipt uses the foundation without owning duplicate infrastructure.
 - Prometheus and Grafana start through an optional local Docker profile.
 - Dashboard displays HTTP, process, BullMQ and Receipt reference metrics.
+- Host dashboard displays CPU, memory, disk, filesystem and network metrics
+  when Node Exporter is enabled.
 - Metrics/Sentry failures do not change application behavior.
 - Tests, lint, typecheck and build pass.
 

@@ -1,0 +1,67 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(finsight_receipt_scans_total[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "title": "Receipt scan outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(finsight_receipt_cache_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "title": "Receipt cache outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(finsight_bullmq_job_processing_seconds_bucket{queue=\"receipt\"}[5m])))",
+          "legendFormat": "receipt p95"
+        }
+      ],
+      "title": "Receipt processing p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "sum by (outcome, error_class) (rate(finsight_provider_requests_total{provider=\"gemini\"}[5m]))",
+          "legendFormat": "{{outcome}} {{error_class}}"
+        }
+      ],
+      "title": "Gemini outcomes",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["finsight", "receipt"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Finsight Receipt",
+  "uid": "finsight-receipt",
+  "version": 1
+}

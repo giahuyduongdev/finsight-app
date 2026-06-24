@@ -9,10 +9,14 @@ Structured logs -> detailed event stream
 Sentry          -> unexpected exception investigation
 Prometheus      -> numeric time-series storage
 Grafana         -> dashboards and alerts
+Node Exporter   -> whole-host/VPS resource metrics
 ```
 
 Bull Board remains the operational interface for inspecting individual BullMQ
 jobs. Health/readiness endpoints remain deployment probes.
+
+Node Exporter is a host observer. It does not understand users, Receipt jobs,
+Gemini requests or business outcomes.
 
 ## Selected approach
 
@@ -285,6 +289,51 @@ the private Docker network.
 Initial retention is seven days to limit NVMe usage. Persistent volumes remain
 separate from application databases.
 
+## Node Exporter
+
+### Responsibility
+
+Node Exporter answers host-capacity questions that backend `prom-client` cannot:
+
+- Is the whole VPS CPU saturated?
+- Is the host running out of RAM or swap?
+- Is the NVMe filesystem almost full?
+- Is disk I/O or network throughput under pressure?
+- Is high application latency correlated with host pressure?
+
+The data flow is:
+
+```text
+Backend /metrics ----┐
+Node Exporter :9100 -+-> Prometheus -> Grafana
+                     └-> Prometheus alert rules
+```
+
+### Deployment
+
+Node Exporter is an optional Docker Compose monitoring service. Localhost may
+publish `9100` for learning and troubleshooting. Production must keep it on the
+private monitoring network and must not expose it through Nginx or a public
+firewall rule.
+
+The container requires read-only access to selected host filesystems and host
+process information. Deployment must use the minimum mounts/collectors needed
+for the VPS operating system.
+
+### Dashboard
+
+Add a `Finsight Host/VPS` dashboard with:
+
+- CPU usage and load average;
+- total/available memory;
+- root filesystem usage;
+- disk read/write throughput;
+- network receive/transmit throughput;
+- host uptime.
+
+Do not mix user IDs, Receipt fields or application error messages into this
+dashboard.
+
 ## Dashboard v1
 
 Project Overview:
@@ -296,6 +345,15 @@ Project Overview:
 - BullMQ waiting/active/failed by queue;
 - provider request/error rate;
 - circuit breaker states.
+
+Host/VPS:
+
+- CPU usage and load;
+- memory availability;
+- filesystem usage;
+- disk I/O;
+- network throughput;
+- host uptime.
 
 Receipt panel:
 
@@ -316,6 +374,7 @@ Alerts should require sustained conditions to avoid noise:
 - event-loop lag sustained;
 - process memory near configured limit;
 - Prometheus target down.
+- host CPU, memory or filesystem pressure from Node Exporter.
 
 Exact thresholds remain environment configuration, not application code.
 
@@ -333,6 +392,9 @@ SENTRY_BACKGROUND_ERRORS_ENABLED=true
 
 PROMETHEUS_SCRAPE_INTERVAL=30s
 PROMETHEUS_RETENTION_TIME=7d
+
+NODE_EXPORTER_ENABLED=true
+NODE_EXPORTER_PORT=9100
 ```
 
 All numeric application configuration must be validated centrally.
@@ -373,6 +435,8 @@ All numeric application configuration must be validated centrally.
 7. Add local Prometheus/Grafana profile and dashboards.
 8. Verify resource usage.
 9. Expand Report and Transaction in later domain features.
+10. Add Node Exporter and the Host/VPS dashboard as a separate monitoring
+    expansion.
 
 ## Risks
 
@@ -383,5 +447,6 @@ All numeric application configuration must be validated centrally.
 | Metrics slow requests               | In-memory observations only; async queue polling      |
 | Duplicate instrumentation           | One registry and explicit registration                |
 | Monitoring consumes VPS resources   | 30s scrape, 7d retention, memory limits               |
+| Node Exporter exposes host data     | Private network, no public port, minimal collectors   |
 | Alert noise                         | Sustained conditions and separate retry/final signals |
 | Foundation becomes a framework      | Keep helpers narrow; domain owns semantics            |

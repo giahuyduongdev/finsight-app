@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq'
 import { bullMQConnection } from '../config/bull/bullmq.config'
+import { receiptConfig } from '../config/receipt.config'
 
 // ─── Job Names ────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ export type ScanReceiptJobData = {
   fileSize: number
   imageHash?: string
   correlationId?: string
+  enqueuedAt?: string
 } & (
   | {
       fileBuffer: string // Legacy path: compressed base64 image still present in older queued jobs
@@ -29,15 +31,18 @@ export type ScanReceiptJobData = {
 // ─── Queue ────────────────────────────────────────────────────────────────────
 
 const defaultJobOptions = {
-  attempts: 3,
-  backoff: { type: 'exponential', delay: 10000 },
+  attempts: receiptConfig.maxAttempts,
+  backoff: {
+    type: 'exponential',
+    delay: receiptConfig.backoffDelayMs
+  },
   removeOnComplete: {
     count: 100,
     age: 24 * 3600 // remove after 24 hours even if not 100 jobs
   },
   removeOnFail: {
     count: 50,
-    age: 7 * 24 * 3600 // keep failed jobs for 7 days for debugging
+    age: 24 * 3600
   }
 }
 

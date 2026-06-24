@@ -28,6 +28,11 @@ import {
 } from './controllers/health.controller'
 import { rateLimitHeadersMiddleware } from './middlewares/rateLimitHeaders.middleware'
 import routes from './routes'
+import {
+  httpMetricsMiddleware,
+  metricsConfig,
+  metricsHandler
+} from './observability'
 
 const app = express()
 const openApiPath = path.resolve(process.cwd(), 'docs/openapi.yaml')
@@ -37,6 +42,7 @@ initSentry(app)
 // Request context must be set before logging
 app.use(correlationIdMiddleware)
 app.use(requestContextMiddleware)
+app.use(httpMetricsMiddleware)
 
 // Logging middlewares (after request context is available)
 app.use(successLogger)
@@ -58,6 +64,7 @@ app.set('trust proxy', appConfig.trustProxy)
 
 app.get('/health', healthCheckController)
 app.get('/ready', readinessCheckController)
+app.get(metricsConfig.route, metricsHandler)
 
 if (appConfig.nodeEnv === 'development') {
   app.get('/debug-sentry', () => {

@@ -40,18 +40,23 @@ describe('receipt ai util', () => {
       })
     })
 
-    await expect(extractReceiptDataFromBase64('base64-image')).resolves.toEqual(
-      {
-        title: 'Coffee',
-        amount: 5,
-        currency: 'USD',
-        date: '2026-05-28T00:00:00.000Z',
-        description: 'Morning coffee',
-        category: 'Food',
-        paymentMethod: 'CARD',
-        type: 'EXPENSE',
-        status: 'COMPLETED'
-      }
+    await expect(
+      extractReceiptDataFromBase64('base64-image', { maxElapsedMs: 60000 })
+    ).resolves.toEqual({
+      title: 'Coffee',
+      amount: 5,
+      currency: 'USD',
+      date: '2026-05-28T00:00:00.000Z',
+      description: 'Morning coffee',
+      category: 'Food',
+      paymentMethod: 'CARD',
+      type: 'EXPENSE',
+      status: 'COMPLETED'
+    })
+    expect(mockGenerateWithFallback).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ responseMimeType: 'application/json' }),
+      { maxElapsedMs: 60000 }
     )
   })
 })

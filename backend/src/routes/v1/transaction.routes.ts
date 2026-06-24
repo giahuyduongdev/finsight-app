@@ -9,6 +9,7 @@ import {
   bulkDeleteTransactionController,
   bulkTransactionController,
   scanReceiptController,
+  getReceiptScanStatusController,
   getChildTransactionsController
 } from '../../controllers/transaction.controller'
 import { uploadMemory } from '../../config/cloudinary.config'
@@ -18,7 +19,8 @@ import {
   updateTransactionSchema,
   transactionIdSchema,
   bulkDeleteTransactionSchema,
-  bulkTransactionSchema
+  bulkTransactionSchema,
+  receiptJobIdSchema
 } from '../../validators/transaction.validator'
 
 const transactionRoutes = Router()
@@ -32,6 +34,11 @@ transactionRoutes.post(
   '/scan-receipt',
   uploadMemory.single('receipt'),
   scanReceiptController
+)
+transactionRoutes.get(
+  '/scan-receipt/:jobId',
+  validate(receiptJobIdSchema, 'params'),
+  getReceiptScanStatusController
 )
 transactionRoutes.post(
   '/bulk',
