@@ -3,6 +3,8 @@ import { logger } from '../config/logger.config'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
 import { AppError } from './errors/index'
 import { serializeError } from './logging/serialize-error.util'
+import { recordCircuitBreakerTransition } from '../observability'
+import { captureBackgroundError } from '../config/sentry.config'
 
 export enum CircuitState {
   CLOSED = 'CLOSED',
@@ -171,6 +173,19 @@ export class CircuitBreaker {
 
     const previousState = this.state
     this.state = nextState
+    recordCircuitBreakerTransition(reason, previousState, nextState)
+
+    if (nextState === CircuitState.OPEN) {
+      captureBackgroundError(new Error(`${reason} circuit breaker opened`), {
+        component: 'circuit_breaker',
+        eventType: 'circuit_breaker_open',
+        errorClass: 'unavailable',
+        service: reason,
+        previousState,
+        nextState,
+        failureCount: this.failureCount
+      })
+    }
 
     logger.warn('[APP:CircuitBreaker] State transition', {
       previousState,

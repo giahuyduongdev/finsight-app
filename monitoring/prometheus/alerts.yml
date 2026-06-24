@@ -1,0 +1,80 @@
+groups:
+  - name: finsight
+    rules:
+      - alert: FinsightMetricsTargetDown
+        expr: up{job="finsight-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Finsight metrics target is unavailable
+
+      - alert: FinsightElevatedHttp5xx
+        expr: |
+          sum(rate(finsight_http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(finsight_http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: HTTP 5xx ratio is above 5%
+
+      - alert: FinsightBullMQBacklog
+        expr: finsight_bullmq_queue_jobs{state="waiting"} > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: BullMQ queue backlog is sustained
+
+      - alert: FinsightBullMQFinalFailures
+        expr: |
+          sum(increase(finsight_bullmq_jobs_total{
+            outcome=~"final_failure|permanent_failure"
+          }[10m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: BullMQ jobs reached a terminal failure
+
+      - alert: FinsightProviderRateLimited
+        expr: |
+          sum(rate(finsight_provider_requests_total{
+            outcome="error",
+            error_class="rate_limit"
+          }[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: External provider rate limiting is sustained
+
+      - alert: FinsightHighEventLoopLag
+        expr: finsight_nodejs_eventloop_lag_seconds > 0.25
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Node.js event-loop lag is high
+
+      - alert: FinsightCircuitBreakerOpened
+        expr: |
+          sum(increase(finsight_circuit_breaker_transitions_total{
+            to_state="open"
+          }[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: An external-provider circuit breaker opened
+
+      - alert: FinsightHighResidentMemory
+        expr: finsight_process_resident_memory_bytes > 734003200
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Backend resident memory is above 700 MiB

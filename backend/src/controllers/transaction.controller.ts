@@ -1,8 +1,6 @@
 import { Request, Response } from 'express'
-import crypto from 'crypto'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
-import { logger } from '../config/logger.config'
 import { transactionQueue } from '../queues'
 import { TRANSACTION_JOBS } from '../queues/transaction.queue'
 import importBatchModel from '../models/import-batch.model'
@@ -13,21 +11,10 @@ import { toTransactionDTO, toTransactionDTOArray } from '../dtos'
 import { TransactionFilterQuery } from '../types/query-filters.type'
 import { parsePaginationQuery } from '../utils/query-parser.util'
 import { ResponseFormatter } from '../utils/responseFormatter.util'
-import { redis } from '../config/redis.config'
-import {
-  CachedReceiptScanData,
-  getReceiptCloudinaryPublicId,
-  getReceiptScanCacheKey,
-  getReceiptScanCacheTtlSeconds,
-  hashReceiptImage,
-  parseCachedReceiptScan
-} from '../utils/receipt/scan-cache.util'
-import { uploadReceiptImageToCloudinary } from '../utils/receipt/upload.util'
-import {
-  extractReceiptDataFromBase64,
-  NonReceiptImageError
-} from '../utils/receipt/ai.util'
-import { serializeError } from '../utils/logging/serialize-error.util'
+import { receiptIntakeService } from '../services/receipt-intake.service'
+import { receiptConfig } from '../config/receipt.config'
+import { ServiceUnavailableException } from '../utils/errors'
+import { receiptStatusService } from '../services/receipt-status.service'
 
 // Get TransactionService instance from DI container
 const transactionService = container.getTransactionService()
@@ -251,109 +238,6 @@ export const bulkTransactionController = asyncHandler(
   }
 )
 
-// Import sharp at module level for better performance
-import sharp from 'sharp'
-
-type EnqueueReceiptScanParams = {
-  userId: string
-  compressedBuffer: Buffer
-  imageHash: string
-  fileName: string
-  fileSize: number
-  correlationId?: string
-  jobId: string
-}
-
-const cacheReceiptScan = async (
-  userId: string,
-  imageHash: string,
-  data: CachedReceiptScanData
-) => {
-  const cacheKey = getReceiptScanCacheKey(userId, imageHash)
-
-  try {
-    await redis.set(
-      cacheKey,
-      JSON.stringify({
-        data,
-        cachedAt: new Date().toISOString()
-      }),
-      'EX',
-      getReceiptScanCacheTtlSeconds()
-    )
-  } catch (error) {
-    logger.warn('[APP:Transaction] Receipt scan cache write failed', {
-      error: serializeError(error),
-      userId,
-      imageHash,
-      cacheKey
-    })
-  }
-}
-
-const processReceiptScanInBackground = async ({
-  userId,
-  compressedBuffer,
-  imageHash,
-  fileName,
-  fileSize,
-  correlationId,
-  jobId
-}: EnqueueReceiptScanParams) => {
-  try {
-    const extractedData = await extractReceiptDataFromBase64(
-      compressedBuffer.toString('base64')
-    )
-
-    const uploadResult = await uploadReceiptImageToCloudinary(
-      compressedBuffer,
-      {
-        publicId: getReceiptCloudinaryPublicId(userId, imageHash)
-      }
-    )
-    const receiptData = {
-      ...extractedData,
-      receiptUrl: uploadResult.secure_url
-    }
-
-    const io = getIO()
-    io.to(userId).emit('receipt:scan-completed', {
-      jobId,
-      data: receiptData
-    })
-
-    await cacheReceiptScan(userId, imageHash, receiptData)
-  } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error))
-    logger.error('[APP:Transaction] Receipt scan failed', {
-      error: serializeError(error),
-      userId,
-      fileName,
-      fileSize,
-      correlationId,
-      jobId
-    })
-
-    let friendlyMessage = err.message || 'Receipt scanning failed'
-    if (err instanceof NonReceiptImageError) {
-      friendlyMessage =
-        'This image does not look like a receipt. Please upload a clear receipt image'
-    } else if (
-      friendlyMessage.includes('429') ||
-      friendlyMessage.includes('RESOURCE_EXHAUSTED')
-    ) {
-      friendlyMessage =
-        'AI service is currently busy due to free tier limits. Please try again in 1 minute'
-    }
-
-    const io = getIO()
-    io.to(userId).emit('receipt:scan-failed', {
-      jobId,
-      error: friendlyMessage
-    })
-  }
-}
-
 export const scanReceiptController = asyncHandler(
   async (req: Request, res: Response) => {
     const file = req?.file
@@ -373,69 +257,55 @@ export const scanReceiptController = asyncHandler(
       })
     }
 
-    const maxSize = 10 * 1024 * 1024 // 10MB
+    const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
       return res.status(HTTPSTATUS.BAD_REQUEST).json({
-        message: 'File too large. Maximum size: 10MB'
+        message: 'File too large. Maximum size: 5MB'
       })
     }
 
-    // [OPTIMIZED] Compress image in controller and send base64 to Redis
-    // This provides fast response (~250ms) while keeping Redis payload reasonable (~2.66MB)
-    // Trade-off: Redis usage vs response time (optimized for UX)
+    if (!receiptConfig.queueIntakeEnabled) {
+      throw new ServiceUnavailableException(
+        'Receipt scanning is temporarily unavailable'
+      )
+    }
 
-    try {
-      // Compress image before sending to queue
-      const compressedBuffer = await sharp(file.buffer)
-        .resize({ width: 1024, withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer()
+    const result = await receiptIntakeService.scan({
+      userId,
+      fileBuffer: file.buffer,
+      fileName: file.originalname,
+      fileSize: file.size,
+      correlationId: req.correlationId
+    })
 
-      const imageHash = hashReceiptImage(compressedBuffer)
-      const cacheKey = getReceiptScanCacheKey(userId, imageHash)
-      const cachedReceipt = parseCachedReceiptScan(await redis.get(cacheKey))
-
-      if (cachedReceipt) {
-        return res.status(HTTPSTATUS.OK).json(
-          ResponseFormatter.success(
-            {
-              receipt: cachedReceipt.data
-            },
-            { message: 'Receipt scan loaded from cache' }
-          )
-        )
-      }
-
-      const jobId = `receipt-scan-${crypto.randomUUID()}`
-
-      void processReceiptScanInBackground({
-        userId,
-        compressedBuffer,
-        imageHash,
-        fileName: file.originalname,
-        fileSize: file.size,
-        correlationId: req.correlationId,
-        jobId
-      })
-
-      return res.status(HTTPSTATUS.ACCEPTED).json(
+    if (result.status === 'cached') {
+      return res.status(HTTPSTATUS.OK).json(
         ResponseFormatter.success(
           {
-            jobId
+            receipt: result.receipt
           },
-          { message: 'Receipt is being processed' }
+          { message: 'Receipt scan loaded from cache' }
         )
       )
-    } catch (error) {
-      logger.error('[APP:Transaction] Failed to process receipt image', {
-        error: serializeError(error),
-        userId,
-        fileName: file.originalname,
-        fileSize: file.size
-      })
-      return res.status(HTTPSTATUS.INTERNAL_SERVER_ERROR).json({
-        message: 'Internal server error'
-      })
     }
+
+    return res.status(HTTPSTATUS.ACCEPTED).json(
+      ResponseFormatter.success(
+        {
+          jobId: result.jobId
+        },
+        { message: 'Receipt is being processed' }
+      )
+    )
+  }
+)
+
+export const getReceiptScanStatusController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = getUserId(req)
+    const jobId = req.params.jobId as string
+    const status = await receiptStatusService.getStatus(userId, jobId)
+
+    return res.status(HTTPSTATUS.OK).json(ResponseFormatter.success(status))
   }
 )

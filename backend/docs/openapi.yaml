@@ -464,6 +464,97 @@ paths:
             Location:
               schema:
                 type: string
+  /api/v1/transactions/scan-receipt:
+    post:
+      tags:
+        - Transactions
+      summary: Upload a receipt image for durable background processing
+      operationId: scanReceipt
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - receipt
+              properties:
+                receipt:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG or WebP image up to 5 MiB
+      responses:
+        '200':
+          description: A cached receipt result was returned
+        '202':
+          description: The durable BullMQ job was accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      jobId:
+                        type: string
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /api/v1/transactions/scan-receipt/{jobId}:
+    get:
+      tags:
+        - Transactions
+      summary: Recover the bounded status of an owned receipt scan job
+      operationId: getReceiptScanStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+            maxLength: 200
+            pattern: '^[A-Za-z0-9_-]+$'
+      responses:
+        '200':
+          description: Receipt scan status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - jobId
+                      - status
+                    properties:
+                      jobId:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - queued
+                          - active
+                          - delayed
+                          - completed
+                          - failed
+                      receipt:
+                        type: object
+                        additionalProperties: true
+                      error:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:

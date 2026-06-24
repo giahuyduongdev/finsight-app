@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   redis:
     image: redis:8.6.2
@@ -18,6 +16,47 @@ services:
       timeout: 3s
       retries: 3
 
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    profiles: ['monitoring']
+    container_name: finsight-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    mem_limit: 512m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    profiles: ['monitoring']
+    container_name: finsight-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    mem_limit: 256m
+    restart: unless-stopped
+
 volumes:
   redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
     driver: local

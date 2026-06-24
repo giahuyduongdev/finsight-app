@@ -1,0 +1,32 @@
+flowchart LR
+  subgraph Application["Finsight Backend"]
+    HTTP["HTTP Middleware"]
+    Workers["BullMQ Workers"]
+    Providers["Provider Wrappers"]
+    Process["Node.js Process Metrics"]
+    Registry["Shared Prometheus Registry"]
+    SentryHelper["Sentry HTTP + Background Helpers"]
+    Logs["Structured Logger"]
+
+    HTTP --> Registry
+    Workers --> Registry
+    Providers --> Registry
+    Process --> Registry
+
+    HTTP --> SentryHelper
+    Workers --> SentryHelper
+    Providers --> SentryHelper
+
+    HTTP --> Logs
+    Workers --> Logs
+    Providers --> Logs
+  end
+
+  Registry --> Metrics["GET /metrics"]
+  Metrics --> Prometheus["Prometheus"]
+  Prometheus --> Grafana["Grafana Dashboards + Alerts"]
+
+  SentryHelper --> Sentry["Sentry"]
+  Workers --> BullBoard["Bull Board"]
+  Application --> Probes["/health + /ready"]
+

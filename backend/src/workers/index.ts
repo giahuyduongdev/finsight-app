@@ -4,7 +4,9 @@ import { transactionWorker } from './transaction.worker'
 import { receiptWorker } from './receipt.worker'
 import { reportWorker } from './report.worker'
 
-const workers = [transactionWorker, receiptWorker, reportWorker]
+const workers = [transactionWorker, receiptWorker, reportWorker].filter(
+  (worker) => worker !== null
+)
 
 export const initializeWorkers = () => {
   logger.info(

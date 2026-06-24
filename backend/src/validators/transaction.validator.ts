@@ -11,6 +11,13 @@ export const transactionIdSchema = z
   .trim()
   .regex(/^[a-fA-F0-9]{24}$/, 'Invalid transaction ID format')
 
+export const receiptJobIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .regex(/^receipt-scan-[a-zA-Z0-9_-]+$/, 'Invalid receipt scan job ID format')
+
 export const baseTransactionSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   type: z.enum([TransactionTypeEnum.INCOME, TransactionTypeEnum.EXPENSE], {

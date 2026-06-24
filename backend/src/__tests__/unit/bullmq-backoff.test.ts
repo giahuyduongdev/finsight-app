@@ -33,7 +33,7 @@ describe('BullMQ backoff configuration', () => {
           },
           removeOnFail: {
             count: 50,
-            age: WEEK_SECONDS
+            age: DAY_SECONDS
           }
         }
       })

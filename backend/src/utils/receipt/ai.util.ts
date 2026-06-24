@@ -91,7 +91,8 @@ const parseGeminiResponse = (responseText: string): ExtractedReceiptData => {
 }
 
 export const extractReceiptDataFromBase64 = async (
-  base64String: string
+  base64String: string,
+  options: { maxElapsedMs?: number } = {}
 ): Promise<ExtractedReceiptData> => {
   const response = await generateWithFallback(
     [
@@ -112,7 +113,8 @@ export const extractReceiptDataFromBase64 = async (
       temperature: 0,
       topP: 1,
       responseMimeType: 'application/json'
-    }
+    },
+    options
   )
 
   const responseText = response.text

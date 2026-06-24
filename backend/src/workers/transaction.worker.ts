@@ -17,6 +17,12 @@ import TransactionModel, {
 import { calculateNextOccurrence } from '../utils/dates/index'
 import { container } from '../container'
 import { getJobAttemptContext } from '../utils/bullmq/job-reliability.util'
+import {
+  observeBullMQJobProcessing,
+  observeBullMQJobWait,
+  recordBullMQJobOutcome,
+  recordBullMQWorkerError
+} from '../observability'
 
 function isBulkWriteError(
   error: unknown
@@ -406,6 +412,26 @@ export const transactionWorker = new Worker(
 // ─── Events ───────────────────────────────────────────────────────────────────
 
 transactionWorker.on('completed', (job) => {
+  const result = job.returnvalue as { status?: string } | undefined
+  const outcome = result?.status === 'skipped' ? 'skipped' : 'completed'
+  recordBullMQJobOutcome({
+    queue: 'transaction',
+    jobName: job.name,
+    outcome
+  })
+  if (job.processedOn) {
+    observeBullMQJobWait(
+      'transaction',
+      job.name,
+      Math.max(job.processedOn - job.timestamp, 0) / 1000
+    )
+    observeBullMQJobProcessing(
+      'transaction',
+      job.name,
+      outcome,
+      Math.max((job.finishedOn ?? Date.now()) - job.processedOn, 0) / 1000
+    )
+  }
   if (job.name === TRANSACTION_JOBS.BULK_IMPORT) {
     const count = job.returnvalue?.insertedCount || 0
     logger.info(
@@ -419,6 +445,29 @@ transactionWorker.on('completed', (job) => {
 })
 
 transactionWorker.on('failed', async (job, err) => {
+  const attemptContext = job
+    ? getJobAttemptContext(job)
+    : { isFinalAttempt: true }
+  const isPermanentFailure = err.name === 'UnrecoverableError'
+  const outcome =
+    !attemptContext.isFinalAttempt && !isPermanentFailure
+      ? 'retrying'
+      : isPermanentFailure
+        ? 'permanent_failure'
+        : 'final_failure'
+  if (job?.processedOn) {
+    observeBullMQJobProcessing(
+      'transaction',
+      job.name,
+      outcome,
+      Math.max((job.finishedOn ?? Date.now()) - job.processedOn, 0) / 1000
+    )
+  }
+  recordBullMQJobOutcome({
+    queue: 'transaction',
+    jobName: job?.name || 'unknown',
+    outcome
+  })
   logger.error(
     `[JOB:Transaction] Job ${job?.id} (${job?.name}) failed: ${err.message}`
   )
@@ -473,6 +522,7 @@ transactionWorker.on('failed', async (job, err) => {
 })
 
 transactionWorker.on('error', (error) => {
+  recordBullMQWorkerError('transaction', 'infrastructure')
   logger.error('[SYS:BullMQ] Transaction worker infrastructure error', {
     queueName: 'TRANSACTION_QUEUE',
     eventType: 'error',

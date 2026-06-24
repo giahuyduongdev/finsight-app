@@ -110,6 +110,17 @@ export type AIScanReceiptResponse =
       meta?: { message?: string }
     }
 
+export type ReceiptScanStatus = 'waiting' | 'active' | 'completed' | 'failed'
+
+export type ReceiptScanStatusResponse = {
+  data: {
+    jobId: string
+    status: ReceiptScanStatus
+    receipt?: AIScanReceiptData
+    error?: string
+  }
+}
+
 export type GetSingleTransactionResponse = SuccessResponse<TransactionType>
 
 export interface UpdateTransactionPayload {

@@ -5,7 +5,9 @@ import {
   deleteTransactionController,
   duplicateTransactionController,
   getAllTransactionController,
-  getChildTransactionsController
+  getChildTransactionsController,
+  scanReceiptController,
+  getReceiptScanStatusController
 } from '../../controllers/transaction.controller'
 import { HTTPSTATUS } from '../../config/http.config'
 import { NotFoundException } from '../../utils/errors'
@@ -23,6 +25,8 @@ const mockFindByUserId = jest.fn()
 const mockFindChildTransactions = jest.fn()
 const mockEmit = jest.fn()
 const mockTo = jest.fn(() => ({ emit: mockEmit }))
+const mockReceiptScan = jest.fn()
+const mockReceiptStatus = jest.fn()
 
 jest.mock('../../container', () => ({
   container: {
@@ -43,6 +47,18 @@ jest.mock('../../queues', () => ({
   },
   receiptQueue: {
     add: jest.fn()
+  }
+}))
+
+jest.mock('../../services/receipt-intake.service', () => ({
+  receiptIntakeService: {
+    scan: (...args: unknown[]) => mockReceiptScan(...args)
+  }
+}))
+
+jest.mock('../../services/receipt-status.service', () => ({
+  receiptStatusService: {
+    getStatus: (...args: unknown[]) => mockReceiptStatus(...args)
   }
 }))
 
@@ -186,6 +202,115 @@ describe('transaction.controller', () => {
         }
       })
       expect(nextMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('scanReceiptController', () => {
+    it('returns 202 only after the receipt job is accepted', async () => {
+      mockReceiptScan.mockResolvedValue({
+        status: 'accepted',
+        jobId: 'receipt-scan-user-123-hash'
+      })
+      const request = {
+        file: {
+          buffer: Buffer.from('image'),
+          originalname: 'receipt.jpg',
+          size: 5,
+          mimetype: 'image/jpeg'
+        },
+        correlationId: 'req-123'
+      } as unknown as Request
+
+      await scanReceiptController(request, mockResponse as Response, nextMock)
+
+      expect(mockReceiptScan).toHaveBeenCalledWith({
+        userId: 'user-123',
+        fileBuffer: request.file?.buffer,
+        fileName: 'receipt.jpg',
+        fileSize: 5,
+        correlationId: 'req-123'
+      })
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.ACCEPTED)
+      expect(jsonMock).toHaveBeenCalledWith({
+        data: { jobId: 'receipt-scan-user-123-hash' },
+        meta: { message: 'Receipt is being processed' }
+      })
+    })
+
+    it('returns a cached receipt immediately', async () => {
+      const receipt = {
+        title: 'Coffee',
+        amount: 5,
+        currency: 'USD'
+      }
+      mockReceiptScan.mockResolvedValue({
+        status: 'cached',
+        receipt
+      })
+      const request = {
+        file: {
+          buffer: Buffer.from('image'),
+          originalname: 'receipt.jpg',
+          size: 5,
+          mimetype: 'image/jpeg'
+        }
+      } as unknown as Request
+
+      await scanReceiptController(request, mockResponse as Response, nextMock)
+
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(jsonMock).toHaveBeenCalledWith({
+        data: { receipt },
+        meta: { message: 'Receipt scan loaded from cache' }
+      })
+    })
+
+    it('does not return 202 when intake fails', async () => {
+      const error = new Error('cloudinary down')
+      mockReceiptScan.mockRejectedValue(error)
+      const request = {
+        file: {
+          buffer: Buffer.from('image'),
+          originalname: 'receipt.jpg',
+          size: 5,
+          mimetype: 'image/jpeg'
+        }
+      } as unknown as Request
+
+      await scanReceiptController(request, mockResponse as Response, nextMock)
+
+      expect(nextMock).toHaveBeenCalledWith(error)
+      expect(statusMock).not.toHaveBeenCalledWith(HTTPSTATUS.ACCEPTED)
+    })
+  })
+
+  describe('getReceiptScanStatusController', () => {
+    it('returns the authenticated user receipt job status', async () => {
+      mockReceiptStatus.mockResolvedValue({
+        jobId: 'receipt-scan-user-123-hash',
+        status: 'active'
+      })
+      const request = {
+        params: { jobId: 'receipt-scan-user-123-hash' }
+      } as unknown as Request
+
+      await getReceiptScanStatusController(
+        request,
+        mockResponse as Response,
+        nextMock
+      )
+
+      expect(mockReceiptStatus).toHaveBeenCalledWith(
+        'user-123',
+        'receipt-scan-user-123-hash'
+      )
+      expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+      expect(jsonMock).toHaveBeenCalledWith({
+        data: {
+          jobId: 'receipt-scan-user-123-hash',
+          status: 'active'
+        }
+      })
     })
   })
 

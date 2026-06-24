@@ -13,8 +13,14 @@ import { redis } from './src/databases/redis.database'
 import { logger } from './src/config/logger.config'
 import { initializeWorkers, stopWorkers } from './src/workers'
 import { closeQueues } from './src/queues'
+import { receiptQueue, reportQueue, transactionQueue } from './src/queues'
 import { initializeSocket, getIO } from './src/config/socket.config'
 import { CurrencyService } from './src/services/currency.service'
+import {
+  startQueueMetricsPolling,
+  stopQueueMetricsPolling
+} from './src/observability'
+import { captureBackgroundError } from './src/config/sentry.config'
 
 // ─── Global error handlers ────────────────────────────────────────────────────
 
@@ -79,6 +85,11 @@ const startServer = async (): Promise<void> => {
 
   await initializeCrons()
   initializeWorkers()
+  startQueueMetricsPolling([
+    { name: 'transaction', queue: transactionQueue },
+    { name: 'receipt', queue: receiptQueue },
+    { name: 'report', queue: reportQueue }
+  ])
 
   server.listen(appConfig.port, () => {
     logger.info(
@@ -100,6 +111,11 @@ const startServer = async (): Promise<void> => {
 
     const forceExitTimer = setTimeout(() => {
       logger.error('[APP:Server] Shutdown timed out. Forcing exit.')
+      captureBackgroundError(new Error('Graceful shutdown timed out'), {
+        component: 'server',
+        eventType: 'shutdown_timeout',
+        signal
+      })
       process.exit(1)
     }, appConfig.timeouts.shutdown)
     forceExitTimer.unref()
@@ -107,6 +123,7 @@ const startServer = async (): Promise<void> => {
     try {
       stopCrons()
       stopOverload()
+      stopQueueMetricsPolling()
 
       server.closeIdleConnections?.()
       server.closeAllConnections()

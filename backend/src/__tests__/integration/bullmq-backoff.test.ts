@@ -3,6 +3,7 @@ const mockWorker = jest.fn()
 const mockLoggerWarn = jest.fn()
 const mockLoggerError = jest.fn()
 const workerHandlers = new Map<string, (job: unknown, error: Error) => void>()
+class MockUnrecoverableError extends Error {}
 
 jest.mock('../../config/logger.config', () => ({
   logger: {
@@ -24,7 +25,8 @@ jest.mock('bullmq', () => ({
   })),
   FlowProducer: jest.fn().mockImplementation(() => ({
     close: jest.fn()
-  }))
+  })),
+  UnrecoverableError: MockUnrecoverableError
 }))
 
 jest.mock('../../config/bull/bullmq.config', () => ({
@@ -113,7 +115,7 @@ describe('BullMQ backoff integration', () => {
           attempts: 3,
           backoff: { type: 'exponential', delay: 10000 },
           removeOnComplete: { count: 100, age: 24 * 3600 },
-          removeOnFail: { count: 50, age: 7 * 24 * 3600 }
+          removeOnFail: { count: 50, age: 24 * 3600 }
         })
       })
     )

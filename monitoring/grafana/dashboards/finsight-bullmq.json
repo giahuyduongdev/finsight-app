@@ -1,0 +1,67 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "sum by (queue, state) (finsight_bullmq_queue_jobs)",
+          "legendFormat": "{{queue}} {{state}}"
+        }
+      ],
+      "title": "Queue depth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "sum by (queue, job_name, outcome) (rate(finsight_bullmq_jobs_total[5m]))",
+          "legendFormat": "{{queue}} {{job_name}} {{outcome}}"
+        }
+      ],
+      "title": "Job outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (queue, le) (rate(finsight_bullmq_job_wait_seconds_bucket[5m])))",
+          "legendFormat": "{{queue}} p95"
+        }
+      ],
+      "title": "Queue wait p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (queue, le) (rate(finsight_bullmq_job_processing_seconds_bucket[5m])))",
+          "legendFormat": "{{queue}} p95"
+        }
+      ],
+      "title": "Processing duration p95",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["finsight", "bullmq"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Finsight BullMQ",
+  "uid": "finsight-bullmq",
+  "version": 1
+}

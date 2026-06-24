@@ -37,6 +37,12 @@ import {
   getJobAttemptContext,
   JobOutcome
 } from '../utils/bullmq/job-reliability.util'
+import {
+  observeBullMQJobProcessing,
+  observeBullMQJobWait,
+  recordBullMQJobOutcome,
+  recordBullMQWorkerError
+} from '../observability'
 
 const MAX_RETRY_DELAY_MS = 30000
 
@@ -302,6 +308,26 @@ export const reportWorker = new Worker(
 // ─── Events ───────────────────────────────────────────────────────────────────
 
 reportWorker.on('completed', (job) => {
+  const result = job.returnvalue as { status?: string } | undefined
+  const outcome = result?.status === 'skipped' ? 'skipped' : 'completed'
+  recordBullMQJobOutcome({
+    queue: 'report',
+    jobName: job.name,
+    outcome
+  })
+  if (job.processedOn) {
+    observeBullMQJobWait(
+      'report',
+      job.name,
+      Math.max(job.processedOn - job.timestamp, 0) / 1000
+    )
+    observeBullMQJobProcessing(
+      'report',
+      job.name,
+      outcome,
+      Math.max((job.finishedOn ?? Date.now()) - job.processedOn, 0) / 1000
+    )
+  }
   logger.info(
     `[JOB:Report] Report completed: ${job.id} for user ${job.data.userId}`
   )
@@ -314,6 +340,11 @@ reportWorker.on('failed', async (job, err) => {
   const { attemptsMade, maxAttempts, isFinalAttempt } = attemptContext
   const isPermanentFailure = err.name === 'UnrecoverableError'
   const isRetrying = !isFinalAttempt && !isPermanentFailure
+  const outcome = isRetrying
+    ? 'retrying'
+    : isPermanentFailure
+      ? 'permanent_failure'
+      : 'final_failure'
 
   const logMetadata = {
     error: err.message,
@@ -324,10 +355,30 @@ reportWorker.on('failed', async (job, err) => {
     ...(isRetrying && { nextRetryDelayMs: getNextRetryDelay(job) })
   }
 
+  if (job?.processedOn) {
+    observeBullMQJobProcessing(
+      'report',
+      job.name,
+      outcome,
+      Math.max((job.finishedOn ?? Date.now()) - job.processedOn, 0) / 1000
+    )
+  }
+
   if (isRetrying) {
+    recordBullMQJobOutcome({
+      queue: 'report',
+      jobName: job?.name || 'unknown',
+      outcome: 'retrying'
+    })
     logger.warn(`[JOB:Report] Report retry scheduled: ${job?.id}`, logMetadata)
     return
   }
+
+  recordBullMQJobOutcome({
+    queue: 'report',
+    jobName: job?.name || 'unknown',
+    outcome
+  })
 
   if (job) {
     const deliveryKey = buildReportDeliveryKey(
@@ -391,6 +442,7 @@ reportWorker.on('failed', async (job, err) => {
 })
 
 reportWorker.on('error', (error) => {
+  recordBullMQWorkerError('report', 'infrastructure')
   logger.error('[SYS:BullMQ] Report worker infrastructure error', {
     queueName: 'REPORT_QUEUE',
     eventType: 'error',

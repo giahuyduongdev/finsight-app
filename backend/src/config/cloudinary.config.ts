@@ -71,10 +71,17 @@ const storage: multer.StorageEngine = {
 }
 
 const fileFilter: multer.Options['fileFilter'] = (_, file, cb) => {
-  const isValid = /^image\/(jpe?g|png)$/.test(file.mimetype)
-  if (!isValid) {
+  const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+  const extension = file.originalname.toLowerCase().match(/\.[^.]+$/)?.[0]
+  const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp'])
+
+  if (
+    !allowedMimeTypes.has(file.mimetype) ||
+    !extension ||
+    !allowedExtensions.has(extension)
+  ) {
     const error = new BadRequestException(
-      'Only jpg, jpeg, png files are allowed',
+      'Only jpg, jpeg, png and webp files are allowed',
       ErrorCodeEnum.FILE_UPLOAD_ERROR
     )
     return cb(error as unknown as Error)
@@ -92,6 +99,6 @@ export const upload = multer({
 // Used for routes that need to process files in memory before uploading (e.g. sharp compression)
 export const uploadMemory = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 }, // 5MB limit for raw uncompressed images
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter
 })

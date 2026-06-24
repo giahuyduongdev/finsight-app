@@ -1,6 +1,7 @@
 import { Env } from '../config/env.config'
 import { resend } from '../config/resend.config'
 import { resendCircuitBreaker } from '../utils/circuitBreaker.util'
+import { observeProviderCall } from '../observability'
 
 type Params = {
   to: string | string[]
@@ -21,18 +22,22 @@ export const sendEmail = async ({
   html,
   idempotencyKey
 }: Params) => {
-  return await resendCircuitBreaker.execute(
+  return await observeProviderCall(
+    { provider: 'resend', operation: 'send_email' },
     () =>
-      resend.emails.send(
-        {
-          from,
-          to: Array.isArray(to) ? to : [to],
-          text,
-          subject,
-          html
-        },
-        idempotencyKey ? { idempotencyKey } : undefined
-      ),
-    'Resend Email'
+      resendCircuitBreaker.execute(
+        () =>
+          resend.emails.send(
+            {
+              from,
+              to: Array.isArray(to) ? to : [to],
+              text,
+              subject,
+              html
+            },
+            idempotencyKey ? { idempotencyKey } : undefined
+          ),
+        'Resend Email'
+      )
   )
 }

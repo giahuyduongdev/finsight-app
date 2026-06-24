@@ -17,8 +17,22 @@ import {
   extractReceiptDataFromBase64,
   NonReceiptImageError
 } from '../utils/receipt/ai.util'
+import { receiptConfig } from '../config/receipt.config'
+import {
+  classifyProviderError,
+  observeBullMQJobProcessing,
+  observeBullMQJobWait,
+  observeProviderCall,
+  recordBullMQJobOutcome,
+  recordBullMQWorkerError,
+  recordReceiptCache,
+  recordReceiptScan
+} from '../observability'
+import { captureBackgroundError } from '../config/sentry.config'
 
 const MAX_RETRY_DELAY_MS = 30000
+
+export class ExpectedReceiptRejectionError extends UnrecoverableError {}
 
 function getNextRetryDelay(job?: Job): number {
   const backoff = job?.opts.backoff
@@ -72,10 +86,7 @@ async function cacheReceiptScan(
     )
   } catch (error) {
     logger.warn('[JOB:Receipt] Receipt scan cache write failed', {
-      error: error instanceof Error ? error.message : String(error),
-      userId,
-      imageHash,
-      cacheKey
+      error: error instanceof Error ? error.message : String(error)
     })
   }
 }
@@ -89,15 +100,37 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
   const { userId, fileBuffer, imageUrl, fileName, fileSize, correlationId } =
     job.data
   const { imageHash } = job.data
+  const processingStartedAt = process.hrtime.bigint()
+  const processingStartedAtMs = Date.now()
+  const remainingProcessingMs = () =>
+    Math.max(
+      receiptConfig.processingTimeoutMs - (Date.now() - processingStartedAtMs),
+      1
+    )
+  const queueWaitSeconds = job.data.enqueuedAt
+    ? Math.max((Date.now() - new Date(job.data.enqueuedAt).getTime()) / 1000, 0)
+    : 0
+
+  observeBullMQJobWait('receipt', RECEIPT_JOBS.SCAN_RECEIPT, queueWaitSeconds)
 
   try {
     if (imageHash) {
       const cacheKey = getReceiptScanCacheKey(userId, imageHash)
 
       try {
-        const cachedReceipt = parseCachedReceiptScan(await redis.get(cacheKey))
+        const rawCached = await redis.get(cacheKey)
+        const cachedReceipt = parseCachedReceiptScan(rawCached)
 
         if (cachedReceipt) {
+          recordReceiptCache('hit')
+          recordReceiptScan('skipped')
+          observeBullMQJobProcessing(
+            'receipt',
+            RECEIPT_JOBS.SCAN_RECEIPT,
+            'skipped',
+            Number(process.hrtime.bigint() - processingStartedAt) /
+              1_000_000_000
+          )
           getIO().to(userId).emit('receipt:scan-completed', {
             jobId: job.id,
             data: cachedReceipt.data
@@ -109,11 +142,10 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
             details: { imageHash }
           }
         }
+        recordReceiptCache(rawCached ? 'corrupt' : 'miss')
       } catch (cacheError) {
+        recordReceiptCache('corrupt')
         logger.warn('[JOB:Receipt] Receipt scan cache read failed', {
-          userId,
-          imageHash,
-          cacheKey,
           error:
             cacheError instanceof Error
               ? cacheError.message
@@ -138,7 +170,9 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
             ? getReceiptCloudinaryPublicId(userId, imageHash)
             : undefined
         }), // ~600ms
-        extractReceiptDataFromBase64(base64ForAI) // ~2000ms (bottleneck)
+        extractReceiptDataFromBase64(base64ForAI, {
+          maxElapsedMs: remainingProcessingMs()
+        }) // ~2000ms (bottleneck)
       ])
 
       // Persist upload result first, even if Gemini fails
@@ -179,6 +213,7 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       }
 
       await cacheReceiptScan(userId, imageHash, receiptData)
+      recordReceiptScan('succeeded')
 
       // Emit success event
       const io = getIO()
@@ -190,39 +225,85 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       // Invalidate analytics cache
       await safeInvalidateUserAnalyticsCache(userId)
 
-      return { success: true, data }
+      observeBullMQJobProcessing(
+        'receipt',
+        RECEIPT_JOBS.SCAN_RECEIPT,
+        'completed',
+        Number(process.hrtime.bigint() - processingStartedAt) / 1_000_000_000
+      )
+      return {
+        status: 'succeeded' as const,
+        details: { imageHash }
+      }
     } else if (imageUrl) {
       // Retry case: Upload succeeded but AI extraction failed
       // Download image from Cloudinary and retry AI extraction
       logger.info(
-        `[JOB:Receipt] Retrying AI extraction for existing image: ${imageUrl}`
+        '[JOB:Receipt] Processing receipt image from durable object storage',
+        {
+          jobId: job.id,
+          correlationId,
+          hasImageUrl: true
+        }
       )
 
       // Fetch image from Cloudinary with timeout
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000) // 10s timeout
+      const timeout = setTimeout(
+        () => controller.abort(),
+        receiptConfig.downloadTimeoutMs
+      )
 
-      const response = await fetch(imageUrl, { signal: controller.signal })
-      clearTimeout(timeout)
+      try {
+        base64ForAI = await observeProviderCall(
+          {
+            provider: 'cloudinary',
+            operation: 'receipt_download'
+          },
+          async () => {
+            const response = await fetch(imageUrl, {
+              signal: controller.signal
+            })
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch image from Cloudinary: ${response.status}`
+              )
+            }
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch image from Cloudinary: ${response.statusText}`
+            const contentLength = Number(response.headers.get('content-length'))
+            if (
+              Number.isFinite(contentLength) &&
+              contentLength > receiptConfig.maxDownloadBytes
+            ) {
+              throw new UnrecoverableError(
+                'Receipt image exceeds download limit'
+              )
+            }
+
+            const arrayBuffer = await response.arrayBuffer()
+            if (arrayBuffer.byteLength > receiptConfig.maxDownloadBytes) {
+              throw new UnrecoverableError(
+                'Receipt image exceeds download limit'
+              )
+            }
+            return Buffer.from(arrayBuffer).toString('base64')
+          }
         )
+      } finally {
+        clearTimeout(timeout)
       }
 
-      const arrayBuffer = await response.arrayBuffer()
-      const imageBuffer = Buffer.from(arrayBuffer)
-      base64ForAI = imageBuffer.toString('base64')
-
       // Retry AI extraction
-      const data = await extractReceiptDataFromBase64(base64ForAI)
+      const data = await extractReceiptDataFromBase64(base64ForAI, {
+        maxElapsedMs: remainingProcessingMs()
+      })
       const receiptData = {
         ...data,
         receiptUrl: imageUrl
       }
 
       await cacheReceiptScan(userId, imageHash, receiptData)
+      recordReceiptScan('succeeded')
 
       // Emit success event
       const io = getIO()
@@ -234,7 +315,17 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       // Invalidate analytics cache
       await safeInvalidateUserAnalyticsCache(userId)
 
-      return { success: true, data }
+      const outcome = {
+        status: 'succeeded' as const,
+        details: { imageHash }
+      }
+      observeBullMQJobProcessing(
+        'receipt',
+        RECEIPT_JOBS.SCAN_RECEIPT,
+        'completed',
+        Number(process.hrtime.bigint() - processingStartedAt) / 1_000_000_000
+      )
+      return outcome
     } else {
       throw new UnrecoverableError(
         'Invalid job data: missing both fileBuffer and imageUrl'
@@ -244,9 +335,7 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     const err = error as Error
     logger.error(`[JOB:Receipt] Receipt scan failed: ${err.message}`, {
       jobId: job.id,
-      userId,
       correlationId,
-      fileName,
       fileSize,
       hasFileBuffer: !!fileBuffer,
       hasImageUrl: !!imageUrl,
@@ -279,6 +368,7 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       isPermanentFailure ||
       currentAttemptNumber >= maxAttempts
     ) {
+      recordReceiptScan('failed')
       const io = getIO()
       io.to(userId).emit('receipt:scan-failed', {
         jobId: job.id,
@@ -287,7 +377,7 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
     }
 
     if (isNonReceiptImage) {
-      throw new UnrecoverableError(friendlyMessage)
+      throw new ExpectedReceiptRejectionError(friendlyMessage)
     }
 
     throw error // Trigger retry for transient failures
@@ -296,47 +386,78 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
 
 // ─── Worker ───────────────────────────────────────────────────────────────────
 
-export const receiptWorker = new Worker(
-  'RECEIPT_QUEUE',
-  async (job) => {
-    if (job.name === RECEIPT_JOBS.SCAN_RECEIPT) {
-      return await processScanReceiptJob(job as Job<ScanReceiptJobData>)
-    } else {
-      const errorMsg = `Unknown job name: ${job.name}`
-      logger.error(`[JOB:Receipt] ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
-  },
-  {
-    connection: bullMQConnection,
-    concurrency: 2 // Lower than transaction worker due to heavy AI processing
-  }
-)
+export const receiptWorker = receiptConfig.workerEnabled
+  ? new Worker(
+      'RECEIPT_QUEUE',
+      async (job) => {
+        if (job.name === RECEIPT_JOBS.SCAN_RECEIPT) {
+          return await processScanReceiptJob(job as Job<ScanReceiptJobData>)
+        } else {
+          const errorMsg = `Unknown job name: ${job.name}`
+          logger.error(`[JOB:Receipt] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+      },
+      {
+        connection: bullMQConnection,
+        concurrency: receiptConfig.workerConcurrency,
+        limiter: {
+          max: receiptConfig.aiRateLimitMax,
+          duration: receiptConfig.aiRateLimitDurationMs
+        }
+      }
+    )
+  : null
 
 // ─── Events ───────────────────────────────────────────────────────────────────
 
-receiptWorker.on('completed', (job) => {
+receiptWorker?.on('completed', (job) => {
+  const result = job.returnvalue as { status?: string } | undefined
+  recordBullMQJobOutcome({
+    queue: 'receipt',
+    jobName: job.name,
+    outcome: result?.status === 'skipped' ? 'skipped' : 'completed'
+  })
   logger.info(
     `[JOB:Receipt] Receipt scan completed: ${job.id} for user ${job.data.userId}`
   )
 })
 
-receiptWorker.on('failed', (job, err) => {
+receiptWorker?.on('failed', (job, err) => {
   const attemptsMade = job?.attemptsMade ?? 0
   const maxAttempts = job?.opts.attempts ?? 1
-  const isRetrying = attemptsMade < maxAttempts
+  const isPermanentFailure = err instanceof UnrecoverableError
+  const isRetrying = attemptsMade < maxAttempts && !isPermanentFailure
+  const outcome = isPermanentFailure
+    ? 'permanent_failure'
+    : isRetrying
+      ? 'retrying'
+      : 'final_failure'
 
   const logMetadata = {
     error: err.message,
     userId: job?.data.userId,
     correlationId: job?.data.correlationId,
-    fileName: job?.data.fileName,
     attemptsMade,
     maxAttempts,
     ...(isRetrying && { nextRetryDelayMs: getNextRetryDelay(job) })
   }
 
+  if (job?.processedOn) {
+    observeBullMQJobProcessing(
+      'receipt',
+      job.name,
+      outcome,
+      Math.max((job.finishedOn ?? Date.now()) - job.processedOn, 0) / 1000
+    )
+  }
+
   if (isRetrying) {
+    recordBullMQJobOutcome({
+      queue: 'receipt',
+      jobName: job?.name || 'unknown',
+      outcome: 'retrying'
+    })
     logger.warn(
       `[JOB:Receipt] Receipt scan retry scheduled: ${job?.id}`,
       logMetadata
@@ -344,10 +465,37 @@ receiptWorker.on('failed', (job, err) => {
     return
   }
 
+  recordBullMQJobOutcome({
+    queue: 'receipt',
+    jobName: job?.name || 'unknown',
+    outcome
+  })
+  const isExpectedReceiptRejection =
+    err instanceof ExpectedReceiptRejectionError
+  if (!isExpectedReceiptRejection) {
+    captureBackgroundError(err, {
+      component: 'receipt_worker',
+      eventType: isPermanentFailure
+        ? 'unexpected_permanent_failure'
+        : 'final_failure',
+      queueName: 'receipt',
+      errorClass: classifyProviderError(err),
+      attempt: attemptsMade,
+      maxAttempts,
+      correlationId: job?.data.correlationId
+    })
+  }
   logger.error(`[JOB:Receipt] Receipt scan failed: ${job?.id}`, logMetadata)
 })
 
-receiptWorker.on('error', (error) => {
+receiptWorker?.on('error', (error) => {
+  recordBullMQWorkerError('receipt', 'infrastructure')
+  captureBackgroundError(error, {
+    component: 'receipt_worker',
+    eventType: 'infrastructure_error',
+    queueName: 'receipt',
+    errorClass: 'infrastructure'
+  })
   logger.error('[SYS:BullMQ] Receipt worker infrastructure error', {
     queueName: 'RECEIPT_QUEUE',
     eventType: 'error',
