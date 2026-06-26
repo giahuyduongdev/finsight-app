@@ -1,0 +1,54 @@
+sequenceDiagram
+  autonumber
+  actor Client
+  participant API as Auth API
+  participant OAuth as OAuth Provider
+  participant Mongo as MongoDB
+  participant Redis as Redis Bitmap And Cache
+  participant Token as Token Service
+
+  Client->>API: GET /auth/oauth/:provider
+  API->>API: Create CSRF state
+  API-->>Client: Redirect to provider authorize URL
+
+  Client->>API: GET /auth/callback
+  API->>API: Validate CSRF state
+  API->>OAuth: Exchange authorization code
+  OAuth-->>API: Provider profile with email and subject
+  API->>API: Canonicalize provider email
+  API->>Mongo: Find user by provider subject
+
+  alt User found by provider subject
+    Mongo-->>API: Existing linked user
+    API->>Redis: SET user:email:{sha256(email)}
+    API->>Redis: SETBIT bitmap:users:email:v1
+    API->>Redis: DEL nf:email:{sha256(email)}
+    API->>Token: Issue access and refresh tokens
+    API-->>Client: Redirect to frontend callback
+  else No provider-subject match
+    API->>Mongo: Find user by canonical email
+    alt User found by email
+      API->>Mongo: Link provider subject to existing user
+      API->>Redis: SET user:email:{sha256(email)}
+      API->>Redis: SETBIT bitmap:users:email:v1
+      API->>Redis: DEL nf:email:{sha256(email)}
+      API->>Token: Issue access and refresh tokens
+      API-->>Client: Redirect to frontend callback
+    else No user found
+      API->>Mongo: Create OAuth user under unique email index
+      alt Create succeeds
+        API->>Redis: SET user:email:{sha256(email)}
+        API->>Redis: SETBIT bitmap:users:email:v1
+        API->>Redis: DEL nf:email:{sha256(email)}
+        API->>Token: Issue access and refresh tokens
+        API-->>Client: Redirect to frontend callback
+      else Duplicate key race
+        API->>Mongo: Re-read user by canonical email and link if allowed
+        API->>Redis: SET user:email:{sha256(email)}
+        API->>Redis: SETBIT bitmap:users:email:v1
+        API->>Redis: DEL nf:email:{sha256(email)}
+        API->>Token: Issue access and refresh tokens
+        API-->>Client: Redirect to frontend callback
+      end
+    end
+  end

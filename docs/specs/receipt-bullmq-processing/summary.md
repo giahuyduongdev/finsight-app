@@ -211,6 +211,25 @@ Sau khi hoàn thành:
 - FE khôi phục được kết quả khi mất socket hoặc reload;
 - metrics đủ để điều chỉnh localhost và VPS dựa trên dữ liệu thực tế.
 
+## Pending còn lại và lý do
+
+Feature code đã được triển khai và merge vào `develop`. Các mục còn pending
+không phải vì luồng chính chưa chạy, mà vì cần quota hoặc môi trường vận hành
+thật để xác minh.
+
+| Pending | Vì sao chưa chốt bằng code/spec |
+| --- | --- |
+| Xác nhận quota Gemini thật | Quota phụ thuộc Google AI Studio, project, model và usage tier hiện tại. Không nên suy ra từ số API keys trong `.env`. |
+| Đo `429` khi chạy hơn 10 jobs/phút | Cần gọi provider thật để biết limiter 10 RPM có an toàn không. |
+| Đo queue wait p95, processing p95, CPU và RAM | Cần traffic thật hoặc test tải local/VPS; số liệu không thể chốt bằng lý thuyết. |
+| Verify Cloudinary failure end-to-end | Cần mô phỏng credential/quota/network failure để xác nhận API không enqueue và không trả `202`. |
+| Protect Bull Board và `/metrics` trên production | Phụ thuộc kiến trúc deploy: private Docker network, reverse proxy, VPN hoặc auth layer. |
+| Remove legacy base64 branch | Cần chờ qua retention window để chắc Redis không còn job cũ dùng payload legacy. |
+| Production resource limits và Redis/MongoDB backup | Phụ thuộc VPS/deployment thật. Localhost chỉ dùng để luyện tập và kiểm chứng hành vi. |
+
+Vì vậy trạng thái đúng của spec là: implementation chính đã xong; còn lại là
+production/manual verification gates.
+
 ## Cách test capacity ban đầu
 
 Cấu hình test:

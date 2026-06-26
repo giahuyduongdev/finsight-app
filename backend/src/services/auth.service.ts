@@ -58,9 +58,54 @@ import {
 import crypto from 'crypto'
 import { encrypt, decrypt } from '../utils/encryption.util'
 import { compareValue } from '../utils/bcrypt.util'
+import {
+  getCachedUserIdByEmail,
+  getNegativeUserEmailCache,
+  getUserEmailPresence,
+  setNegativeUserEmailCache,
+  syncChangedUserEmailLookup,
+  syncExistingUserEmailLookup
+} from '../utils/auth-user-lookup.util'
 
 const DUMMY_PASSWORD_HASH =
   '$2b$10$F3DNdQ/Me66xU/A0fX9oke/NFB7oOoZxnWQwvpZA5Zp5lYzPnK6/2'
+
+const REGISTER_OTP_REQUEST_MESSAGE =
+  'If this email can be registered, you will receive an OTP shortly'
+
+const findUserByEmailWithLookup = async (
+  email: string
+): Promise<UserDocument | null> => {
+  const presence = await getUserEmailPresence(email)
+
+  if (presence.status === 'definitely_absent') {
+    return null
+  }
+
+  if (presence.status === 'maybe_present') {
+    const cachedUserId = await getCachedUserIdByEmail(email)
+    if (cachedUserId) {
+      const cachedUser = await UserModel.findById(cachedUserId)
+      if (cachedUser) return cachedUser
+    }
+
+    if (await getNegativeUserEmailCache(email)) {
+      return null
+    }
+  }
+
+  const user = await UserModel.findOne({ email })
+  if (user) {
+    await syncExistingUserEmailLookup(email, user.id)
+    return user
+  }
+
+  if (presence.status === 'maybe_present') {
+    await setNegativeUserEmailCache(email)
+  }
+
+  return null
+}
 
 export const registerService = async (
   body: RegisterSchemaType
@@ -119,13 +164,12 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
     )
   }
 
-  // 2. Check email đã tồn tại trong MongoDB
-  const existingUser = await UserModel.findOne({ email })
+  // 2. Check email đã tồn tại bằng lookup layer, fallback MongoDB khi bitmap chưa ready
+  const existingUser = await findUserByEmailWithLookup(email)
   if (existingUser) {
-    throw new ConflictException(
-      'Email already exists',
-      ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
-    )
+    return {
+      message: REGISTER_OTP_REQUEST_MESSAGE
+    }
   }
 
   // 3. Generate OTP
@@ -153,7 +197,7 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'OTP sent to your email. Please verify within 5 minutes'
+    message: REGISTER_OTP_REQUEST_MESSAGE
   }
 }
 
@@ -275,11 +319,13 @@ export const verifyRegisterOTPService = async (
 
   const session = await mongoose.startSession()
   let result: RegisterResult | null = null // ← type rõ ràng
+  let createdUserId: string | null = null
 
   try {
     await session.withTransaction(async () => {
       const newUser = new UserModel({ name, email, password })
       await newUser.save({ session })
+      createdUserId = newUser.id
 
       await new ReportSettingModel({
         userId: newUser._id,
@@ -295,6 +341,9 @@ export const verifyRegisterOTPService = async (
     if (!result) throw new InternalServerException('Failed to create user')
 
     await clearRegisterState(email)
+    if (createdUserId) {
+      await syncExistingUserEmailLookup(email, createdUserId)
+    }
 
     return {
       message: 'Account verified successfully',
@@ -331,22 +380,20 @@ export const resendRegisterVerifyOTPService = async (
     )
   }
 
-  // 2. Check email đã tồn tại trong MongoDB chưa
-  const existingUser = await UserModel.findOne({ email })
+  // 2. Check email đã tồn tại chưa
+  const existingUser = await findUserByEmailWithLookup(email)
   if (existingUser) {
-    throw new ConflictException(
-      'Email already exists',
-      ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
-    )
+    return {
+      message: REGISTER_OTP_REQUEST_MESSAGE
+    }
   }
 
   // 3. Check còn pending không
   const pendingData = await redis.get(REDIS_KEYS.registerPending(email))
   if (!pendingData) {
-    throw new BadRequestException(
-      'Registration session expired. Please register again.',
-      ErrorCodeEnum.AUTH_OTP_EXPIRED
-    )
+    return {
+      message: REGISTER_OTP_REQUEST_MESSAGE
+    }
   }
 
   const { name } = JSON.parse(pendingData)
@@ -368,7 +415,7 @@ export const resendRegisterVerifyOTPService = async (
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'New OTP sent to your email. Please verify within 5 minutes'
+    message: REGISTER_OTP_REQUEST_MESSAGE
   }
 }
 
@@ -385,7 +432,7 @@ export const forgotPasswordService = async (body: ForgotPasswordSchemaType) => {
   }
 
   // Luôn trả về 200, không tiết lộ email có tồn tại không
-  const user = await UserModel.findOne({ email })
+  const user = await findUserByEmailWithLookup(email)
   if (!user) {
     // Âm thầm kết thúc — không throw error
     return {
@@ -463,6 +510,14 @@ export const verifyForgotPasswordOTPService = async (
     )
   }
 
+  const user = await findUserByEmailWithLookup(email)
+  if (!user) {
+    throw new BadRequestException(
+      'OTP has expired. Please request a new one.',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
   // 4. OTP đúng → Generate resetToken
   const resetToken = crypto.randomBytes(32).toString('hex')
 
@@ -505,7 +560,7 @@ export const resendForgotPasswordOTPService = async (
   }
 
   // 2. Check user có tồn tại không (Bảo mật: Chống dò quét - Anti Enumeration)
-  const user = await UserModel.findOne({ email })
+  const user = await findUserByEmailWithLookup(email)
   if (!user) {
     // Không ném lỗi NotFoundException ở đây để hacker không biết email có tồn tại hay không
     return {
@@ -586,7 +641,8 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
   // 6. Dọn dẹp chiến trường
   await Promise.all([
     redis.del(REDIS_KEYS.resetToken(email)),
-    revokeAllUserSessions(user.id)
+    revokeAllUserSessions(user.id),
+    syncExistingUserEmailLookup(email, user.id)
   ])
 
   return {
@@ -610,6 +666,8 @@ export const loginService = async (
   if (!isValidPassword) {
     throw new UnauthorizedException('Invalid email or password')
   }
+
+  await syncExistingUserEmailLookup(email, user.id)
 
   user.timezone = timezone || user.timezone || 'UTC'
   await user.save()
@@ -854,12 +912,13 @@ export const oauthCallbackService = async (
     const profile = (await profileResponse.json()) as Auth0Profile
 
     // 3. Tìm/Tạo/Liên kết user
+    const canonicalEmail = profile.email.trim().toLowerCase()
     let user: UserDocument | null = await UserModel.findOne({
       auth0Ids: profile.sub
     }).select('+tokenVersion')
 
     if (!user) {
-      user = await UserModel.findOne({ email: profile.email }).select(
+      user = await UserModel.findOne({ email: canonicalEmail }).select(
         '+tokenVersion'
       )
 
@@ -875,15 +934,35 @@ export const oauthCallbackService = async (
         }
         if (needsSave) await user.save()
       } else {
-        user = await UserModel.create({
-          email: profile.email,
-          name: profile.name,
-          profilePicture: profile.picture,
-          password: crypto.randomUUID(),
-          timezone,
-          auth0Ids: [profile.sub]
-        })
-        await ReportSettingModel.create({ userId: user._id, isEnabled: false })
+        try {
+          user = await UserModel.create({
+            email: canonicalEmail,
+            name: profile.name,
+            profilePicture: profile.picture,
+            password: crypto.randomUUID(),
+            timezone,
+            auth0Ids: [profile.sub]
+          })
+          await ReportSettingModel.create({
+            userId: user._id,
+            isEnabled: false
+          })
+        } catch (error) {
+          if (!isDuplicateEmailError(error)) throw error
+
+          user = await UserModel.findOne({ email: canonicalEmail }).select(
+            '+tokenVersion'
+          )
+          if (!user) throw error
+
+          if (!user.auth0Ids?.includes(profile.sub)) {
+            user.auth0Ids = [...(user.auth0Ids || []), profile.sub]
+          }
+          if (user.timezone === 'UTC' && timezone !== 'UTC') {
+            user.timezone = timezone
+          }
+          await user.save()
+        }
       }
     } else {
       // User đã tồn tại qua auth0Ids → cập nhật timezone nếu cần
@@ -895,6 +974,8 @@ export const oauthCallbackService = async (
     }
 
     // 4. Tạo JWT
+    await syncExistingUserEmailLookup(user.email, user.id)
+
     const { token: accessToken, expiresAt } = signAccessToken({
       userId: user.id,
       tokenVersion: user.tokenVersion ?? 0
@@ -1160,9 +1241,9 @@ export const changeEmailRequestService = async (
   }
 
   // 3. Kiểm tra email mới đã có người dùng chưa
-  const existingUser = await UserModel.findOne({ email: newEmail })
+  const existingUser = await findUserByEmailWithLookup(newEmail)
   if (existingUser) {
-    throw new BadRequestException(
+    throw new ConflictException(
       'Email is already in use by another account',
       ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
     )
@@ -1305,9 +1386,22 @@ export const verifyChangeEmailOTPService = async (
     )
   }
 
+  const oldEmail = user.email
+
   // 6. Cập nhật Database
   user.email = newEmail
-  await user.save()
+  try {
+    await user.save()
+  } catch (error) {
+    if (isDuplicateEmailError(error)) {
+      throw new ConflictException(
+        'Email already exists',
+        ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
+      )
+    }
+
+    throw error
+  }
 
   // 6.1. Thu hồi toàn bộ session cũ (vì email là định danh đăng nhập đã thay đổi)
   await revokeAllUserSessions(user.id)
@@ -1320,6 +1414,8 @@ export const verifyChangeEmailOTPService = async (
     redis.del(REDIS_KEYS.changeEmailResend(userId)),
     redis.del(attemptsKey)
   ])
+
+  await syncChangedUserEmailLookup(oldEmail, newEmail, user.id)
 
   return {
     message: 'Email updated successfully.'

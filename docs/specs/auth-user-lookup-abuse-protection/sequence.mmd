@@ -1,0 +1,203 @@
+sequenceDiagram
+  autonumber
+  actor Client
+  participant API as Auth API
+  participant RL as Rate Limit And Cooldown
+  participant Redis as Redis Lookup And OTP
+  participant Mongo as MongoDB
+  participant Mail as Mail Queue
+  participant Token as Token Service
+  participant OAuth as OAuth Provider
+
+  rect rgb(245, 248, 255)
+    Note over Client,Mail: Register
+    Client->>API: POST /auth/register
+    API->>RL: Auth rate limit
+    API->>API: Validate and canonicalize email
+    Note over API,Redis: If bitmap:v1 is not ready, fallback to MongoDB pre-check
+    API->>Redis: GETBIT bitmap:users:email:v1 when ready
+    alt BIT = 0
+      API->>Redis: Store pending registration and OTP
+      API->>Mail: Send registration OTP
+      API-->>Client: OTP sent
+    else BIT = 1
+      API->>Redis: GET user:email:{hash}
+      alt Cache hit
+        API-->>Client: 409 Email already exists
+      else Cache miss
+        API->>Mongo: Find user by email
+        alt User exists
+          API->>Redis: SET user cache
+          API-->>Client: 409 Email already exists
+        else User missing
+          API->>Redis: Store pending registration and OTP
+          API->>Mail: Send registration OTP
+          API-->>Client: OTP sent
+        end
+      end
+    end
+
+    Client->>API: POST /auth/register/verify-otp
+    API->>RL: Auth rate limit
+    API->>Redis: Verify OTP and load pending registration
+    Redis-->>API: Pending canonical email
+    API->>Mongo: Create user under unique email index
+    alt Create succeeds
+      API->>Redis: SET user cache, SETBIT bitmap:users:email:v1, DEL negative cache
+      API->>Redis: Delete registration OTP state
+      API-->>Client: Account verified
+    else Duplicate key
+      API->>Redis: Delete stale registration OTP state
+      API-->>Client: 409 Email already exists
+    end
+  end
+
+  rect rgb(247, 252, 247)
+    Note over Client,Token: Login
+    Client->>API: POST /auth/login
+    API->>RL: Auth rate limit
+    API->>API: Validate canonical email and exact password
+    API->>Redis: GET user:email:{hash}
+    alt Cache hit
+      API->>Mongo: Load auth fields by userId
+    else Cache miss
+      API->>Mongo: Load auth fields by canonical email
+      alt User found
+        API->>Redis: SET user cache and SETBIT bitmap:users:email:v1
+      end
+    end
+    alt User missing
+      API->>API: Dummy bcrypt compare
+      API-->>Client: 401 Invalid email or password
+    else User found
+      API->>API: Verify password hash
+      alt Password invalid
+        API-->>Client: 401 Invalid email or password
+      else Password valid
+        API->>Token: Issue access token with tokenVersion and refresh token
+        API-->>Client: Login success
+      end
+    end
+  end
+
+  rect rgb(255, 250, 245)
+    Note over Client,Mail: Forgot Password And Reset
+    Client->>API: POST /auth/password/forgot
+    API->>RL: Auth rate limit and email cooldown
+    API->>API: Validate canonical email
+    Note over API,Redis: If bitmap:v1 is not ready or lookup fails, fallback to MongoDB
+    API->>Redis: GETBIT bitmap:users:email:v1 when ready
+    alt BIT = 0
+      API-->>Client: Generic accepted response
+    else BIT = 1
+      API->>Redis: GET user cache then negative cache
+      alt Negative cache hit
+        API-->>Client: Generic accepted response
+      else Need database check
+        API->>Mongo: Find user by canonical email
+        alt User missing
+          API->>Redis: SET negative cache
+          API-->>Client: Generic accepted response
+        else User exists
+          API->>Redis: SET user cache, SETBIT bitmap:users:email:v1, store forgot OTP
+          API->>Mail: Send forgot-password OTP
+          API-->>Client: Generic accepted response
+        end
+      end
+    end
+
+    Client->>API: POST /auth/password/verify-otp
+    API->>RL: Auth rate limit
+    API->>Redis: Verify forgot OTP
+    alt OTP valid
+      API->>Redis: Store reset token
+      API-->>Client: Reset token issued
+    else OTP invalid
+      API-->>Client: Existing OTP failure
+    end
+
+    Client->>API: POST /auth/password/reset
+    API->>RL: Auth rate limit
+    API->>Redis: Verify reset token
+    API->>Mongo: Load user and update password
+    API->>Token: Revoke all sessions by tokenVersion
+    API->>Redis: Delete reset state and invalidate auth cache
+    API-->>Client: Password reset success
+  end
+
+  rect rgb(250, 247, 255)
+    Note over Client,Mail: Authenticated Password And Email Change
+    Client->>API: POST /auth/password/change-request
+    API->>Token: Authenticate access token and tokenVersion
+    API->>RL: Auth rate limit and user cooldown
+    API->>Mongo: Load user and verify old password
+    API->>Redis: Store pending password change and OTP
+    API->>Mail: Send OTP to current email
+    API-->>Client: OTP sent
+
+    Client->>API: POST /auth/password/change-verify
+    API->>Token: Authenticate access token and tokenVersion
+    API->>Redis: Verify change-password OTP and pending state
+    API->>Mongo: Update password
+    API->>Token: Revoke all sessions by tokenVersion
+    API->>Redis: Delete change-password state and invalidate auth cache
+    API-->>Client: Password changed
+
+    Client->>API: POST /auth/email/change-request
+    API->>Token: Authenticate access token and tokenVersion
+    API->>RL: Auth rate limit and user cooldown
+    API->>API: Validate canonical new email
+    Note over API,Redis: If bitmap:v1 is not ready, fallback to MongoDB pre-check
+    API->>Redis: GETBIT bitmap:users:email:v1 for new email when ready
+    alt BIT = 1
+      API->>Redis: GET user cache
+      API->>Mongo: Check new email if cache misses
+    end
+    alt New email already exists
+      API-->>Client: 409 Email already exists
+    else New email available
+      API->>Redis: Store old and new email OTPs
+      API->>Mail: Send OTPs to old and new emails
+      API-->>Client: OTPs sent
+    end
+
+    Client->>API: POST /auth/email/change-verify
+    API->>Token: Authenticate access token and tokenVersion
+    API->>Redis: Verify old and new email OTPs
+    API->>Mongo: Update email under unique index
+    alt Update succeeds
+      API->>Token: Revoke all sessions by tokenVersion
+      API->>Redis: DEL old user cache, SET new user cache, SETBIT new bitmap, DEL new negative cache
+      API-->>Client: Email changed
+    else Duplicate key
+      API-->>Client: 409 Email already exists
+    end
+  end
+
+  rect rgb(245, 245, 245)
+    Note over Client,Token: Token And OAuth
+    Client->>API: POST /auth/refresh-token
+    API->>Token: Verify refresh JWT and persisted refresh-token record
+    API->>Mongo: Load current tokenVersion
+    API->>Token: Issue new access token
+    API-->>Client: Token refreshed
+
+    Client->>API: POST /auth/logout
+    API->>Token: Revoke current refresh token and blacklist access token
+    API-->>Client: Logged out
+
+    Client->>API: POST /auth/logout-all
+    API->>Token: Authenticate access token
+    API->>Token: Revoke all refresh tokens and increment tokenVersion
+    API-->>Client: Logged out all sessions
+
+    Client->>API: GET /auth/oauth/:provider
+    API->>OAuth: Redirect to provider authorize URL
+    OAuth-->>Client: Provider login page
+    Client->>API: GET /auth/callback
+    API->>OAuth: Exchange code and load profile
+    API->>Mongo: Find, link, or create user
+    API->>Redis: SET user cache, SETBIT bitmap:users:email:v1, DEL negative cache
+    API->>Token: Issue access and refresh tokens
+    API-->>Client: Redirect to frontend callback
+  end

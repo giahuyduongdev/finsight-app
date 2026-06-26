@@ -1,0 +1,65 @@
+flowchart TD
+  Client[Client]
+  AuthAPI[Auth API]
+  Validator[Validator canonicalizes email]
+  RateLimit[Auth rate limit and cooldown keys]
+  Bitmap[Redis bitmap presence filter]
+  BitmapReady[Redis bitmap ready flag]
+  PositiveCache[Redis positive user cache]
+  NegativeCache[Redis negative cache]
+  OTPState[Redis OTP and pending state]
+  Mongo[(MongoDB source of truth)]
+  TokenStore[(Refresh token store)]
+  TokenVersion[User tokenVersion]
+  Mail[Mail queue]
+  OAuth[OAuth provider]
+
+  Client --> AuthAPI
+  AuthAPI --> Validator
+  AuthAPI --> RateLimit
+
+  Validator -->|email lookup flows| BitmapReady
+  BitmapReady -->|ready| Bitmap
+  BitmapReady -->|not ready| Mongo
+  Bitmap -->|bit 0: definitely absent if bitmap complete| AuthAPI
+  Bitmap -->|bit 1: maybe exists| PositiveCache
+  PositiveCache -->|hit: userId| Mongo
+  PositiveCache -->|miss| NegativeCache
+  NegativeCache -->|hit: recent miss| AuthAPI
+  NegativeCache -->|miss| Mongo
+
+  Mongo -->|user exists| PositiveCache
+  Mongo -->|user exists| Bitmap
+  Mongo -->|user missing after bit 1| NegativeCache
+
+  AuthAPI -->|register and OTP flows| OTPState
+  OTPState -->|verified pending state| Mongo
+  AuthAPI -->|send OTP or reset email| Mail
+
+  AuthAPI -->|login success, refresh, OAuth success| TokenStore
+  AuthAPI -->|logout, logout-all, password reset, password change, email change| TokenVersion
+  TokenVersion -->|revokes old access tokens| AuthAPI
+  TokenStore -->|refresh token validation and revocation| AuthAPI
+
+  AuthAPI -->|oauth redirect/callback| OAuth
+  OAuth -->|provider profile| AuthAPI
+  AuthAPI -->|find/link/create OAuth user| Mongo
+
+  Mongo -->|register success| PositiveCache
+  Mongo -->|register success| Bitmap
+  Mongo -->|register success: delete stale miss| NegativeCache
+
+  Mongo -->|email change success: old email| PositiveCache
+  Mongo -->|email change success: new email| PositiveCache
+  Mongo -->|email change success: new email| Bitmap
+  Mongo -->|email change success: delete stale miss| NegativeCache
+
+  classDef source fill:#f8f8f8,stroke:#555,color:#111
+  classDef redis fill:#fff4e6,stroke:#c77700,color:#111
+  classDef secure fill:#eef6ff,stroke:#2b6cb0,color:#111
+  classDef external fill:#f3edff,stroke:#6b46c1,color:#111
+
+  class Mongo,TokenStore source
+  class Bitmap,BitmapReady,PositiveCache,NegativeCache,OTPState,RateLimit redis
+  class TokenVersion secure
+  class Mail,OAuth external
