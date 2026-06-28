@@ -94,3 +94,20 @@ Với VPS 2 shared vCPU / 8 GB RAM:
 8. Alerts và verification.
 
 Không triển khai đầy đủ Report/Transaction metrics trong feature này.
+
+## Pending còn lại và lý do
+
+Foundation app-level đã có thể dùng cho backend, queue, provider và Receipt.
+Các phần còn pending là host/VPS observability và mở rộng domain sau này.
+
+| Pending | Vì sao chưa chốt |
+| --- | --- |
+| Node Exporter | Cần cấu hình theo VPS/Linux host thật: mounts, filesystem exclude, network private và collector tối thiểu. |
+| Dashboard `Finsight Host/VPS` | Cần metrics từ Node Exporter để hiển thị CPU, RAM, disk, network, uptime cấp máy chủ. |
+| Host alerts CPU/RAM/disk | Cần baseline thật để tránh alert quá nhạy hoặc quá trễ. |
+| Đo resource usage của monitoring stack | Cần đo trên localhost/VPS với Prometheus, Grafana và sau này Node Exporter chạy thật. |
+| Production firewall/reverse proxy restrictions | Phụ thuộc cách deploy production: all-in-one VPS, private Docker network, Nginx, VPN hoặc managed monitoring. |
+| Report/Transaction/import domain metrics | Đây là domain migration riêng, không nằm trong scope Receipt reference integration. |
+
+Trạng thái đúng của spec: observability foundation cho app đã implement; host
+observability bằng Node Exporter và domain migration còn là phase sau.

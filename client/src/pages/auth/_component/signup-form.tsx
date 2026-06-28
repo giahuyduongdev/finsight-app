@@ -206,7 +206,9 @@ const SignUpForm = () => {
       await registerOTP(values).unwrap()
       setPendingEmail(values.email)
       setStep('verify_otp')
-      toast.success('OTP sent! Check your email.')
+      toast.success(
+        'If this email can be registered, an OTP will be sent shortly'
+      )
     } catch (error: unknown) {
       const err = error as {
         data?: {
@@ -225,7 +227,7 @@ const SignUpForm = () => {
         if (extra?.canResend === false && extra?.remainingTime) {
           resetCountdown(extra.remainingTime)
         }
-        toast.info('This email already has a pending OTP. Please verify it.')
+        toast.info('This email already has a pending OTP. Please verify it')
         return
       }
 
@@ -243,14 +245,14 @@ const SignUpForm = () => {
   const onOtpSubmit = async (values: OtpValues) => {
     try {
       await verifyOTP({ email: pendingEmail, otp: values.otp }).unwrap()
-      toast.success('Account created successfully! Please log in.')
+      toast.success('Account created successfully! Please log in')
       navigate(AUTH_ROUTES.SIGN_IN)
     } catch (error: unknown) {
       const err = error as { data?: { errorCode?: string; message?: string } }
       const errorCode = err.data?.errorCode
 
       if (errorCode === 'AUTH_OTP_EXPIRED') {
-        toast.error('OTP has expired. Please request a new one.')
+        toast.error('OTP has expired. Please request a new one')
         otpForm.reset()
         return
       }
@@ -266,7 +268,9 @@ const SignUpForm = () => {
       await resendOTP({ email: pendingEmail }).unwrap()
       otpForm.reset()
       resetCountdown()
-      toast.success('New OTP sent to your email')
+      toast.success(
+        'If this registration is valid, a new OTP will be sent shortly'
+      )
     } catch (error: unknown) {
       const err = error as {
         data?: { data?: { remainingTime?: number }; message?: string }
@@ -292,7 +296,7 @@ const SignUpForm = () => {
           </div>
           <h1 className="text-2xl font-bold">Check your email</h1>
           <p className="text-sm text-muted-foreground text-balance">
-            We sent a 6-digit code to{' '}
+            If this email can be registered, a 6-digit code will be sent to{' '}
             <span className="font-medium text-foreground">{pendingEmail}</span>
           </p>
         </div>

@@ -1,7 +1,9 @@
-import crypto from 'crypto'
-
 const redisExists = jest.fn()
 const redisGet = jest.fn()
+const redisSet = jest.fn()
+const redisDel = jest.fn()
+const redisGetBit = jest.fn()
+const redisSetBit = jest.fn()
 const redisIncr = jest.fn()
 const redisExpire = jest.fn()
 const redisPipelineSetex = jest.fn()
@@ -11,6 +13,8 @@ const userFindOne = jest.fn()
 const userSave = jest.fn()
 const userOmitPassword = jest.fn()
 const userConstructor = jest.fn()
+const refreshTokenDeleteMany = jest.fn()
+const refreshTokenFindOneAndUpdate = jest.fn()
 const reportSettingSave = jest.fn()
 const reportSettingConstructor = jest.fn()
 const sessionEnd = jest.fn()
@@ -19,6 +23,7 @@ const encryptPassword = jest.fn()
 const decryptPassword = jest.fn()
 const compareDummyPassword = jest.fn()
 const sendVerificationEmail = jest.fn()
+const sendPasswordResetEmail = jest.fn()
 
 const pipeline = {
   setex: redisPipelineSetex,
@@ -26,26 +31,44 @@ const pipeline = {
   exec: redisPipelineExec
 }
 
+const mockAuthEmailKey = (email: string) =>
+  `email-key:${email.trim().toLowerCase()}`
+
 redisPipelineSetex.mockReturnValue(pipeline)
 redisPipelineDel.mockReturnValue(pipeline)
 
 jest.mock('../../config/redis.config', () => ({
   OTP_CONFIG: { MAX_ATTEMPTS: 5 },
   REDIS_KEYS: {
-    registerOtp: (email: string) => `otp:register:${email}`,
-    registerPending: (email: string) => `pending:register:${email}`,
-    registerResend: (email: string) => `resend:register:${email}`,
-    registerAttempts: (email: string) => `attempts:register:${email}`
+    registerOtp: (email: string) => `otp:register:${mockAuthEmailKey(email)}`,
+    registerPending: (email: string) =>
+      `pending:register:${mockAuthEmailKey(email)}`,
+    registerResend: (email: string) =>
+      `resend:register:${mockAuthEmailKey(email)}`,
+    registerAttempts: (email: string) =>
+      `attempts:register:${mockAuthEmailKey(email)}`,
+    forgotOtp: (email: string) => `otp:forgot:${mockAuthEmailKey(email)}`,
+    forgotResend: (email: string) => `resend:forgot:${mockAuthEmailKey(email)}`,
+    forgotAttempts: (email: string) =>
+      `attempts:forgot:${mockAuthEmailKey(email)}`,
+    resetToken: (email: string) =>
+      `reset:forgot:token:${mockAuthEmailKey(email)}`
   },
   REDIS_TTL: {
     OTP: 300,
     PENDING: 900,
     RESEND: 60,
-    OTP_ATTEMPTS: 900
+    OTP_ATTEMPTS: 900,
+    FORGOT_OTP: 300,
+    FORGOT_RESEND: 60
   },
   redis: {
     exists: redisExists,
     get: redisGet,
+    set: redisSet,
+    del: redisDel,
+    getbit: redisGetBit,
+    setbit: redisSetBit,
     incr: redisIncr,
     expire: redisExpire,
     pipeline: jest.fn(() => pipeline)
@@ -74,7 +97,10 @@ jest.mock('../../services/session-revocation.service', () => ({
 
 jest.mock('../../models/refresh-token.model', () => ({
   __esModule: true,
-  default: {}
+  default: {
+    deleteMany: refreshTokenDeleteMany,
+    findOneAndUpdate: refreshTokenFindOneAndUpdate
+  }
 }))
 
 jest.mock('mongoose', () => ({
@@ -99,7 +125,7 @@ jest.mock('../../utils/bcrypt.util', () => ({
 
 jest.mock('../../mailers/auth.mailer', () => ({
   sendVerificationEmail,
-  sendPasswordResetEmail: jest.fn(),
+  sendPasswordResetEmail,
   sendChangePasswordEmail: jest.fn(),
   sendChangeEmailOldOTP: jest.fn(),
   sendChangeEmailNewOTP: jest.fn()
@@ -110,10 +136,20 @@ jest.mock('../../utils/generate-otp.util', () => ({
 }))
 
 import {
+  createRefreshToken,
+  forgotPasswordService,
   loginService,
+  logoutService,
   registerOTPService,
+  resendRegisterVerifyOTPService,
   verifyRegisterOTPService
 } from '../../services/auth.service'
+import {
+  hashAccessTokenBlacklistKey,
+  hashOtp,
+  hashRefreshToken
+} from '../../utils/secure-hash.util'
+import { signAccessToken } from '../../utils/jwt.util'
 
 describe('auth service hardening', () => {
   beforeEach(() => {
@@ -121,12 +157,17 @@ describe('auth service hardening', () => {
     redisPipelineSetex.mockReturnValue(pipeline)
     redisPipelineDel.mockReturnValue(pipeline)
     redisExists.mockResolvedValue(0)
+    redisSet.mockResolvedValue('OK')
+    redisDel.mockResolvedValue(1)
+    redisGetBit.mockResolvedValue(0)
+    redisSetBit.mockResolvedValue(0)
     redisPipelineExec.mockResolvedValue([])
     userFindOne.mockResolvedValue(null)
     encryptPassword.mockResolvedValue('encrypted-password')
     decryptPassword.mockResolvedValue('Password1!')
     compareDummyPassword.mockResolvedValue(false)
     sendVerificationEmail.mockResolvedValue(undefined)
+    sendPasswordResetEmail.mockResolvedValue(undefined)
     userSave.mockResolvedValue(undefined)
     userOmitPassword.mockReturnValue({
       _id: 'user-id',
@@ -138,6 +179,10 @@ describe('auth service hardening', () => {
       save: userSave,
       omitPassword: userOmitPassword
     }))
+    refreshTokenDeleteMany.mockResolvedValue({ deletedCount: 0 })
+    refreshTokenFindOneAndUpdate.mockResolvedValue({
+      _id: 'refresh-token-id'
+    })
     reportSettingSave.mockResolvedValue(undefined)
     reportSettingConstructor.mockImplementation((data) => ({
       ...data,
@@ -157,7 +202,7 @@ describe('auth service hardening', () => {
     expect(encryptPassword).toHaveBeenCalledWith('Password1!')
 
     const pendingCall = redisPipelineSetex.mock.calls.find(
-      ([key]) => key === 'pending:register:user@example.com'
+      ([key]) => key === 'pending:register:email-key:user@example.com'
     )
     expect(pendingCall).toBeDefined()
 
@@ -170,11 +215,107 @@ describe('auth service hardening', () => {
     expect(JSON.stringify(pendingData)).not.toContain('Password1!')
   })
 
-  it('decrypts the pending password before creating the verified user', async () => {
-    const hashedOtp = crypto.createHash('sha256').update('123456').digest('hex')
+  it('skips the MongoDB duplicate pre-check when register bitmap is ready and bit is zero', async () => {
     redisGet.mockImplementation(async (key: string) => {
-      if (key === 'otp:register:user@example.com') return hashedOtp
-      if (key === 'pending:register:user@example.com') {
+      if (key === 'bitmap:users:email:v1:ready') return '1'
+      return null
+    })
+    redisGetBit.mockResolvedValueOnce(0)
+
+    await registerOTPService({
+      name: 'Test User',
+      email: 'new@example.com',
+      password: 'Password1!'
+    })
+
+    expect(redisGetBit).toHaveBeenCalledWith(
+      'bitmap:users:email:v1',
+      expect.any(Number)
+    )
+    expect(userFindOne).not.toHaveBeenCalled()
+  })
+
+  it('falls back to MongoDB pre-check when register bitmap is not ready', async () => {
+    redisGet.mockImplementation(async (key: string) => {
+      if (key === 'bitmap:users:email:v1:ready') return null
+      return null
+    })
+
+    await registerOTPService({
+      name: 'Test User',
+      email: 'new@example.com',
+      password: 'Password1!'
+    })
+
+    expect(redisGetBit).not.toHaveBeenCalled()
+    expect(userFindOne).toHaveBeenCalledWith({ email: 'new@example.com' })
+  })
+
+  it('does not reveal an existing email during registration OTP request', async () => {
+    userFindOne.mockResolvedValueOnce({
+      id: 'existing-user-id',
+      email: 'user@example.com'
+    })
+
+    const result = await registerOTPService({
+      name: 'Test User',
+      email: 'user@example.com',
+      password: 'Password1!'
+    })
+
+    expect(result).toEqual({
+      message:
+        'If this email can be registered, you will receive an OTP shortly'
+    })
+    expect(encryptPassword).not.toHaveBeenCalled()
+    expect(redisPipelineSetex).not.toHaveBeenCalledWith(
+      'pending:register:email-key:user@example.com',
+      expect.any(Number),
+      expect.any(String)
+    )
+    expect(sendVerificationEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not reveal an existing email during register OTP resend', async () => {
+    userFindOne.mockResolvedValueOnce({
+      id: 'existing-user-id',
+      email: 'user@example.com'
+    })
+
+    const result = await resendRegisterVerifyOTPService({
+      email: 'user@example.com'
+    })
+
+    expect(result).toEqual({
+      message:
+        'If this email can be registered, you will receive an OTP shortly'
+    })
+    expect(redisPipelineSetex).not.toHaveBeenCalledWith(
+      'otp:register:email-key:user@example.com',
+      expect.any(Number),
+      expect.any(String)
+    )
+    expect(sendVerificationEmail).not.toHaveBeenCalled()
+  })
+
+  it('skips MongoDB and mail for forgot password when bitmap is ready and bit is zero', async () => {
+    redisGet.mockImplementation(async (key: string) => {
+      if (key === 'bitmap:users:email:v1:ready') return '1'
+      return null
+    })
+    redisGetBit.mockResolvedValueOnce(0)
+
+    await forgotPasswordService({ email: 'missing@example.com' })
+
+    expect(userFindOne).not.toHaveBeenCalled()
+    expect(sendPasswordResetEmail).not.toHaveBeenCalled()
+  })
+
+  it('decrypts the pending password before creating the verified user', async () => {
+    const hashedOtp = hashOtp('123456')
+    redisGet.mockImplementation(async (key: string) => {
+      if (key === 'otp:register:email-key:user@example.com') return hashedOtp
+      if (key === 'pending:register:email-key:user@example.com') {
         return JSON.stringify({
           name: 'Test User',
           email: 'user@example.com',
@@ -198,10 +339,10 @@ describe('auth service hardening', () => {
   })
 
   it('rejects and cleans up a legacy plaintext pending registration', async () => {
-    const hashedOtp = crypto.createHash('sha256').update('123456').digest('hex')
+    const hashedOtp = hashOtp('123456')
     redisGet.mockImplementation(async (key: string) => {
-      if (key === 'otp:register:user@example.com') return hashedOtp
-      if (key === 'pending:register:user@example.com') {
+      if (key === 'otp:register:email-key:user@example.com') return hashedOtp
+      if (key === 'pending:register:email-key:user@example.com') {
         return JSON.stringify({
           name: 'Test User',
           email: 'user@example.com',
@@ -220,16 +361,16 @@ describe('auth service hardening', () => {
 
     expect(userConstructor).not.toHaveBeenCalled()
     expect(redisPipelineDel).toHaveBeenCalledWith(
-      'otp:register:user@example.com'
+      'otp:register:email-key:user@example.com'
     )
     expect(redisPipelineDel).toHaveBeenCalledWith(
-      'pending:register:user@example.com'
+      'pending:register:email-key:user@example.com'
     )
     expect(redisPipelineDel).toHaveBeenCalledWith(
-      'resend:register:user@example.com'
+      'resend:register:email-key:user@example.com'
     )
     expect(redisPipelineDel).toHaveBeenCalledWith(
-      'attempts:register:user@example.com'
+      'attempts:register:email-key:user@example.com'
     )
   })
 
@@ -276,11 +417,59 @@ describe('auth service hardening', () => {
     expect(missingUserError.message).toBe('Invalid email or password')
   })
 
+  it('stores a refresh token digest when creating a refresh token', async () => {
+    const refreshToken = await createRefreshToken('user-id', 'test-agent')
+
+    expect(refreshToken).toEqual(expect.any(String))
+    expect(refreshTokenFindOneAndUpdate).toHaveBeenCalledWith(
+      { token: hashRefreshToken(refreshToken) },
+      expect.objectContaining({
+        userId: 'user-id',
+        token: hashRefreshToken(refreshToken),
+        userAgent: 'test-agent',
+        isRevoked: false
+      }),
+      { upsert: true, new: true }
+    )
+    expect(refreshTokenFindOneAndUpdate).not.toHaveBeenCalledWith(
+      { token: refreshToken },
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
+  it('revokes refresh token and blacklists access token by digest on logout', async () => {
+    const { token: accessToken } = signAccessToken({
+      userId: 'user-id',
+      tokenVersion: 0
+    })
+    const refreshToken = 'raw-refresh-token'
+
+    await logoutService(refreshToken, accessToken)
+
+    expect(refreshTokenFindOneAndUpdate).toHaveBeenCalledWith(
+      { token: hashRefreshToken(refreshToken), isRevoked: false },
+      { isRevoked: true }
+    )
+    expect(redisSet).toHaveBeenCalledWith(
+      `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`,
+      'revoked',
+      'EX',
+      expect.any(Number)
+    )
+    expect(redisSet).not.toHaveBeenCalledWith(
+      `blacklist:${accessToken}`,
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
   it('translates a duplicate email race into the existing conflict response', async () => {
-    const hashedOtp = crypto.createHash('sha256').update('123456').digest('hex')
+    const hashedOtp = hashOtp('123456')
     redisGet.mockImplementation(async (key: string) => {
-      if (key === 'otp:register:user@example.com') return hashedOtp
-      if (key === 'pending:register:user@example.com') {
+      if (key === 'otp:register:email-key:user@example.com') return hashedOtp
+      if (key === 'pending:register:email-key:user@example.com') {
         return JSON.stringify({
           name: 'Test User',
           email: 'user@example.com',
@@ -305,15 +494,15 @@ describe('auth service hardening', () => {
     expect(error.errorCode).toBe('AUTH_EMAIL_ALREADY_EXISTS')
     expect(error.message).toBe('Email already exists')
     expect(redisPipelineDel).toHaveBeenCalledWith(
-      'pending:register:user@example.com'
+      'pending:register:email-key:user@example.com'
     )
   })
 
   it('fails closed and cleans up when pending ciphertext cannot be decrypted', async () => {
-    const hashedOtp = crypto.createHash('sha256').update('123456').digest('hex')
+    const hashedOtp = hashOtp('123456')
     redisGet.mockImplementation(async (key: string) => {
-      if (key === 'otp:register:user@example.com') return hashedOtp
-      if (key === 'pending:register:user@example.com') {
+      if (key === 'otp:register:email-key:user@example.com') return hashedOtp
+      if (key === 'pending:register:email-key:user@example.com') {
         return JSON.stringify({
           name: 'Test User',
           email: 'user@example.com',
@@ -335,15 +524,15 @@ describe('auth service hardening', () => {
 
     expect(userConstructor).not.toHaveBeenCalled()
     expect(redisPipelineDel).toHaveBeenCalledWith(
-      'pending:register:user@example.com'
+      'pending:register:email-key:user@example.com'
     )
   })
 
   it('does not hide non-duplicate database failures', async () => {
-    const hashedOtp = crypto.createHash('sha256').update('123456').digest('hex')
+    const hashedOtp = hashOtp('123456')
     redisGet.mockImplementation(async (key: string) => {
-      if (key === 'otp:register:user@example.com') return hashedOtp
-      if (key === 'pending:register:user@example.com') {
+      if (key === 'otp:register:email-key:user@example.com') return hashedOtp
+      if (key === 'pending:register:email-key:user@example.com') {
         return JSON.stringify({
           name: 'Test User',
           email: 'user@example.com',

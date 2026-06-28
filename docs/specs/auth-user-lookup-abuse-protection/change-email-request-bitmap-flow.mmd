@@ -1,0 +1,73 @@
+sequenceDiagram
+  autonumber
+  actor Client
+  participant API as Auth API
+  participant Token as Token Auth
+  participant RL as Rate Limit And Cooldown
+  participant Redis as Redis Bitmap And Cache
+  participant OTP as Redis Change Email OTP State
+  participant Mongo as MongoDB
+  participant Mail as Mail Queue
+
+  Client->>API: POST /auth/email/change-request
+  API->>Token: Authenticate access token and tokenVersion
+  API->>RL: Apply auth rate limit and user cooldown
+  API->>API: Validate and canonicalize new email
+  API->>Mongo: Load current user by authenticated userId
+  API->>API: Reject if new email equals current email
+  API->>Redis: GET bitmap:users:email:v1:ready
+
+  alt Bitmap not ready
+    Note over API,Redis: Cannot trust BIT = 0, use MongoDB pre-check
+    API->>Mongo: Find user by new canonical email
+    alt New email exists
+      API-->>Client: 409 Email already exists
+    else New email missing
+      API->>OTP: Store old-email and new-email OTP state
+      API->>Mail: Send OTP to old email
+      API->>Mail: Send OTP to new email
+      API-->>Client: OTPs sent
+    end
+  else Bitmap ready
+    API->>Redis: GETBIT bitmap:users:email:v1 at new-email index
+  end
+
+  alt Ready and BIT = 0
+    Note over API,Redis: New email is treated as available for pre-check
+    API->>OTP: Store old-email and new-email OTP state
+    API->>Mail: Send OTP to old email
+    API->>Mail: Send OTP to new email
+    API-->>Client: OTPs sent
+  else Ready and BIT = 1
+    Note over API,Redis: Maybe exists, must verify through cache or MongoDB
+    API->>Redis: GET user:email:{sha256(newEmail)}
+    alt Positive cache hit
+      API-->>Client: 409 Email already exists
+    else Positive cache miss
+      API->>Mongo: Find user by new canonical email
+      alt New email exists
+        API->>Redis: SET user:email:{hash}
+        API-->>Client: 409 Email already exists
+      else New email missing
+        API->>OTP: Store old-email and new-email OTP state
+        API->>Mail: Send OTP to old email
+        API->>Mail: Send OTP to new email
+        API-->>Client: OTPs sent
+      end
+    end
+  end
+
+  Client->>API: POST /auth/email/change-verify
+  API->>Token: Authenticate access token and tokenVersion
+  API->>OTP: Verify old-email and new-email OTPs
+  API->>Mongo: Update email under unique email index
+
+  alt Update succeeds
+    API->>Redis: DEL old user:email:{hash}
+    API->>Redis: SET new user:email:{hash}
+    API->>Redis: SETBIT bitmap:users:email:v1 for new email
+    API->>Redis: DEL nf:email:{newEmailHash}
+    API-->>Client: Email changed
+  else Duplicate key race
+    API-->>Client: 409 Email already exists
+  end

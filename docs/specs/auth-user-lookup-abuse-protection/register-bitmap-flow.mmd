@@ -1,0 +1,69 @@
+sequenceDiagram
+  autonumber
+  actor Client
+  participant API as Auth API
+  participant RL as Rate Limit
+  participant Redis as Redis Bitmap And Cache
+  participant OTP as Redis OTP State
+  participant Mongo as MongoDB
+  participant Mail as Mail Queue
+
+  Client->>API: POST /auth/register
+  API->>RL: Apply auth rate limit
+  API->>API: Validate input and canonicalize email
+  API->>OTP: Check pending registration state
+  API->>Redis: GET bitmap:users:email:v1:ready
+
+  alt Bitmap not ready
+    Note over API,Redis: Cannot trust BIT = 0, use MongoDB pre-check
+    API->>Mongo: Find user by canonical email
+    alt User exists
+      API-->>Client: 409 Email already exists
+    else User missing
+      API->>OTP: Store pending registration and OTP
+      API->>Mail: Send registration OTP
+      API-->>Client: OTP sent
+    end
+  else Bitmap ready
+    API->>Redis: GETBIT bitmap:users:email:v1 at email index
+  end
+
+  alt Ready and BIT = 0
+    Note over API,Redis: Definitely absent only if bitmap is complete
+    API->>OTP: Store pending registration and OTP
+    API->>Mail: Send registration OTP
+    API-->>Client: OTP sent
+  else Ready and BIT = 1
+    Note over API,Redis: Maybe exists, never proof of existence
+    API->>Redis: GET user:email:{sha256(email)}
+    alt Positive cache hit
+      API-->>Client: 409 Email already exists
+    else Positive cache miss
+      API->>Mongo: Find user by canonical email
+      alt User exists
+        API->>Redis: SET user:email:{sha256(email)}
+        API-->>Client: 409 Email already exists
+      else User missing
+        API->>OTP: Store pending registration and OTP
+        API->>Mail: Send registration OTP
+        API-->>Client: OTP sent
+      end
+    end
+  end
+
+  Client->>API: POST /auth/register/verify-otp
+  API->>RL: Apply auth rate limit
+  API->>OTP: Verify OTP and load pending registration
+  OTP-->>API: Pending canonical email
+  API->>Mongo: Create user under unique email index
+
+  alt Create succeeds
+    API->>Redis: SET user:email:{hash}
+    API->>Redis: SETBIT bitmap:users:email:v1
+    API->>Redis: DEL nf:email:{hash}
+    API->>OTP: Delete registration OTP state
+    API-->>Client: Account verified
+  else Duplicate key race
+    API->>OTP: Delete stale registration OTP state
+    API-->>Client: 409 Email already exists
+  end

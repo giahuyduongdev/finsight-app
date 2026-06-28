@@ -4,14 +4,19 @@ import RefreshTokenModel, {
 import { IRefreshTokenRepository } from './interfaces/refresh-token-repository.interface'
 import { DeleteResult } from '../types/repository.type'
 import { logger } from '../config/logger.config'
+import { hashRefreshToken } from '../utils/secure-hash.util'
 
 /**
- * Mask token for safe logging
+ * Build a digest preview for safe logging without exposing raw token bytes.
  */
-const maskToken = (token?: string) => {
+const tokenDigestPreview = (token?: string) => {
   if (!token) return undefined
-  if (token.length <= 12) return '[REDACTED]'
-  return `${token.slice(0, 4)}...${token.slice(-4)}`
+  try {
+    const digest = hashRefreshToken(token)
+    return `${digest.slice(0, 8)}...${digest.slice(-8)}`
+  } catch {
+    return '[DIGEST_UNAVAILABLE]'
+  }
 }
 
 /**
@@ -26,7 +31,10 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
     tokenData: Partial<RefreshTokenDocument>
   ): Promise<RefreshTokenDocument> {
     try {
-      const token = await RefreshTokenModel.create(tokenData)
+      const persistedTokenData = tokenData.token
+        ? { ...tokenData, token: hashRefreshToken(tokenData.token) }
+        : tokenData
+      const token = await RefreshTokenModel.create(persistedTokenData)
       logger.info('[APP:Auth] Refresh token created', {
         tokenId: token._id,
         userId: token.userId
@@ -47,12 +55,14 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
    */
   async findByToken(token: string): Promise<RefreshTokenDocument | null> {
     try {
-      return await RefreshTokenModel.findOne({ token }).exec()
+      return await RefreshTokenModel.findOne({
+        token: hashRefreshToken(token)
+      }).exec()
     } catch (error) {
       logger.error('[APP:Auth] Error finding refresh token by token', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
-        tokenPreview: maskToken(token)
+        tokenDigestPreview: tokenDigestPreview(token)
       })
       throw error
     }
@@ -82,14 +92,14 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
   async revokeToken(token: string): Promise<boolean> {
     try {
       const result = await RefreshTokenModel.updateOne(
-        { token },
+        { token: hashRefreshToken(token) },
         { $set: { isRevoked: true } }
       ).exec()
 
       const revoked = result.modifiedCount > 0
       if (revoked) {
         logger.info('[APP:Auth] Refresh token revoked', {
-          tokenPreview: maskToken(token)
+          tokenDigestPreview: tokenDigestPreview(token)
         })
       }
       return revoked
@@ -97,7 +107,7 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
       logger.error('[APP:Auth] Error revoking refresh token', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
-        tokenPreview: maskToken(token)
+        tokenDigestPreview: tokenDigestPreview(token)
       })
       throw error
     }

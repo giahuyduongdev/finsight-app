@@ -449,7 +449,7 @@ const ForgotPasswordForm = () => {
 
             <Button
               type="submit"
-              className="w-full"
+              className="w-full cursor-pointer disabled:cursor-not-allowed"
               disabled={isVerifying || otpForm.watch('otp').length < 6}
             >
               {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
@@ -466,7 +466,7 @@ const ForgotPasswordForm = () => {
                     size="sm"
                     onClick={handleResend}
                     disabled={isResending}
-                    className="gap-2 h-auto py-1"
+                    className="gap-2 h-auto py-1 cursor-pointer disabled:cursor-not-allowed"
                   >
                     {isResending ? (
                       <Loader className="h-3 w-3 animate-spin" />
@@ -492,7 +492,7 @@ const ForgotPasswordForm = () => {
                   setStep('enter_email')
                   otpForm.reset()
                 }}
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 <ArrowLeft className="h-3 w-3" />
                 Back

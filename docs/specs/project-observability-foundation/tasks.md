@@ -104,6 +104,8 @@
 
 ## Phase 10 - Node Exporter host observability
 
+- [ ] Pending note: phase này cần VPS/Linux host hoặc môi trường Docker tương
+      đương để xác minh collector, mount, firewall và dashboard.
 - [ ] Add optional Node Exporter service to the Docker Compose `monitoring`
       profile.
 - [ ] Configure Prometheus to scrape Node Exporter every 30 seconds.

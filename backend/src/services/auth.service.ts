@@ -58,9 +58,60 @@ import {
 import crypto from 'crypto'
 import { encrypt, decrypt } from '../utils/encryption.util'
 import { compareValue } from '../utils/bcrypt.util'
+import {
+  getCachedUserIdByEmail,
+  getNegativeUserEmailCache,
+  getUserEmailPresence,
+  setNegativeUserEmailCache,
+  syncChangedUserEmailLookup,
+  syncExistingUserEmailLookup
+} from '../utils/auth-user-lookup.util'
+import {
+  hashAccessTokenBlacklistKey,
+  hashOtp,
+  hashRefreshToken,
+  hashResetToken
+} from '../utils/secure-hash.util'
 
 const DUMMY_PASSWORD_HASH =
   '$2b$10$F3DNdQ/Me66xU/A0fX9oke/NFB7oOoZxnWQwvpZA5Zp5lYzPnK6/2'
+
+const REGISTER_OTP_REQUEST_MESSAGE =
+  'If this email can be registered, you will receive an OTP shortly'
+
+const findUserByEmailWithLookup = async (
+  email: string
+): Promise<UserDocument | null> => {
+  const presence = await getUserEmailPresence(email)
+
+  if (presence.status === 'definitely_absent') {
+    return null
+  }
+
+  if (presence.status === 'maybe_present') {
+    const cachedUserId = await getCachedUserIdByEmail(email)
+    if (cachedUserId) {
+      const cachedUser = await UserModel.findById(cachedUserId)
+      if (cachedUser) return cachedUser
+    }
+
+    if (await getNegativeUserEmailCache(email)) {
+      return null
+    }
+  }
+
+  const user = await UserModel.findOne({ email })
+  if (user) {
+    await syncExistingUserEmailLookup(email, user.id)
+    return user
+  }
+
+  if (presence.status === 'maybe_present') {
+    await setNegativeUserEmailCache(email)
+  }
+
+  return null
+}
 
 export const registerService = async (
   body: RegisterSchemaType
@@ -119,18 +170,17 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
     )
   }
 
-  // 2. Check email đã tồn tại trong MongoDB
-  const existingUser = await UserModel.findOne({ email })
+  // 2. Check email đã tồn tại bằng lookup layer, fallback MongoDB khi bitmap chưa ready
+  const existingUser = await findUserByEmailWithLookup(email)
   if (existingUser) {
-    throw new ConflictException(
-      'Email already exists',
-      ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
-    )
+    return {
+      message: REGISTER_OTP_REQUEST_MESSAGE
+    }
   }
 
   // 3. Generate OTP
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
   const encryptedPassword = await encrypt(password)
   const pendingUser = { name, email, encryptedPassword }
 
@@ -153,7 +203,7 @@ export const registerOTPService = async (body: RegisterSchemaType) => {
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'OTP sent to your email. Please verify within 5 minutes'
+    message: REGISTER_OTP_REQUEST_MESSAGE
   }
 }
 
@@ -205,7 +255,7 @@ export const verifyRegisterOTPService = async (
     )
   }
 
-  const hashedInputOTP = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedInputOTP = hashOtp(otp)
 
   if (storedOTP !== hashedInputOTP) {
     const failKey = REDIS_KEYS.registerAttempts(email)
@@ -275,11 +325,13 @@ export const verifyRegisterOTPService = async (
 
   const session = await mongoose.startSession()
   let result: RegisterResult | null = null // ← type rõ ràng
+  let createdUserId: string | null = null
 
   try {
     await session.withTransaction(async () => {
       const newUser = new UserModel({ name, email, password })
       await newUser.save({ session })
+      createdUserId = newUser.id
 
       await new ReportSettingModel({
         userId: newUser._id,
@@ -295,6 +347,9 @@ export const verifyRegisterOTPService = async (
     if (!result) throw new InternalServerException('Failed to create user')
 
     await clearRegisterState(email)
+    if (createdUserId) {
+      await syncExistingUserEmailLookup(email, createdUserId)
+    }
 
     return {
       message: 'Account verified successfully',
@@ -331,29 +386,27 @@ export const resendRegisterVerifyOTPService = async (
     )
   }
 
-  // 2. Check email đã tồn tại trong MongoDB chưa
-  const existingUser = await UserModel.findOne({ email })
+  // 2. Check email đã tồn tại chưa
+  const existingUser = await findUserByEmailWithLookup(email)
   if (existingUser) {
-    throw new ConflictException(
-      'Email already exists',
-      ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
-    )
+    return {
+      message: REGISTER_OTP_REQUEST_MESSAGE
+    }
   }
 
   // 3. Check còn pending không
   const pendingData = await redis.get(REDIS_KEYS.registerPending(email))
   if (!pendingData) {
-    throw new BadRequestException(
-      'Registration session expired. Please register again.',
-      ErrorCodeEnum.AUTH_OTP_EXPIRED
-    )
+    return {
+      message: REGISTER_OTP_REQUEST_MESSAGE
+    }
   }
 
   const { name } = JSON.parse(pendingData)
 
   // 4. Generate OTP mới + reset TTL
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   const results = await redis
     .pipeline()
@@ -368,7 +421,7 @@ export const resendRegisterVerifyOTPService = async (
   await sendVerificationEmail({ email, username: name, otpCode: otp })
 
   return {
-    message: 'New OTP sent to your email. Please verify within 5 minutes'
+    message: REGISTER_OTP_REQUEST_MESSAGE
   }
 }
 
@@ -385,7 +438,7 @@ export const forgotPasswordService = async (body: ForgotPasswordSchemaType) => {
   }
 
   // Luôn trả về 200, không tiết lộ email có tồn tại không
-  const user = await UserModel.findOne({ email })
+  const user = await findUserByEmailWithLookup(email)
   if (!user) {
     // Âm thầm kết thúc — không throw error
     return {
@@ -394,7 +447,7 @@ export const forgotPasswordService = async (body: ForgotPasswordSchemaType) => {
   }
 
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   const results = await redis
     .pipeline()
@@ -448,7 +501,7 @@ export const verifyForgotPasswordOTPService = async (
     )
   }
 
-  const hashedInputOTP = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedInputOTP = hashOtp(otp)
 
   // 3. Check OTP đúng không
   if (storedOTP !== hashedInputOTP) {
@@ -463,13 +516,18 @@ export const verifyForgotPasswordOTPService = async (
     )
   }
 
+  const user = await findUserByEmailWithLookup(email)
+  if (!user) {
+    throw new BadRequestException(
+      'OTP has expired. Please request a new one.',
+      ErrorCodeEnum.AUTH_OTP_EXPIRED
+    )
+  }
+
   // 4. OTP đúng → Generate resetToken
   const resetToken = crypto.randomBytes(32).toString('hex')
 
-  const hashedResetToken = crypto
-    .createHash('sha256')
-    .update(resetToken)
-    .digest('hex')
+  const hashedResetToken = hashResetToken(resetToken)
 
   await redis
     .pipeline()
@@ -505,7 +563,7 @@ export const resendForgotPasswordOTPService = async (
   }
 
   // 2. Check user có tồn tại không (Bảo mật: Chống dò quét - Anti Enumeration)
-  const user = await UserModel.findOne({ email })
+  const user = await findUserByEmailWithLookup(email)
   if (!user) {
     // Không ném lỗi NotFoundException ở đây để hacker không biết email có tồn tại hay không
     return {
@@ -515,7 +573,7 @@ export const resendForgotPasswordOTPService = async (
 
   // 3. Generate OTP mới + Hash để lưu trữ an toàn
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   // 4. Cập nhật Redis bằng pipeline + Xóa lịch sử nhập sai
   const results = await redis
@@ -549,10 +607,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
   }
 
   // 2. BẢO MẬT: So sánh token
-  const hashedInputToken = crypto
-    .createHash('sha256')
-    .update(resetToken)
-    .digest('hex')
+  const hashedInputToken = hashResetToken(resetToken)
 
   if (storedHashedToken !== hashedInputToken) {
     throw new BadRequestException(
@@ -586,7 +641,8 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
   // 6. Dọn dẹp chiến trường
   await Promise.all([
     redis.del(REDIS_KEYS.resetToken(email)),
-    revokeAllUserSessions(user.id)
+    revokeAllUserSessions(user.id),
+    syncExistingUserEmailLookup(email, user.id)
   ])
 
   return {
@@ -611,6 +667,8 @@ export const loginService = async (
     throw new UnauthorizedException('Invalid email or password')
   }
 
+  await syncExistingUserEmailLookup(email, user.id)
+
   user.timezone = timezone || user.timezone || 'UTC'
   await user.save()
 
@@ -620,6 +678,7 @@ export const loginService = async (
   })
 
   const { token: refreshToken } = signRefreshToken({ userId: user.id })
+  const refreshTokenHash = hashRefreshToken(refreshToken)
 
   await RefreshTokenModel.deleteMany({
     userId: user.id,
@@ -627,10 +686,10 @@ export const loginService = async (
   })
 
   await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshToken },
+    { token: refreshTokenHash },
     {
       userId: user.id,
-      token: refreshToken,
+      token: refreshTokenHash,
       expiresAt: new Date(
         Date.now() + ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
       ),
@@ -680,8 +739,9 @@ export const refreshTokenService = async (token: string) => {
   }
 
   // 2. Kiểm tra DB
+  const tokenHash = hashRefreshToken(token)
   const refreshToken = await RefreshTokenModel.findOne({
-    token,
+    token: tokenHash,
     isRevoked: false,
     expiresAt: { $gt: new Date() } // chưa hết hạn
   })
@@ -721,8 +781,9 @@ export const logoutService = async (
   accessToken: string
 ) => {
   // 1. Tìm và revoke refresh token
+  const refreshTokenHash = hashRefreshToken(refreshToken)
   const token = await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshToken, isRevoked: false },
+    { token: refreshTokenHash, isRevoked: false },
     { isRevoked: true }
   )
 
@@ -736,7 +797,12 @@ export const logoutService = async (
     const ttl = decoded.exp - Math.floor(Date.now() / 1000) // giây còn lại
 
     if (ttl > 0) {
-      await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+      await redis.set(
+        `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`,
+        'revoked',
+        'EX',
+        ttl
+      )
     }
   }
 
@@ -754,7 +820,12 @@ export const logoutAllService = async (userId: string, accessToken: string) => {
     const ttl = decoded.exp - Math.floor(Date.now() / 1000)
 
     if (ttl > 0) {
-      await redis.set(`blacklist:${accessToken}`, 'revoked', 'EX', ttl)
+      await redis.set(
+        `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`,
+        'revoked',
+        'EX',
+        ttl
+      )
     }
   }
 
@@ -767,6 +838,7 @@ export const createRefreshToken = async (
 ): Promise<string> => {
   // 1. Tạo Refresh Token bằng hàm JWT có sẵn của bạn
   const { token: refreshToken } = signRefreshToken({ userId })
+  const refreshTokenHash = hashRefreshToken(refreshToken)
 
   // 2. Tính toán thời gian hết hạn để lưu DB (khớp với thời hạn của token)
   const expiresAt = new Date(
@@ -781,10 +853,10 @@ export const createRefreshToken = async (
 
   // 4. Lưu DB với cơ chế phòng thủ Upsert
   await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshToken },
+    { token: refreshTokenHash },
     {
       userId,
-      token: refreshToken,
+      token: refreshTokenHash,
       expiresAt,
       userAgent,
       isRevoked: false
@@ -854,12 +926,13 @@ export const oauthCallbackService = async (
     const profile = (await profileResponse.json()) as Auth0Profile
 
     // 3. Tìm/Tạo/Liên kết user
+    const canonicalEmail = profile.email.trim().toLowerCase()
     let user: UserDocument | null = await UserModel.findOne({
       auth0Ids: profile.sub
     }).select('+tokenVersion')
 
     if (!user) {
-      user = await UserModel.findOne({ email: profile.email }).select(
+      user = await UserModel.findOne({ email: canonicalEmail }).select(
         '+tokenVersion'
       )
 
@@ -875,15 +948,35 @@ export const oauthCallbackService = async (
         }
         if (needsSave) await user.save()
       } else {
-        user = await UserModel.create({
-          email: profile.email,
-          name: profile.name,
-          profilePicture: profile.picture,
-          password: crypto.randomUUID(),
-          timezone,
-          auth0Ids: [profile.sub]
-        })
-        await ReportSettingModel.create({ userId: user._id, isEnabled: false })
+        try {
+          user = await UserModel.create({
+            email: canonicalEmail,
+            name: profile.name,
+            profilePicture: profile.picture,
+            password: crypto.randomUUID(),
+            timezone,
+            auth0Ids: [profile.sub]
+          })
+          await ReportSettingModel.create({
+            userId: user._id,
+            isEnabled: false
+          })
+        } catch (error) {
+          if (!isDuplicateEmailError(error)) throw error
+
+          user = await UserModel.findOne({ email: canonicalEmail }).select(
+            '+tokenVersion'
+          )
+          if (!user) throw error
+
+          if (!user.auth0Ids?.includes(profile.sub)) {
+            user.auth0Ids = [...(user.auth0Ids || []), profile.sub]
+          }
+          if (user.timezone === 'UTC' && timezone !== 'UTC') {
+            user.timezone = timezone
+          }
+          await user.save()
+        }
       }
     } else {
       // User đã tồn tại qua auth0Ids → cập nhật timezone nếu cần
@@ -895,6 +988,8 @@ export const oauthCallbackService = async (
     }
 
     // 4. Tạo JWT
+    await syncExistingUserEmailLookup(user.email, user.id)
+
     const { token: accessToken, expiresAt } = signAccessToken({
       userId: user.id,
       tokenVersion: user.tokenVersion ?? 0
@@ -940,7 +1035,7 @@ export const changePasswordRequestService = async (
 
   // 4. Generate OTP
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   // 5. Lưu vào Redis - MÃ HÓA mật khẩu mới trước khi lưu
   const encryptedPassword = await encrypt(newPassword)
@@ -1021,7 +1116,7 @@ export const verifyChangePasswordOTPService = async (
   }
 
   // 4. So sánh OTP
-  const hashedInputOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedInputOtp = hashOtp(otp)
   if (storedOtp !== hashedInputOtp) {
     await redis.incr(attemptsKey)
     const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
@@ -1111,7 +1206,7 @@ export const resendChangePasswordOTPService = async (userId: string) => {
 
   // 4. Generate OTP mới
   const otp = generateSecureOTP()
-  const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex')
+  const hashedOtp = hashOtp(otp)
 
   // 5. Cập nhật Redis
   await redis
@@ -1160,9 +1255,9 @@ export const changeEmailRequestService = async (
   }
 
   // 3. Kiểm tra email mới đã có người dùng chưa
-  const existingUser = await UserModel.findOne({ email: newEmail })
+  const existingUser = await findUserByEmailWithLookup(newEmail)
   if (existingUser) {
-    throw new BadRequestException(
+    throw new ConflictException(
       'Email is already in use by another account',
       ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
     )
@@ -1171,8 +1266,8 @@ export const changeEmailRequestService = async (
   // 4. Generate TWO OTPs
   const otpOld = generateSecureOTP()
   const otpNew = generateSecureOTP()
-  const hashedOtpOld = crypto.createHash('sha256').update(otpOld).digest('hex')
-  const hashedOtpNew = crypto.createHash('sha256').update(otpNew).digest('hex')
+  const hashedOtpOld = hashOtp(otpOld)
+  const hashedOtpNew = hashOtp(otpNew)
 
   // 5. Lưu vào Redis
   await redis
@@ -1266,14 +1361,8 @@ export const verifyChangeEmailOTPService = async (
   }
 
   // 4. So sánh OTPs
-  const hashedOld = crypto
-    .createHash('sha256')
-    .update(oldEmailOtp)
-    .digest('hex')
-  const hashedNew = crypto
-    .createHash('sha256')
-    .update(newEmailOtp)
-    .digest('hex')
+  const hashedOld = hashOtp(oldEmailOtp)
+  const hashedNew = hashOtp(newEmailOtp)
 
   const isOldValid = storedOtpOld === hashedOld
   const isNewValid = storedOtpNew === hashedNew
@@ -1305,9 +1394,22 @@ export const verifyChangeEmailOTPService = async (
     )
   }
 
+  const oldEmail = user.email
+
   // 6. Cập nhật Database
   user.email = newEmail
-  await user.save()
+  try {
+    await user.save()
+  } catch (error) {
+    if (isDuplicateEmailError(error)) {
+      throw new ConflictException(
+        'Email already exists',
+        ErrorCodeEnum.AUTH_EMAIL_ALREADY_EXISTS
+      )
+    }
+
+    throw error
+  }
 
   // 6.1. Thu hồi toàn bộ session cũ (vì email là định danh đăng nhập đã thay đổi)
   await revokeAllUserSessions(user.id)
@@ -1320,6 +1422,8 @@ export const verifyChangeEmailOTPService = async (
     redis.del(REDIS_KEYS.changeEmailResend(userId)),
     redis.del(attemptsKey)
   ])
+
+  await syncChangedUserEmailLookup(oldEmail, newEmail, user.id)
 
   return {
     message: 'Email updated successfully.'
@@ -1354,8 +1458,8 @@ export const resendChangeEmailOTPService = async (userId: string) => {
   // 4. Generate OTPs mới
   const otpOld = generateSecureOTP()
   const otpNew = generateSecureOTP()
-  const hashedOtpOld = crypto.createHash('sha256').update(otpOld).digest('hex')
-  const hashedOtpNew = crypto.createHash('sha256').update(otpNew).digest('hex')
+  const hashedOtpOld = hashOtp(otpOld)
+  const hashedOtpNew = hashOtp(otpNew)
 
   // 5. Cập nhật Redis
   await redis

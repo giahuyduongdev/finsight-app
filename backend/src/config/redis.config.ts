@@ -8,6 +8,7 @@ import RedisStore, { RedisReply } from 'rate-limit-redis'
 import { redis } from '../databases/redis.database'
 import { isDevelopment } from './app.config'
 import { rateLimitExceededHandler } from '../middlewares/rateLimitHeaders.middleware'
+import { hashAuthEmailKey } from '../utils/secure-hash.util'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24,23 +25,31 @@ export const OTP_CONFIG = {
 
 export const REDIS_KEYS = {
   // ─── REGISTER FLOW ──────────────────────────────────────────
-  registerOtp: (email: string) => `otp:register:${email}`,
-  registerPending: (email: string) => `pending:register:${email}`,
-  registerResend: (email: string) => `resend:register:${email}`,
-  registerAttempts: (email: string) => `attempts:register:${email}`, // ← Đếm số lần sai
+  registerOtp: (email: string) => `otp:register:${hashAuthEmailKey(email)}`,
+  registerPending: (email: string) =>
+    `pending:register:${hashAuthEmailKey(email)}`,
+  registerResend: (email: string) =>
+    `resend:register:${hashAuthEmailKey(email)}`,
+  registerAttempts: (email: string) =>
+    `attempts:register:${hashAuthEmailKey(email)}`, // ← Đếm số lần sai
 
   // ─── FORGOT PASSWORD FLOW ───────────────────────────────────
-  forgotOtp: (email: string) => `otp:forgot:${email}`,
-  forgotResend: (email: string) => `resend:forgot:${email}`,
-  forgotAttempts: (email: string) => `attempts:forgot:${email}`, // ← Đếm số lần sai
-  resetToken: (email: string) => `reset:forgot:token:${email}`,
+  forgotOtp: (email: string) => `otp:forgot:${hashAuthEmailKey(email)}`,
+  forgotResend: (email: string) => `resend:forgot:${hashAuthEmailKey(email)}`,
+  forgotAttempts: (email: string) =>
+    `attempts:forgot:${hashAuthEmailKey(email)}`, // ← Đếm số lần sai
+  resetToken: (email: string) =>
+    `reset:forgot:token:${hashAuthEmailKey(email)}`,
 
   // ─── CHANGE PASSWORD FLOW ───────────────────────────────────
-  changePasswordOtp: (email: string) => `otp:change-password:${email}`,
-  changePasswordResend: (email: string) => `resend:change-password:${email}`,
+  changePasswordOtp: (email: string) =>
+    `otp:change-password:${hashAuthEmailKey(email)}`,
+  changePasswordResend: (email: string) =>
+    `resend:change-password:${hashAuthEmailKey(email)}`,
   changePasswordAttempts: (email: string) =>
-    `attempts:change-password:${email}`,
-  changePasswordPending: (email: string) => `pending:change-password:${email}`,
+    `attempts:change-password:${hashAuthEmailKey(email)}`,
+  changePasswordPending: (email: string) =>
+    `pending:change-password:${hashAuthEmailKey(email)}`,
 
   // ─── CHANGE EMAIL FLOW ──────────────────────────────────
   changeEmailOtpOld: (userId: string) => `otp:change-email:old:${userId}`,

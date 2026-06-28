@@ -120,6 +120,8 @@
 
 ## Production verification gates
 
+- [ ] Pending note: các mục dưới đây cần quota hoặc môi trường vận hành thật,
+      không được giả định là đã chốt chỉ bằng localhost.
 - [ ] Read the actual Gemini quota and lower the initial 10 RPM limiter if
       required.
 - [ ] Verify API and worker run in separate containers.
