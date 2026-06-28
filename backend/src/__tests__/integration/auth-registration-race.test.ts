@@ -1,8 +1,9 @@
-import crypto from 'crypto'
 import mongoose from 'mongoose'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 
-const hashedOtp = crypto.createHash('sha256').update('123456').digest('hex')
+const hashedOtp = 'hmac:123456'
+const mockAuthEmailKey = (email: string) =>
+  `email-key:${email.trim().toLowerCase()}`
 const redisPipeline = {
   del: jest.fn(),
   exec: jest.fn()
@@ -14,10 +15,13 @@ redisPipeline.exec.mockResolvedValue([])
 jest.mock('../../config/redis.config', () => ({
   OTP_CONFIG: { MAX_ATTEMPTS: 5 },
   REDIS_KEYS: {
-    registerOtp: (email: string) => `otp:register:${email}`,
-    registerPending: (email: string) => `pending:register:${email}`,
-    registerResend: (email: string) => `resend:register:${email}`,
-    registerAttempts: (email: string) => `attempts:register:${email}`
+    registerOtp: (email: string) => `otp:register:${mockAuthEmailKey(email)}`,
+    registerPending: (email: string) =>
+      `pending:register:${mockAuthEmailKey(email)}`,
+    registerResend: (email: string) =>
+      `resend:register:${mockAuthEmailKey(email)}`,
+    registerAttempts: (email: string) =>
+      `attempts:register:${mockAuthEmailKey(email)}`
   },
   REDIS_TTL: {
     OTP: 300,
@@ -39,6 +43,16 @@ jest.mock('../../config/redis.config', () => ({
     }),
     pipeline: jest.fn(() => redisPipeline)
   }
+}))
+
+jest.mock('../../utils/secure-hash.util', () => ({
+  hashOtp: jest.fn((value: string) => `hmac:${value}`),
+  hashResetToken: jest.fn((value: string) => `hmac-reset:${value}`),
+  hashRefreshToken: jest.fn((value: string) => `hmac-refresh:${value}`),
+  hashAccessTokenBlacklistKey: jest.fn(
+    (value: string) => `hmac-blacklist:${value}`
+  ),
+  hashAuthEmailKey: jest.fn((email: string) => mockAuthEmailKey(email))
 }))
 
 jest.mock('../../utils/encryption.util', () => ({

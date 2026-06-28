@@ -1,0 +1,49 @@
+sequenceDiagram
+  autonumber
+  participant Client
+  participant AuthAPI
+  participant Hash as SecureHash
+  participant Redis
+  participant Mongo as MongoDB
+
+  rect rgb(245, 248, 255)
+    Client->>AuthAPI: Login with email/password
+    AuthAPI->>AuthAPI: Verify credentials
+    AuthAPI->>AuthAPI: Sign access and refresh JWTs
+    AuthAPI->>Hash: hashRefreshToken(refreshJwt)
+    Hash-->>AuthAPI: refreshTokenDigest
+    AuthAPI->>Mongo: Store RefreshToken.token = digest
+    AuthAPI-->>Client: accessToken + refresh cookie
+  end
+
+  rect rgb(248, 255, 245)
+    Client->>AuthAPI: POST /auth/refresh-token
+    AuthAPI->>AuthAPI: Verify refresh JWT
+    AuthAPI->>Hash: hashRefreshToken(refreshJwt)
+    Hash-->>AuthAPI: refreshTokenDigest
+    AuthAPI->>Mongo: Find active refresh token by digest
+    Mongo-->>AuthAPI: Active token record
+    AuthAPI-->>Client: New accessToken
+  end
+
+  rect rgb(255, 248, 245)
+    Client->>AuthAPI: POST /auth/logout
+    AuthAPI->>Hash: hashRefreshToken(refreshJwt)
+    Hash-->>AuthAPI: refreshTokenDigest
+    AuthAPI->>Mongo: Revoke active refresh token by digest
+    AuthAPI->>AuthAPI: Decode access exp for TTL
+    AuthAPI->>Hash: hashAccessTokenBlacklistKey(accessJwt)
+    Hash-->>AuthAPI: accessTokenDigest
+    AuthAPI->>Redis: SET blacklist:{digest} revoked EX ttl
+    AuthAPI-->>Client: Logged out
+  end
+
+  rect rgb(255, 252, 242)
+    Client->>AuthAPI: Submit OTP or reset token
+    AuthAPI->>Hash: hashOtp(value) or hashResetToken(value)
+    Hash-->>AuthAPI: submittedDigest
+    AuthAPI->>Redis: GET auth key using hashed email suffix
+    Redis-->>AuthAPI: storedDigest
+    AuthAPI->>AuthAPI: Compare digests
+    AuthAPI-->>Client: Existing success or failure response
+  end

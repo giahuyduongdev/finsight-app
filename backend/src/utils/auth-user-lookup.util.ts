@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { redis } from '../config/redis.config'
 import { logger } from '../config/logger.config'
+import { hashAuthEmailKey } from './secure-hash.util'
 
 const USER_EMAIL_BITMAP_KEY = 'bitmap:users:email:v1'
 const USER_EMAIL_BITMAP_READY_KEY = 'bitmap:users:email:v1:ready'
@@ -45,7 +45,7 @@ const crc32 = (value: string): number => {
 }
 
 export const getUserEmailLookupHash = (email: string): string =>
-  crypto.createHash('sha256').update(canonicalizeEmail(email)).digest('hex')
+  hashAuthEmailKey(canonicalizeEmail(email))
 
 export const getUserEmailBitmapIndex = (email: string): number =>
   crc32(canonicalizeEmail(email)) % USER_EMAIL_BITMAP_SIZE
