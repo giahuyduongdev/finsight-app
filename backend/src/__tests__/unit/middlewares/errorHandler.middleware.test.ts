@@ -441,7 +441,7 @@ describe('errorHandler middleware - Logging Strategy', () => {
 
       // Verify sensitive fields are redacted
       expect(logMetadata.body).toBeDefined()
-      expect(logMetadata.body.email).toBe('test@example.com') // Not sensitive
+      expect(logMetadata.body.email).toBe('t***@example.com')
       expect(logMetadata.body.password).toBe('[REDACTED]')
       expect(logMetadata.body.token).toBe('[REDACTED]')
       expect(logMetadata.body.apiKey).toBe('[REDACTED]')

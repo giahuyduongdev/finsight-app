@@ -41,6 +41,7 @@ describe('serializeError', () => {
     expect(
       serializeError({
         message: 'Auth failed',
+        email: 'user@example.com',
         request_options: {
           auth: 'api-key:api-secret'
         },
@@ -48,6 +49,7 @@ describe('serializeError', () => {
       })
     ).toEqual({
       message: 'Auth failed',
+      email: 'u***@example.com',
       request_options: {
         auth: '[REDACTED]'
       },

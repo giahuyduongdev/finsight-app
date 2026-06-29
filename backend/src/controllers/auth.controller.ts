@@ -26,7 +26,7 @@ import { Env } from '../config/env.config'
 import ms from 'ms'
 import { UnauthorizedException } from '../utils/errors/index'
 import {
-  sanitizeUser,
+  toAuthUserDTO,
   toTokenRefreshResponse,
   toAuthSuccessResponse
 } from '../dtos'
@@ -66,10 +66,11 @@ export const verifyRegisterOTPController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = req.body
     const result = await verifyRegisterOTPService(body)
-    const { message, ...data } = result
+    const { message, user, ...data } = result
+    const responseData = user ? { ...data, user: toAuthUserDTO(user) } : data
     return res
       .status(HTTPSTATUS.OK)
-      .json(ResponseFormatter.success(data, { message }))
+      .json(ResponseFormatter.success(responseData, { message }))
   }
 )
 
@@ -144,7 +145,7 @@ export const loginController = asyncHandler(
     })
 
     const response = toAuthSuccessResponse({
-      user: sanitizeUser(user),
+      user: toAuthUserDTO(user),
       accessToken,
       expiresAt,
       reportSetting

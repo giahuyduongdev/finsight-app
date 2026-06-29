@@ -1,0 +1,21 @@
+sequenceDiagram
+  autonumber
+  participant C as Controller
+  participant S as User/Auth Service
+  participant D as DTO Mapper
+  participant R as ResponseFormatter
+
+  C->>S: Request user data
+  S-->>C: User without password/tokenVersion
+  alt Current user endpoint
+    C->>D: toCurrentUserDTO(user)
+    D-->>C: User DTO with email
+  else Auth response
+    C->>D: toAuthUserDTO(user)
+    D-->>C: Auth user DTO with email
+  else Public/embedded user response
+    C->>D: toPublicUserDTO(user)
+    D-->>C: Public user DTO without email
+  end
+  C->>R: success(dto)
+  R-->>C: API response body
