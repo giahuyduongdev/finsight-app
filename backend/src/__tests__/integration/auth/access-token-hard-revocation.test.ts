@@ -6,6 +6,8 @@ import { authenticateAccessToken } from '../../../services/access-token-auth.ser
 import { revokeAllUserSessions } from '../../../services/session-revocation.service'
 import { signAccessToken, verifyAccessToken } from '../../../utils/jwt.util'
 
+jest.setTimeout(30000)
+
 describe('access token hard revocation', () => {
   let mongoServer: MongoMemoryReplSet
 
