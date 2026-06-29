@@ -8,16 +8,16 @@ fi
 
 cd client
 if [ ! -d node_modules ]; then
-  echo "Missing client/node_modules. Run npm ci in ./client before pushing."
+  echo "Missing client/node_modules. Run pnpm install from the repository root before pushing."
   exit 1
 fi
-npm run type-check
+pnpm run type-check
 
 cd ../backend
 if [ ! -d node_modules ]; then
-  echo "Missing backend/node_modules. Run npm ci in ./backend before pushing."
+  echo "Missing backend/node_modules. Run pnpm install from the repository root before pushing."
   exit 1
 fi
-npm run type-check
-npm run test:unit
+pnpm run type-check
+pnpm run test:unit
 # Integration tests run in CI to keep local pre-push feedback fast.

@@ -2,10 +2,7 @@ import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 
 export type ReportLifecycleStatus =
-  | 'SENT'
-  | 'FAILED'
-  | 'NO_ACTIVITY'
-  | 'PENDING'
+  'SENT' | 'FAILED' | 'NO_ACTIVITY' | 'PENDING'
 
 export type ReportListUpdatedReason = 'generated' | 'resent' | 'status-updated'
 

@@ -2,7 +2,7 @@
 set -e
 
 cd client
-npx lint-staged
+pnpm exec lint-staged
 
 cd ../backend
-npx lint-staged
+pnpm exec lint-staged

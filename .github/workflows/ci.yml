@@ -33,22 +33,25 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Dependencies
-        # Use --legacy-peer-deps to handle React 19 peer dependency conflicts during CI
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
+        working-directory: .
 
       - name: Run Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Run Type Check
-        run: npm run build # Note: client build includes tsc -b
+        run: pnpm run build # Note: client build includes tsc -b
 
   validate-backend:
     name: Validate Backend
@@ -63,31 +66,34 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Dependencies
-        # Backend lockfile was generated with peer dependency resolution disabled.
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
+        working-directory: .
 
       - name: Run Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Run Type Check
-        run: npm run type-check
+        run: pnpm run type-check
 
       - name: Run Unit Tests
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Run Integration Tests
-        run: npm run test:integration
+        run: pnpm run test:integration
 
       - name: Test Build
-        run: npm run build
+        run: pnpm run build
 
   backend-performance:
     name: Backend Performance Smoke Tests
@@ -103,18 +109,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Dependencies
-        # Keep dependency installation behavior aligned with validate-backend.
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
+        working-directory: .
 
       - name: Run Performance Tests
-        run: npm run test:unit -- api-improvements-performance
+        run: pnpm run test:unit -- api-improvements-performance
         env:
           RUN_PERF_TESTS: true

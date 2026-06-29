@@ -34,10 +34,7 @@ interface RecurringTransactionProcessedPayload {
 }
 
 type ProfileUpdatedField =
-  | 'name'
-  | 'profilePicture'
-  | 'timezone'
-  | 'preferredCurrency'
+  'name' | 'profilePicture' | 'timezone' | 'preferredCurrency'
 
 interface ProfileUpdatedPayload {
   changedFields?: ProfileUpdatedField[]

@@ -1,0 +1,22 @@
+packages:
+  - backend
+  - client
+verifyDepsBeforeRun: false
+confirmModulesPurge: false
+onlyBuiltDependencies:
+  - bcrypt
+  - esbuild
+  - mongodb-memory-server
+  - msgpackr-extract
+  - sharp
+  - unrs-resolver
+ignoredBuiltDependencies:
+  - '@scarf/scarf'
+allowBuilds:
+  '@scarf/scarf': false
+  bcrypt: true
+  esbuild: true
+  mongodb-memory-server: true
+  msgpackr-extract: true
+  sharp: true
+  unrs-resolver: true

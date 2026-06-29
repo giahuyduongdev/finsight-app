@@ -78,9 +78,7 @@ export const scrubSentryEvent = (
 
   if (event.request) {
     event.request.data = sanitizeValue(event.request.data) as
-      | string
-      | Record<string, unknown>
-      | undefined
+      string | Record<string, unknown> | undefined
     if (event.request.query_string) {
       event.request.query_string = REDACTED
     }
