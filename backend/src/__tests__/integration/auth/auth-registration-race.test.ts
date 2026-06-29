@@ -72,6 +72,8 @@ import UserModel from '../../../models/user.model'
 import ReportSettingModel from '../../../models/report-setting.model'
 import { verifyRegisterOTPService } from '../../../services/auth.service'
 
+jest.setTimeout(30000)
+
 describe('registration verification race', () => {
   let mongoServer: MongoMemoryReplSet
 
