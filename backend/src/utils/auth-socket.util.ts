@@ -2,10 +2,7 @@ import { getIO } from '../config/socket.config'
 import { logger } from '../config/logger.config'
 
 export type AuthSessionRevokedReason =
-  | 'logout-all'
-  | 'password-changed'
-  | 'email-changed'
-  | 'password-reset'
+  'logout-all' | 'password-changed' | 'email-changed' | 'password-reset'
 
 export interface AuthSessionRevokedPayload {
   userId: string

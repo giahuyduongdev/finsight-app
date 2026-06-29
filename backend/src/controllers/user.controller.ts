@@ -15,10 +15,7 @@ import { emitAuthSessionRevoked } from '../utils/auth-socket.util'
 const userService = container.getUserService()
 
 type ProfileUpdatedField =
-  | 'name'
-  | 'profilePicture'
-  | 'timezone'
-  | 'preferredCurrency'
+  'name' | 'profilePicture' | 'timezone' | 'preferredCurrency'
 
 const getChangedProfileFields = (
   body: Record<string, unknown>,

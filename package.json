@@ -1,10 +1,15 @@
 {
   "name": "finsight",
   "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.6.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "pnpm --dir backend run build && pnpm --dir client run build",
+    "lint": "pnpm --dir backend run lint && pnpm --dir client run lint",
+    "type-check": "pnpm --dir backend run type-check && pnpm --dir client run type-check",
+    "test": "pnpm --dir backend run test:unit && pnpm --dir client run test",
     "prepare": "husky",
     "commitlint": "commitlint --edit"
   },

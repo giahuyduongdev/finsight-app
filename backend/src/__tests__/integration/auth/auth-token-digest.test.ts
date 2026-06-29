@@ -17,6 +17,8 @@ import { redis } from '../../../config/redis.config'
 import { checkBlacklist } from '../../../middlewares/blacklist.middleware'
 import { errorHandler } from '../../../middlewares/errorHandler.middleware'
 
+jest.setTimeout(30000)
+
 describe('auth token digest persistence', () => {
   let mongoServer: MongoMemoryReplSet
   const redisSet = redis.set as jest.Mock
