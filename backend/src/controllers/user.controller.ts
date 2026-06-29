@@ -2,7 +2,7 @@ import { Request, Response } from 'express'
 import { HTTPSTATUS } from '../config/http.config'
 import { asyncHandler } from '../middlewares/asyncHandler.middleware'
 import { container } from '../container'
-import { sanitizeUser } from '../dtos/user.dto'
+import { toCurrentUserDTO } from '../dtos/user.dto'
 import { getUserId } from '../utils/getUserId.util'
 import { ResponseFormatter } from '../utils/responseFormatter.util'
 import { NotFoundException } from '../utils/errors'
@@ -98,7 +98,7 @@ export const getCurrentUserController = asyncHandler(
     }
 
     return res.status(HTTPSTATUS.OK).json(
-      ResponseFormatter.success(sanitizeUser(user), {
+      ResponseFormatter.success(toCurrentUserDTO(user), {
         message: 'User fetched successfully'
       })
     )
@@ -117,7 +117,7 @@ export const updateUserController = asyncHandler(
     emitProfileUpdated(userId, changedFields)
 
     return res.status(HTTPSTATUS.OK).json(
-      ResponseFormatter.success(sanitizeUser(user), {
+      ResponseFormatter.success(toCurrentUserDTO(user), {
         message: 'User profile updated successfully'
       })
     )

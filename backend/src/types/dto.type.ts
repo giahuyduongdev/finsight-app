@@ -28,7 +28,7 @@ import { PaginationMeta } from './api-response.type'
  * @property preferredCurrency - ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP')
  * @property role - User role identifier (e.g., 'USER', 'ADMIN')
  */
-export interface UserResponseDTO {
+export interface CurrentUserDTO {
   id: string
   name: string
   email: string
@@ -37,6 +37,16 @@ export interface UserResponseDTO {
   preferredCurrency: string
   role: string
 }
+
+export type AuthUserDTO = CurrentUserDTO
+
+export interface PublicUserDTO {
+  id: string
+  name: string
+  profilePicture: string | null
+}
+
+export type UserResponseDTO = CurrentUserDTO
 
 /**
  * Transaction Response DTO
@@ -112,7 +122,7 @@ export interface PaginatedTransactionsResponse {
  */
 export interface AuthSuccessResponse {
   message: string
-  user: UserResponseDTO
+  user: AuthUserDTO
   accessToken: string
   expiresAt: number | undefined
   reportSetting?: {

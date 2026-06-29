@@ -16,9 +16,9 @@
 
 import {
   AuthSuccessResponse,
+  AuthUserDTO,
   OTPResponse,
-  TokenRefreshResponse,
-  UserResponseDTO
+  TokenRefreshResponse
 } from '../types/dto.type'
 
 /**
@@ -71,7 +71,7 @@ import {
  * ```
  */
 export const toAuthSuccessResponse = (data: {
-  user: UserResponseDTO
+  user: AuthUserDTO
   accessToken: string
   expiresAt: number | undefined
   reportSetting?: {

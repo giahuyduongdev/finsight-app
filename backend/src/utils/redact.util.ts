@@ -12,8 +12,32 @@ export const SENSITIVE_FIELDS = [
   'refreshtoken'
 ]
 
+const EMAIL_FIELD = 'email'
+
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Object.prototype.toString.call(value) === '[object Object]'
+
+export const maskEmail = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value
+
+  const atIndex = value.indexOf('@')
+  if (atIndex <= 0 || atIndex !== value.lastIndexOf('@')) return value
+
+  const localPart = value.slice(0, atIndex)
+  const domain = value.slice(atIndex + 1)
+  if (!localPart || !domain) return value
+
+  return `${localPart[0]}***@${domain}`
+}
+
+const redactValue = (key: string, value: unknown): unknown => {
+  const normalizedKey = key.toLowerCase()
+
+  if (SENSITIVE_FIELDS.includes(normalizedKey)) return '[REDACTED]'
+  if (normalizedKey === EMAIL_FIELD) return maskEmail(value)
+
+  return undefined
+}
 
 /**
  * Recursively redacts sensitive fields in an object
@@ -50,8 +74,9 @@ export const redactSensitiveFields = (
       for (const key of Object.getOwnPropertyNames(obj)) {
         if (key !== 'name' && key !== 'message' && key !== 'stack') {
           const value = (obj as unknown as Record<string, unknown>)[key]
-          if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
-            redactedError[key] = '[REDACTED]'
+          const redactedValue = redactValue(key, value)
+          if (redactedValue !== undefined) {
+            redactedError[key] = redactedValue
           } else {
             redactedError[key] = redactSensitiveFields(value, seen)
           }
@@ -74,8 +99,9 @@ export const redactSensitiveFields = (
 
   for (const [key, value] of Object.entries(objRecord)) {
     // Check if key is a sensitive field (case-insensitive)
-    if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
-      redacted[key] = '[REDACTED]'
+    const redactedValue = redactValue(key, value)
+    if (redactedValue !== undefined) {
+      redacted[key] = redactedValue
     } else if (typeof value === 'object' && value !== null) {
       // Recursively redact nested objects
       redacted[key] = redactSensitiveFields(value, seen)
