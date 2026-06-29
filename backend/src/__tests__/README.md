@@ -1,174 +1,84 @@
-# Unit Tests
-
-## Overview
-
-This directory contains unit tests for the backend services using mock repositories.
+# Backend Tests
 
 ## Structure
 
-```
+```txt
 __tests__/
-├── mocks/                          # Mock implementations
-│   ├── user-repository.mock.ts
-│   ├── refresh-token-repository.mock.ts
-│   ├── transaction-repository.mock.ts
-│   └── import-batch-repository.mock.ts
-├── setup/                          # Test setup utilities
-│   └── test-helpers.ts            # Helper functions for tests
-├── unit/                           # Unit tests (with mocks)
-│   ├── user.service.test.ts
-│   └── transaction.service.test.ts
-└── README.md
+  integration/
+    api/
+    auth/
+    bullmq/
+    receipts/
+    routing/
+  mocks/
+  setup/
+  unit/
+    analytics/
+    auth/
+    config/
+    middlewares/
+    observability/
+    receipts/
+    reports/
+    repositories/
+    routing/
+    transactions/
+    users/
+    utils/
+    workers/
 ```
+
+## Placement Rules
+
+- Put auth, token, session, and login/register tests in `unit/auth` or `integration/auth`.
+- Put user profile, user DTO, and user model tests in `unit/users`.
+- Put transaction domain tests in `unit/transactions`.
+- Put report domain tests in `unit/reports`.
+- Put receipt scan/intake/upload tests in `unit/receipts` or `integration/receipts`.
+- Put Express middleware tests in `unit/middlewares`.
+- Put repository adapter tests in `unit/repositories`.
+- Put metrics, health, Sentry, and monitoring tests in `unit/observability`.
+- Put generic helper tests in `unit/utils`.
+- Put route mounting, API versioning, and migration route tests in `unit/routing` or `integration/routing`.
+- Put queue and worker orchestration tests in `unit/workers` unless the test is clearly owned by one domain.
+
+When a test could fit in more than one folder, choose the folder that matches the production module under test.
 
 ## Running Tests
 
-### Run All Tests
+Run all backend tests:
 
 ```bash
 npm test
 ```
 
-### Run Tests in Watch Mode
+Run unit tests:
 
 ```bash
-npm run test:watch
+npm run test:unit
 ```
 
-### Run Tests with Coverage
+Run integration tests:
 
 ```bash
-npm run test:coverage
+npm run test:integration
 ```
 
-## Test Types
+Run one domain folder:
 
-### Unit Tests (`__tests__/unit/`)
-
-- **Purpose**: Test individual services in isolation
-- **Speed**: ⚡ Very fast (~6-7 seconds)
-- **Database**: Uses mock repositories (in-memory)
-- **When to use**: During development, TDD, CI/CD
-
-**Example**:
-
-```typescript
-describe('UserService', () => {
-  let service: UserService
-  let mockRepo: MockUserRepository
-
-  beforeEach(() => {
-    mockRepo = new MockUserRepository()
-    service = new UserService(mockRepo)
-  })
-
-  it('should find user by id', async () => {
-    const user = await mockRepo.create({ ... })
-    const result = await service.findById(user._id)
-    expect(result).toBeDefined()
-  })
-})
+```bash
+npm test -- unit/auth
+npm test -- integration/auth
 ```
 
-## Test Coverage
+Run selected files:
 
-### UserService Tests (11 tests)
-
-- ✅ `findById()` - Returns user without password when exists
-- ✅ `findById()` - Returns null when user doesn't exist
-- ✅ `findByEmail()` - Returns user without password when exists
-- ✅ `findByEmail()` - Returns null when user doesn't exist
-- ✅ `update()` - Updates user profile successfully
-- ✅ `update()` - Updates profile picture when provided
-- ✅ `update()` - Throws NotFoundException when user doesn't exist
-- ✅ `changePassword()` - Changes password with correct current password
-- ✅ `changePassword()` - Throws UnauthorizedException with incorrect password
-- ✅ `changePassword()` - Throws NotFoundException when user doesn't exist
-- ✅ `changePassword()` - Hashes password before storing
-- ✅ `changePassword()` - Deletes all refresh tokens (logout all devices)
-
-### TransactionService Tests (13 tests)
-
-- ✅ `create()` - Creates transaction successfully
-- ✅ `create()` - Creates recurring transaction with nextRecurringDate
-- ✅ `findByUserId()` - Returns paginated transactions
-- ✅ `findByUserId()` - Filters by keyword
-- ✅ `findByUserId()` - Filters by type
-- ✅ `findById()` - Returns transaction when exists
-- ✅ `findById()` - Throws NotFoundException when not found
-- ✅ `findChildTransactions()` - Returns paginated child transactions
-- ✅ `duplicate()` - Duplicates transaction successfully
-- ✅ `update()` - Updates transaction successfully
-- ✅ `deleteById()` - Deletes transaction successfully
-- ✅ `bulkDelete()` - Deletes multiple transactions
-- ✅ `bulkImport()` - Imports multiple transactions
-
-## Mock Repositories
-
-### MockUserRepository
-
-In-memory implementation of `IUserRepository` for testing:
-
-- Stores users in a Map
-- Implements all interface methods
-- Provides test helper methods: `clear()`, `getAll()`, `seed()`
-
-### MockRefreshTokenRepository
-
-In-memory implementation of `IRefreshTokenRepository` for testing:
-
-- Stores tokens in a Map
-- Implements all interface methods
-- Provides test helper methods: `clear()`, `getAll()`, `countByUserId()`
-
-## Writing New Tests
-
-### Example Test Structure
-
-```typescript
-import { YourService } from '../../services/your.service'
-import { MockYourRepository } from '../mocks/your-repository.mock'
-
-describe('YourService', () => {
-  let service: YourService
-  let mockRepo: MockYourRepository
-
-  beforeEach(() => {
-    mockRepo = new MockYourRepository()
-    service = new YourService(mockRepo)
-  })
-
-  afterEach(() => {
-    mockRepo.clear()
-  })
-
-  describe('yourMethod', () => {
-    it('should do something', async () => {
-      // Arrange
-      const mockData = await mockRepo.create({ ... })
-
-      // Act
-      const result = await service.yourMethod(mockData._id)
-
-      // Assert
-      expect(result).toBeDefined()
-      expect(result.property).toBe('expected value')
-    })
-  })
-})
+```bash
+npm test -- --runTestsByPath src/__tests__/unit/users/user.service.test.ts
 ```
 
-## Benefits of Mock Repositories
+On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm.ps1`:
 
-1. **Fast**: No database connection required
-2. **Isolated**: Tests don't affect each other
-3. **Predictable**: Full control over test data
-4. **Easy to Debug**: Simple in-memory implementation
-5. **True Unit Tests**: Tests business logic only
-
-## Next Steps
-
-1. Run existing tests to verify setup: `npm test`
-2. Add tests for other services as they are migrated (ReportService, AnalyticsService)
-3. Aim for 80%+ code coverage on business logic
-4. Consider adding integration tests in the future when needed
+```bash
+npm.cmd run test:unit
+```
