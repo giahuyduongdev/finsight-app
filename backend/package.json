@@ -18,6 +18,8 @@
     "revoke:plaintext-refresh-tokens": "ts-node-dev --files src/scripts/revoke-plaintext-refresh-tokens.ts",
     "audit:bullmq-indexes": "ts-node-dev --files src/scripts/audit-bullmq-idempotency-indexes.ts",
     "docs:api:validate": "redocly lint docs/openapi.yaml",
+    "loadtest:api": "k6 run load-tests/api-latency.k6.js",
+    "loadtest:api:public": "k6 run load-tests/api-latency.k6.js -e LOAD_TEST_SCENARIO=smoke-public",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

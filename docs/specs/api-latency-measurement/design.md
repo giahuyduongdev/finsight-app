@@ -8,15 +8,16 @@ This feature builds on `project-observability-foundation`. The backend already
 has HTTP duration metrics, a Prometheus scrape endpoint and Grafana provisioning.
 This design adds the practical layer needed to measure API responsiveness:
 
-- production/staging dashboard panels for endpoint latency;
+- production dashboard panels for endpoint latency;
 - canonical PromQL queries for p50, p95 and p99;
 - alert rules for sustained latency problems;
 - a repeatable load-test workflow for pre-release checks;
 - documentation that separates Postman smoke tests from load testing and
   production monitoring.
 
-Production monitoring is the source of truth. Local and staging load tests are
-early-warning tools.
+Production monitoring is the source of truth. Local load tests are the first
+early-warning tool while the project has only one VPS. Staging remains optional
+future infrastructure.
 
 ## Architecture
 
@@ -69,7 +70,7 @@ Responsibilities:
 
 - scrape backend `/metrics`;
 - evaluate latency and error alerts;
-- retain local/staging data long enough for release comparison.
+- retain local and production data long enough for release comparison.
 
 ### Grafana dashboard
 
@@ -114,7 +115,7 @@ Rationale:
 
 - scenarios can be committed as code;
 - thresholds can fail a release check;
-- environment variables support local and staging targets;
+- environment variables support local targets and optional staging targets;
 - results include percentile latency and error rates.
 
 Acceptable first-pass alternative:
@@ -132,9 +133,9 @@ multi-step authenticated flows.
 Update monitoring or backend documentation with:
 
 - how to run smoke checks;
-- how to run load tests;
+- how to run local load tests;
 - how to read the Grafana dashboard;
-- how to compare staging and production results;
+- how to compare local baseline and production results;
 - why production latency is the final source of truth.
 
 ## Data Flow
@@ -146,7 +147,7 @@ Update monitoring or backend documentation with:
 4. Prometheus scrapes `/metrics`.
 5. Grafana queries Prometheus for route-level latency percentiles.
 6. Alerts evaluate sustained latency or error conditions.
-7. Release verification compares staging/load-test results with baseline
+7. Release verification compares local load-test results with baseline
    expectations.
 
 ## PromQL Query Catalog
@@ -340,7 +341,8 @@ Validate that:
 
 ### Load-test verification
 
-Run the load-test suite against local or staging with seeded credentials.
+Run the load-test suite against local with seeded credentials. The same scripts
+can target staging later by changing `BASE_URL`.
 
 Validate:
 
@@ -356,7 +358,7 @@ Before promotion:
 1. Run tests, lint, type-check and build.
 2. Start or verify monitoring.
 3. Run smoke checks.
-4. Run load tests against staging.
+4. Run load tests against local.
 5. Inspect Grafana p95 and error panels.
 6. Compare against the current baseline.
 7. After deployment, inspect production dashboard for real latency.
@@ -366,8 +368,8 @@ Before promotion:
 ### Use production monitoring as source of truth
 
 Production includes real network paths, data size, database/cache state,
-concurrency and deployment resources. Local/staging tests are useful, but they
-do not replace production measurements.
+concurrency and deployment resources. Local tests are useful, but they do not
+replace production measurements.
 
 ### Prefer k6 for scripted load testing
 
@@ -387,14 +389,14 @@ should be set after observing real traffic.
 
 ## Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| Dashboard shows misleading p99 for low-traffic routes | Show request rate next to percentile panels |
-| Load tests mutate shared data | Use dedicated staging users and disposable records |
-| External provider tests create cost/noise | Disable provider scenarios by default |
-| Route labels create high cardinality | Test normalized Express route labels |
-| Local results are mistaken for production truth | Document local/staging as baseline only |
-| Alerts are noisy before baseline exists | Start with conservative thresholds |
+| Risk                                                  | Mitigation                                         |
+| ----------------------------------------------------- | -------------------------------------------------- |
+| Dashboard shows misleading p99 for low-traffic routes | Show request rate next to percentile panels        |
+| Load tests mutate shared data                         | Use dedicated staging users and disposable records |
+| External provider tests create cost/noise             | Disable provider scenarios by default              |
+| Route labels create high cardinality                  | Test normalized Express route labels               |
+| Local results are mistaken for production truth       | Document local/staging as baseline only            |
+| Alerts are noisy before baseline exists               | Start with conservative thresholds                 |
 
 ## Tradeoffs
 

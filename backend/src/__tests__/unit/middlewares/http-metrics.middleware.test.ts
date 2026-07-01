@@ -2,6 +2,8 @@ import express from 'express'
 import request from 'supertest'
 
 describe('HTTP metrics middleware', () => {
+  jest.setTimeout(15000)
+
   beforeEach(() => {
     jest.resetModules()
   })

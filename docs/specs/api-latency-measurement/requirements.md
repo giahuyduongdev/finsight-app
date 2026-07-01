@@ -9,15 +9,16 @@ Prometheus, Grafana and local monitoring documentation. This feature turns that
 foundation into a practical API latency workflow: developers can measure latency
 before release, and operators can read real production latency after release.
 
-Production remains the source of truth for user-facing latency. Local and
-staging load tests are used to catch obvious regressions, compare builds and
-exercise important endpoints before deployment.
+Production remains the source of truth for user-facing latency. Local load tests
+are used first because the initial deployment has one VPS. Staging is optional
+future infrastructure when a separate environment becomes available.
 
 ## Goals
 
 - Measure latency for all backend HTTP APIs through existing Prometheus metrics.
 - Show p50, p95 and p99 latency by normalized endpoint, method and status.
-- Provide a repeatable load-test workflow for local and staging environments.
+- Provide a repeatable load-test workflow for local environments, with optional
+  staging support through configuration.
 - Define where Postman fits: smoke testing, not load testing or long-term
   latency reporting.
 - Add alerting guidance for sustained high latency.
@@ -41,7 +42,7 @@ exercise important endpoints before deployment.
 ### Story 1 - Developer pre-release latency check
 
 As a developer,
-I want to run a repeatable load test against local or staging APIs,
+I want to run a repeatable load test against local APIs,
 so that I can detect obvious latency regressions before deployment.
 
 ### Story 2 - Operator production latency dashboard
@@ -158,7 +159,7 @@ disabled by default.
 
 Load tests must not use real production user accounts or real financial data.
 
-Staging tests should use:
+Local and optional staging tests should use:
 
 - dedicated test users;
 - disposable transaction data;
@@ -186,11 +187,11 @@ replace the load-test harness.
 The feature must document a release verification sequence:
 
 1. Run backend tests, lint, type-check and build.
-2. Start local or staging monitoring.
+2. Start local monitoring when possible.
 3. Run smoke checks.
-4. Run the load-test suite against local or staging.
+4. Run the load-test suite against local.
 5. Inspect Prometheus/Grafana latency panels.
-6. Compare p95 and error rate against the current baseline.
+6. Compare p95 and error rate against the current local baseline.
 7. Review production dashboard after deployment.
 
 ### R10. Privacy and cardinality
@@ -249,8 +250,8 @@ Forbidden labels and dashboard variables include:
 ## Success Criteria
 
 - A developer can answer "which API endpoints are slow?" from Grafana.
-- A developer can run one command or documented script to baseline staging
-  latency before release.
+- A developer can run one command or documented script to baseline local latency
+  before release.
 - Production p95/p99 latency becomes visible without manually testing endpoints
   one by one.
 - The project has a clear distinction between Postman smoke checks, load-test
