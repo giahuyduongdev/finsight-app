@@ -1,0 +1,22 @@
+sequenceDiagram
+    autonumber
+    participant Dev as Developer
+    participant Tool as Postman or k6
+    participant API as Backend API
+    participant Metrics as httpMetricsMiddleware
+    participant Prom as Prometheus
+    participant Grafana as Grafana
+    participant Alert as Alert Rules
+
+    Dev->>Tool: Run smoke check or load test
+    Tool->>API: Call API endpoint
+    API->>Metrics: Observe request duration after response
+    Metrics-->>API: Record histogram and counters
+    API-->>Tool: Return API response
+    Prom->>API: Scrape /metrics
+    API-->>Prom: Prometheus text metrics
+    Grafana->>Prom: Query p50, p95, p99 by route
+    Prom-->>Grafana: Time-series results
+    Alert->>Prom: Evaluate sustained latency and error rules
+    Prom-->>Alert: Alert state
+    Dev->>Grafana: Inspect latency dashboard and slow endpoints
