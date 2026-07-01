@@ -11,6 +11,34 @@ Use `k6` for the first-pass load-test harness.
 Install it outside the project, then run the scripts from the repository root or
 from `backend/`.
 
+Windows install options:
+
+```powershell
+winget install k6.k6
+```
+
+or:
+
+```powershell
+choco install k6
+```
+
+Verify:
+
+```powershell
+k6 version
+```
+
+Docker alternative, useful when you do not want to install `k6` locally:
+
+```powershell
+docker run --rm -i -v ${PWD}/backend/load-tests:/scripts grafana/k6 run /scripts/api-latency.k6.js -e LOAD_TEST_SCENARIO=smoke-public
+```
+
+Do not install or run `k6` on the production VPS unless you explicitly want that
+machine to generate test traffic. Prefer running load tests from your local
+machine against local backend, then use production Grafana for real latency.
+
 ## Environment
 
 Required for authenticated scenarios:

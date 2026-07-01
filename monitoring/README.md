@@ -53,6 +53,10 @@ Use Postman for manual smoke checks and inspecting one response at a time. Use
 the load-test harness for repeatable local checks:
 
 ```powershell
+winget install k6.k6
+```
+
+```powershell
 pnpm --dir backend run loadtest:api:public
 ```
 
