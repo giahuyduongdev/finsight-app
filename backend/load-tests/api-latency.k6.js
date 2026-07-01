@@ -81,6 +81,14 @@ const smokePublic = () => {
     check(ready, {
       'ready is not 5xx': (response) => response.status < 500
     })
+
+    const authCallback = http.get(`${baseUrl}/api/v1/auth/callback`, {
+      redirects: 0,
+      tags: { name: 'GET /api/v1/auth/callback' }
+    })
+    check(authCallback, {
+      'auth callback returns redirect': (response) => response.status === 302
+    })
   })
 }
 

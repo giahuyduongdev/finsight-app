@@ -4,11 +4,11 @@ Status: Draft.
 
 ## Phase 0 - Preconditions
 
-- [ ] Confirm `project-observability-foundation` HTTP metrics are implemented.
-- [ ] Confirm `/metrics` is available when `METRICS_ENABLED=true`.
-- [ ] Confirm Prometheus can scrape the backend locally.
-- [ ] Confirm Grafana provisioning loads existing dashboards.
-- [ ] Confirm dynamic route labels are normalized and bounded.
+- [x] Confirm `project-observability-foundation` HTTP metrics are implemented.
+- [x] Confirm `/metrics` is available when `METRICS_ENABLED=true`.
+- [x] Confirm Prometheus can scrape the backend locally.
+- [x] Confirm Grafana provisioning loads existing dashboards.
+- [x] Confirm dynamic route labels are normalized and bounded.
 
 ## Phase 1 - Query and Dashboard Design
 
@@ -74,7 +74,7 @@ Status: Draft.
 - [x] Prometheus target is up locally.
 - [x] Load-test smoke scenario runs against local.
 - [x] Load-test output includes p50/p95/p99 and error rate.
-- [ ] Dashboard shows data while load tests run.
+- [x] Dashboard shows data while load tests run.
 - [x] Metrics labels contain no user IDs, emails, raw URLs or financial data.
 
 ## Suggested Execution Order

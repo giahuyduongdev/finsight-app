@@ -67,7 +67,7 @@ LOAD_TEST_DURATION=1m
 Supported scenarios:
 
 ```text
-smoke-public  health/readiness only, no credentials
+smoke-public  health/readiness plus public auth redirect, no credentials
 smoke         health/readiness plus login
 read          smoke plus authenticated read APIs
 write         smoke plus disposable transaction create/update/delete
