@@ -14,7 +14,7 @@ from `backend/`.
 Windows install options:
 
 ```powershell
-winget install k6.k6
+winget install GrafanaLabs.k6
 ```
 
 or:
@@ -27,6 +27,13 @@ Verify:
 
 ```powershell
 k6 version
+```
+
+If the current terminal does not recognize `k6` immediately after installation,
+open a new terminal or run it directly from:
+
+```powershell
+& 'C:\Program Files\k6\k6.exe' version
 ```
 
 Docker alternative, useful when you do not want to install `k6` locally:

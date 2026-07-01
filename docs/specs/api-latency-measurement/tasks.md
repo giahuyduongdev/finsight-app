@@ -71,9 +71,9 @@ Status: Draft.
 - [x] Backend build passes.
 - [x] Grafana dashboard JSON parses.
 - [x] Prometheus alert rules parse.
-- [ ] Prometheus target is up locally.
-- [ ] Load-test smoke scenario runs against local.
-- [ ] Load-test output includes p50/p95/p99 and error rate.
+- [x] Prometheus target is up locally.
+- [x] Load-test smoke scenario runs against local.
+- [x] Load-test output includes p50/p95/p99 and error rate.
 - [ ] Dashboard shows data while load tests run.
 - [x] Metrics labels contain no user IDs, emails, raw URLs or financial data.
 
