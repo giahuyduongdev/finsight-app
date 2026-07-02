@@ -1,6 +1,6 @@
 import { getEnv } from '../utils/get-env.util'
 
-const encryptionSecret = getEnv('ENCRYPTION_SECRET')
+const encryptionSecret: string = getEnv('ENCRYPTION_SECRET')
 
 const envConfig = () => ({
   NODE_ENV: getEnv('NODE_ENV', 'development'),
