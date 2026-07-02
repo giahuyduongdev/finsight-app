@@ -43,6 +43,7 @@ design.md
 tasks.md
 sequence.mmd
 MANUAL_TEST.md
+API_COVERAGE_MATRIX.vi.md
 ENV_GAP_EXPLANATION.md
 ENV_KEYS_REFERENCE.md
 ```
@@ -54,6 +55,7 @@ ENV_KEYS_REFERENCE.md
 - `tasks.md`: checklist implementation/verification.
 - `sequence.mmd`: sơ đồ luồng dữ liệu.
 - `MANUAL_TEST.md`: cách test thủ công.
+- `API_COVERAGE_MATRIX.vi.md`: route nào được k6 scenario nào test.
 - `ENV_GAP_EXPLANATION.md`: giải thích key env thiếu/thừa.
 - `ENV_KEYS_REFERENCE.md`: giải thích toàn bộ env key.
 
@@ -538,9 +540,37 @@ smoke
 read
 write
 all
+auth-core
+analytics-full
+transaction-full
+report-safe
+all-safe
+email-optional
+provider-optional
+password-mutation-optional
+coverage-optional
+coverage-all
 ```
 
 Ví dụ `read` sẽ login rồi gọi các API đọc dữ liệu.
+
+Scenario nên dùng để phủ rộng local là:
+
+```text
+all-safe
+```
+
+`all-safe` gọi các API chính nhưng không đổi password/email, không gửi email,
+không scan receipt, và không gọi report/provider-heavy route.
+
+Muốn phủ thêm gần hết route còn lại thì dùng:
+
+```text
+coverage-all
+```
+
+Nhưng scenario này cần flag riêng vì có thể gửi email, đổi password/email, upload
+receipt hoặc dùng provider quota.
 
 ## 5.20. Production Monitoring
 

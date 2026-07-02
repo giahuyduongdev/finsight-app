@@ -20,6 +20,7 @@
     "docs:api:validate": "redocly lint docs/openapi.yaml",
     "loadtest:api": "k6 run load-tests/api-latency.k6.js",
     "loadtest:api:public": "k6 run load-tests/api-latency.k6.js -e LOAD_TEST_SCENARIO=smoke-public",
+    "loadtest:api:safe": "k6 run load-tests/api-latency.k6.js -e LOAD_TEST_SCENARIO=all-safe",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

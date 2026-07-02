@@ -52,6 +52,7 @@ monitoring/prometheus/alerts.yml
 ```text
 backend/load-tests/api-latency.k6.js
 backend/load-tests/README.md
+docs/specs/api-latency-measurement/API_COVERAGE_MATRIX.vi.md
 ```
 
 - Thêm script trong `backend/package.json`:
@@ -59,16 +60,32 @@ backend/load-tests/README.md
 ```powershell
 pnpm --dir backend run loadtest:api
 pnpm --dir backend run loadtest:api:public
+pnpm --dir backend run loadtest:api:safe
 ```
 
 Các scenario hiện có:
 
 ```text
-smoke-public  health/readiness + auth redirect public, không cần credential
-smoke         health/readiness + login
-read          smoke + các API read có auth
-write         smoke + tạo/sửa/xóa transaction test
-all           smoke + read + write
+smoke-public                health/readiness + auth redirect public, không cần credential
+smoke                       smoke-public + login
+read                        smoke + các API read có auth
+write                       smoke + tạo/sửa/xóa transaction test
+all                         legacy read + write
+auth-core                   login, refresh-token, logout, logout-all
+analytics-full              toàn bộ analytics route
+transaction-full            toàn bộ transaction route an toàn với dữ liệu disposable
+report-safe                 reports list + report settings
+all-safe                    phủ rộng nhóm API an toàn, nên dùng để test local
+email-optional              auth email/OTP/password/email-change, cần flag riêng
+provider-optional           report generate/resend + receipt scan, cần flag riêng
+password-mutation-optional  đổi password rồi đổi lại, cần flag riêng
+coverage-all                all-safe + các nhóm optional
+```
+
+Chi tiết route nào thuộc scenario nào nằm trong:
+
+```text
+docs/specs/api-latency-measurement/API_COVERAGE_MATRIX.vi.md
 ```
 
 ### Docs
@@ -303,10 +320,42 @@ $env:LOAD_TEST_SCENARIO='write'
 pnpm --dir backend run loadtest:api
 ```
 
-Chạy full local scenario:
+Chạy safe broad local scenario:
 
 ```powershell
-$env:LOAD_TEST_SCENARIO='all'
+$env:LOAD_TEST_SCENARIO='all-safe'
+pnpm --dir backend run loadtest:api
+```
+
+Hoặc chạy script tắt:
+
+```powershell
+pnpm --dir backend run loadtest:api:safe
+```
+
+Chạy auth lifecycle riêng, nên để `1` VU vì route `logout-all` revoke session:
+
+```powershell
+$env:LOAD_TEST_SCENARIO='auth-core'
+$env:LOAD_TEST_VUS='1'
+$env:LOAD_TEST_DURATION='30s'
+pnpm --dir backend run loadtest:api
+```
+
+Muốn phủ thêm route optional như gửi email, đổi password, scan receipt, generate
+report thì dùng account test riêng và bật flag tương ứng. Không chạy phần này
+trên production account.
+
+Ví dụ:
+
+```powershell
+$env:LOAD_TEST_SCENARIO='coverage-all'
+$env:LOAD_TEST_VUS='1'
+$env:LOAD_TEST_DURATION='30s'
+$env:ENABLE_EMAIL_SCENARIOS='true'
+$env:ENABLE_PROVIDER_SCENARIOS='true'
+$env:ENABLE_PASSWORD_MUTATION_SCENARIOS='true'
+$env:TEST_TEMP_PASSWORD='TempLoadTest123!'
 pnpm --dir backend run loadtest:api
 ```
 

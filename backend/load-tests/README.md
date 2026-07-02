@@ -62,20 +62,38 @@ Optional:
 LOAD_TEST_SCENARIO=smoke
 LOAD_TEST_VUS=5
 LOAD_TEST_DURATION=1m
+ENABLE_EMAIL_SCENARIOS=false
+ENABLE_PROVIDER_SCENARIOS=false
+ENABLE_PASSWORD_MUTATION_SCENARIOS=false
 ```
 
 Supported scenarios:
 
 ```text
-smoke-public  health/readiness plus public auth redirect, no credentials
-smoke         health/readiness plus login
-read          smoke plus authenticated read APIs
-write         smoke plus disposable transaction create/update/delete
-all           smoke, read and write
+smoke-public                health/readiness plus public auth redirects, no credentials
+smoke                       smoke-public plus login
+read                        authenticated user, analytics, transactions list, reports list
+write                       disposable transaction create/update/delete
+all                         legacy read plus write
+auth-core                   login, refresh-token, logout, logout-all
+analytics-full              all analytics routes
+transaction-full            create/get/update/duplicate/bulk/delete transaction routes
+report-safe                 reports list and report settings
+all-safe                    read, transaction-full, report-safe; no email/provider/password mutation
+email-optional              email/OTP/password/email-change auth routes; requires ENABLE_EMAIL_SCENARIOS=true
+provider-optional           report generate/resend and receipt scan; requires ENABLE_PROVIDER_SCENARIOS=true
+password-mutation-optional  reversible user password change; requires ENABLE_PASSWORD_MUTATION_SCENARIOS=true
+coverage-optional           email-optional plus provider-optional
+coverage-all                all-safe, auth-core, email-optional, provider-optional, password-mutation-optional
 ```
 
-Receipt/provider-heavy scenarios are intentionally not enabled in the first
-pass. They need explicit cost and rate-limit controls before load testing.
+The safe route coverage command is `LOAD_TEST_SCENARIO=all-safe`. It covers the
+main authenticated API surface without changing account credentials or calling
+provider-heavy routes.
+
+The optional scenarios are behind flags because they can send email, consume AI
+or report-provider quota, change email/password state, or require a real receipt
+fixture. Use them only with a disposable local/staging account.
 
 ## Commands
 
@@ -107,16 +125,63 @@ k6 run backend/load-tests/api-latency.k6.js \
   -e LOAD_TEST_DURATION=1m
 ```
 
-Full local check:
+Safe broad local check:
 
 ```bash
 k6 run backend/load-tests/api-latency.k6.js \
   -e BASE_URL=http://localhost:8000 \
   -e TEST_USER_EMAIL=test@example.com \
   -e TEST_USER_PASSWORD=change-me \
-  -e LOAD_TEST_SCENARIO=all \
+  -e LOAD_TEST_SCENARIO=all-safe \
   -e LOAD_TEST_VUS=5 \
   -e LOAD_TEST_DURATION=1m
+```
+
+Auth lifecycle check. Keep this at low concurrency because `logout-all` revokes
+sessions:
+
+```bash
+k6 run backend/load-tests/api-latency.k6.js \
+  -e BASE_URL=http://localhost:8000 \
+  -e TEST_USER_EMAIL=test@example.com \
+  -e TEST_USER_PASSWORD=change-me \
+  -e LOAD_TEST_SCENARIO=auth-core \
+  -e LOAD_TEST_VUS=1 \
+  -e LOAD_TEST_DURATION=30s
+```
+
+Optional email/OTP/provider/password coverage example:
+
+```bash
+k6 run backend/load-tests/api-latency.k6.js \
+  -e BASE_URL=http://localhost:8000 \
+  -e TEST_USER_EMAIL=test@example.com \
+  -e TEST_USER_PASSWORD=change-me \
+  -e LOAD_TEST_SCENARIO=coverage-all \
+  -e LOAD_TEST_VUS=1 \
+  -e LOAD_TEST_DURATION=30s \
+  -e ENABLE_EMAIL_SCENARIOS=true \
+  -e ENABLE_PROVIDER_SCENARIOS=true \
+  -e ENABLE_PASSWORD_MUTATION_SCENARIOS=true \
+  -e TEST_TEMP_PASSWORD=TempLoadTest123!
+```
+
+Add these only when the specific route can be exercised safely:
+
+```text
+TEST_EMAIL_FLOW_EMAIL=loadtest-register@example.com
+TEST_EMAIL_FLOW_PASSWORD=LoadTest123!
+TEST_OTP=123456
+TEST_RESET_TOKEN=reset-token-from-test-flow
+TEST_NEW_EMAIL=loadtest-new@example.com
+TEST_OLD_EMAIL_OTP=123456
+TEST_NEW_EMAIL_OTP=654321
+TEST_REPORT_ID=report-id-to-resend
+REPORT_FROM=2026-07-01
+REPORT_TO=2026-07-02
+RECEIPT_FIXTURE_PATH=./load-tests/fixtures/receipt.png
+RECEIPT_FIXTURE_NAME=receipt.png
+RECEIPT_FIXTURE_MIME=image/png
 ```
 
 ## Safety Rules
