@@ -6,6 +6,7 @@
 import mongoose from 'mongoose'
 import { mongoConfig } from '../config/db.config'
 import { logger } from '../config/logger.config'
+import { instrumentMongoDBPoolMetrics } from '../observability'
 
 class MongoDatabase {
   private static instance: MongoDatabase
@@ -44,6 +45,7 @@ class MongoDatabase {
   private async connect(): Promise<void> {
     try {
       await mongoose.connect(mongoConfig.uri, mongoConfig.options)
+      instrumentMongoDBPoolMetrics(mongoose.connection)
     } catch (error) {
       logger.error('[SYS:MongoDB] Error connecting to MongoDB:', {
         error: error instanceof Error ? error.message : 'Unknown error',

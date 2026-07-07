@@ -11,3 +11,13 @@ scrape_configs:
     static_configs:
       - targets:
           - backend-api:8000
+
+  - job_name: finsight-node-exporter
+    static_configs:
+      - targets:
+          - node-exporter:9100
+
+  - job_name: finsight-redis
+    static_configs:
+      - targets:
+          - redis-exporter:9121

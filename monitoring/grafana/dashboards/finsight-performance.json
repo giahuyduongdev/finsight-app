@@ -1,0 +1,505 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(finsight_http_requests_total{route!~\"/metrics|/health|/ready\"}[5m]))",
+          "legendFormat": "requests"
+        }
+      ],
+      "title": "API request rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(finsight_http_request_duration_seconds_bucket{route!~\"/metrics|/health|/ready\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "title": "API latency p95",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(finsight_http_requests_total{status_code=~\"5..\",route!~\"/metrics|/health|/ready\"}[5m])) / clamp_min(sum(rate(finsight_http_requests_total{route!~\"/metrics|/health|/ready\"}[5m])), 1)",
+          "legendFormat": "5xx"
+        }
+      ],
+      "title": "API 5xx rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(finsight_http_active_requests)",
+          "legendFormat": "active"
+        }
+      ],
+      "title": "Active API requests",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "topk(8, histogram_quantile(0.95, sum by (method, route, le) (rate(finsight_http_request_duration_seconds_bucket{route!~\"/metrics|/health|/ready\"}[5m]))))",
+          "legendFormat": "{{method}} {{route}}"
+        }
+      ],
+      "title": "Slowest API routes by p95",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 4
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "sum by (status_code) (rate(finsight_http_requests_total{route!~\"/metrics|/health|/ready\"}[5m]))",
+          "legendFormat": "HTTP {{status_code}}"
+        }
+      ],
+      "title": "HTTP status code distribution",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "finsight_process_resident_memory_bytes",
+          "legendFormat": "RSS"
+        },
+        {
+          "expr": "finsight_nodejs_heap_size_used_bytes",
+          "legendFormat": "Heap used"
+        },
+        {
+          "expr": "finsight_nodejs_heap_size_total_bytes",
+          "legendFormat": "Heap total"
+        },
+        {
+          "expr": "finsight_nodejs_external_memory_bytes",
+          "legendFormat": "External"
+        }
+      ],
+      "title": "Node.js memory usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "finsight_nodejs_eventloop_lag_seconds",
+          "legendFormat": "Event loop lag"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(finsight_nodejs_gc_duration_seconds_bucket[5m])))",
+          "legendFormat": "GC p95"
+        }
+      ],
+      "title": "Node.js event loop and GC",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 9,
+      "targets": [
+        {
+          "expr": "sum(finsight_mongodb_pool_connections{state=\"total\"})",
+          "legendFormat": "Total"
+        },
+        {
+          "expr": "sum(finsight_mongodb_pool_connections{state=\"ready\"})",
+          "legendFormat": "Ready"
+        },
+        {
+          "expr": "sum(finsight_mongodb_pool_connections{state=\"checked_out\"})",
+          "legendFormat": "Checked out"
+        }
+      ],
+      "title": "MongoDB connection pool",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "sum(rate(finsight_mongodb_pool_events_total{event=\"connectionCheckOutStarted\"}[5m]))",
+          "legendFormat": "Checkout started"
+        },
+        {
+          "expr": "sum(rate(finsight_mongodb_pool_events_total{event=\"connectionCheckedOut\"}[5m]))",
+          "legendFormat": "Checked out"
+        },
+        {
+          "expr": "sum(rate(finsight_mongodb_pool_events_total{event=\"connectionCheckedIn\"}[5m]))",
+          "legendFormat": "Checked in"
+        },
+        {
+          "expr": "sum(rate(finsight_mongodb_pool_events_total{event=\"connectionCreated\"}[5m]))",
+          "legendFormat": "Created"
+        },
+        {
+          "expr": "sum(rate(finsight_mongodb_pool_events_total{event=\"connectionReady\"}[5m]))",
+          "legendFormat": "Ready"
+        },
+        {
+          "expr": "sum(rate(finsight_mongodb_pool_checkout_failures_total[5m]))",
+          "legendFormat": "Checkout failures"
+        }
+      ],
+      "title": "MongoDB pool activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 11,
+      "targets": [
+        {
+          "expr": "sum by (queue, state) (finsight_bullmq_queue_jobs)",
+          "legendFormat": "{{queue}} {{state}}"
+        }
+      ],
+      "title": "BullMQ Redis-backed queue depth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "sum by (queue, outcome) (rate(finsight_bullmq_jobs_total[5m]))",
+          "legendFormat": "{{queue}} {{outcome}}"
+        },
+        {
+          "expr": "sum by (queue, error_class) (rate(finsight_bullmq_worker_errors_total[5m]))",
+          "legendFormat": "{{queue}} worker error {{error_class}}"
+        }
+      ],
+      "title": "BullMQ job outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "id": 13,
+      "targets": [
+        {
+          "expr": "sum by (provider, operation, outcome, error_class) (rate(finsight_provider_requests_total[5m]))",
+          "legendFormat": "{{provider}} {{operation}} {{outcome}} {{error_class}}"
+        }
+      ],
+      "title": "Provider calls: Gemini, Cloudinary, Resend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "id": 14,
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(finsight_receipt_cache_total[5m]))",
+          "legendFormat": "cache {{result}}"
+        },
+        {
+          "expr": "sum by (outcome) (rate(finsight_receipt_scans_total[5m]))",
+          "legendFormat": "scan {{outcome}}"
+        }
+      ],
+      "title": "Receipt cache and scan outcomes",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": ["finsight", "performance", "mongodb", "nodejs", "bullmq"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Finsight Performance",
+  "uid": "finsight-performance",
+  "version": 1,
+  "weekStart": ""
+}

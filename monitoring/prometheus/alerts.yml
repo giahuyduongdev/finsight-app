@@ -111,3 +111,55 @@ groups:
           severity: warning
         annotations:
           summary: Backend resident memory is above 700 MiB
+
+      - alert: FinsightHostLowAvailableMemory
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: VPS available memory is below 10%
+
+      - alert: FinsightHostRootFilesystemAlmostFull
+        expr: |
+          1 -
+          (
+            node_filesystem_avail_bytes{
+              mountpoint="/",
+              fstype!~"tmpfs|overlay|squashfs|proc|sysfs|devtmpfs"
+            }
+            /
+            node_filesystem_size_bytes{
+              mountpoint="/",
+              fstype!~"tmpfs|overlay|squashfs|proc|sysfs|devtmpfs"
+            }
+          ) > 0.85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: VPS root filesystem is above 85% used
+
+      - alert: FinsightRedisHighMemoryUsage
+        expr: redis_memory_max_bytes > 0 and redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis memory usage is above 85% of maxmemory
+
+      - alert: FinsightRedisEvictions
+        expr: increase(redis_evicted_keys_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis is evicting keys
+
+      - alert: FinsightRedisRejectedConnections
+        expr: increase(redis_rejected_connections_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis rejected connections

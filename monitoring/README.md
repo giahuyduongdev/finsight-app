@@ -1,10 +1,19 @@
 # Local monitoring
 
-Start Redis, Prometheus and Grafana:
+Start Redis, Prometheus, Grafana and Redis Exporter:
 
 ```powershell
 docker compose --profile monitoring up -d
 ```
+
+The local compose file binds Redis, Prometheus and Grafana to `127.0.0.1`.
+They are reachable from your machine, but not exposed to other machines on the
+LAN.
+
+Redis Exporter is a private Docker-network scrape target for Prometheus.
+Node Exporter is Linux/VPS-first and is not started by the default local command
+because Docker Desktop on Windows may report the Docker VM rather than the
+physical Windows host.
 
 The backend must run on port `8000` with:
 
@@ -25,6 +34,11 @@ Useful dashboards:
   panels.
 - `Finsight API Latency`: p50/p95/p99, slowest endpoints, request rate and
   status-code breakdown by normalized API route.
+- `Finsight Performance`: API, Node.js, MongoDB pool, BullMQ, provider and
+  Receipt performance signals.
+- `Finsight Host/VPS`: CPU, load, memory, filesystem, disk, network and uptime.
+- `Finsight Redis`: Redis memory, clients, commands/sec, keyspace hit/miss,
+  evictions, rejected connections and uptime.
 
 Stop the monitoring profile:
 
@@ -38,10 +52,38 @@ Remove monitoring data only:
 docker volume rm finsight_prometheus-data finsight_grafana-data
 ```
 
-For production, do not publish `/metrics` publicly. Prometheus should scrape the
-backend through the private Docker network. Mount
-`monitoring/prometheus/prometheus.production.yml` instead of the local config;
-its default target is `backend-api:8000`.
+## Production monitoring
+
+For production, do not publish `/metrics`, Redis, Prometheus or Grafana
+publicly. Do not publish Node Exporter or Redis Exporter either. The compose
+files bind Redis, Prometheus and Grafana to `127.0.0.1` on the host, and the
+exporters stay private to the Docker network.
+
+Run production monitoring with the override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile monitoring --profile host-monitoring up -d
+```
+
+The production override mounts
+`monitoring/prometheus/prometheus.production.yml`; its default scrape target is
+`backend-api:8000` on the private Docker network. It also scrapes
+`node-exporter:9100` and `redis-exporter:9121`.
+
+MongoDB remains on MongoDB Atlas. Use Atlas for database-level query, storage
+and cluster metrics; Grafana only shows app-side MongoDB pool signals.
+
+View Grafana from your local machine through an SSH tunnel:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 user@your-vps-ip
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
 
 Alert thresholds are intentionally kept in
 `monitoring/prometheus/alerts.yml` so each deployment can review and override

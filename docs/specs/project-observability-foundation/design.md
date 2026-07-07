@@ -54,6 +54,7 @@ backend/src/observability/
 ├── metrics.config.ts
 ├── http.metrics.ts
 ├── process.metrics.ts
+├── mongodb.metrics.ts
 ├── bullmq.metrics.ts
 ├── provider.metrics.ts
 ├── sentry-background.ts
@@ -132,6 +133,24 @@ unknown
 ```
 
 It rethrows the original error and does not decide retry policy.
+
+### MongoDB pool instrumentation
+
+Attach to MongoDB driver pool events through the connected Mongoose client.
+Record pool connection state and checkout failures without labeling by URI,
+database name, user, collection, document ID or query text.
+
+Metrics:
+
+```text
+finsight_mongodb_pool_connections{address,state}
+finsight_mongodb_pool_events_total{address,event,reason}
+finsight_mongodb_pool_checkout_failures_total{address,reason}
+```
+
+The `address` label is limited to the driver server address. The `reason` label
+is normalized to a short bounded class. Instrumentation must attach once per
+MongoDB client so hot reload or reconnect paths do not duplicate listeners.
 
 ### Background Sentry capture
 
@@ -279,7 +298,9 @@ provisioned with:
 - Prometheus datasource;
 - Project Overview dashboard;
 - BullMQ dashboard;
-- Receipt reference panel.
+- Receipt reference panel;
+- Performance dashboard for API, Node.js, MongoDB pool, BullMQ, provider and
+  Receipt signals.
 
 ### Production
 
@@ -417,6 +438,7 @@ All numeric application configuration must be validated centrally.
 - Forbidden labels are absent.
 - BullMQ metrics classify completed/skipped/retry/final failure correctly.
 - Provider helper records duration/outcome and rethrows original error.
+- MongoDB pool instrumentation records bounded pool state and checkout failures.
 - Sentry background helper captures allowlisted events only.
 - Recursive scrubbing removes receipt/provider secrets.
 - Metrics/Sentry failure does not alter request/job result.
