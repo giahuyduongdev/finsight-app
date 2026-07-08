@@ -16,6 +16,7 @@ export {
 } from './bullmq.metrics'
 export type { BullMQJobOutcome } from './bullmq.metrics'
 export { recordReceiptCache, recordReceiptScan } from './receipt.metrics'
+export { instrumentMongoDBPoolMetrics } from './mongodb.metrics'
 export {
   startQueueMetricsPolling,
   stopQueueMetricsPolling

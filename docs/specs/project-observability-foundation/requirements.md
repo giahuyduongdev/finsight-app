@@ -18,7 +18,8 @@ and proves it through Receipt integration.
 ## Goals
 
 - Expose Prometheus-compatible application metrics.
-- Standardize HTTP, Node.js process, BullMQ and provider instrumentation.
+- Standardize HTTP, Node.js process, MongoDB pool, BullMQ and provider
+  instrumentation.
 - Extend Sentry safely to background workers and scheduled jobs.
 - Define privacy and cardinality rules shared by the entire backend.
 - Provide optional local Prometheus and Grafana services.
@@ -125,7 +126,24 @@ Provide reusable helpers/listeners for:
 Queue names and outcomes must be bounded labels. Queue depth polling must be
 periodic and must not occur on every application request.
 
-### R6. Provider metrics
+### R6. MongoDB pool metrics
+
+Collect MongoDB driver connection pool state through Mongoose after the client
+connects.
+
+Collect:
+
+- current pool connections by state;
+- pool event count;
+- checkout failure count.
+
+Labels must be bounded to driver server address, pool state, event name and
+normalized reason. Metrics must not include MongoDB URI, database name,
+collection name, document ID, query text, user ID, email or financial data.
+
+Instrumentation must attach once per MongoDB client.
+
+### R7. Provider metrics
 
 Provide a wrapper/helper contract for external providers:
 
@@ -143,7 +161,7 @@ Collect:
 Do not label metrics by model API key, recipient, filename or provider error
 message.
 
-### R7. Sentry foundation
+### R8. Sentry foundation
 
 Retain HTTP `5xx` capture and add a background-safe capture helper that does not
 require an Express request.
@@ -164,7 +182,7 @@ Do not capture:
 - user validation errors;
 - every provider `429`.
 
-### R8. Sentry privacy and release metadata
+### R9. Sentry privacy and release metadata
 
 Sentry must scrub sensitive data from:
 
@@ -187,7 +205,7 @@ SENTRY_BACKGROUND_ERRORS_ENABLED
 Production release must identify the deployed commit/version. Sentry failure
 must remain best-effort and must never change request or job outcome.
 
-### R9. Receipt reference integration
+### R10. Receipt reference integration
 
 Receipt is the first domain to prove the foundation.
 
@@ -202,7 +220,7 @@ It must use foundation APIs for:
 Receipt-specific metrics may be added, but they must follow foundation naming,
 privacy and label rules.
 
-### R10. Local monitoring stack
+### R11. Local monitoring stack
 
 Docker Compose must provide an optional `monitoring` profile:
 
@@ -221,9 +239,11 @@ Grafana:
 
 - provision Prometheus datasource;
 - include a minimal project overview dashboard;
+- include a performance dashboard for API, Node.js, MongoDB pool, BullMQ,
+  provider and Receipt signals;
 - use persistent volumes that can be removed independently.
 
-### R11. Production monitoring profile
+### R12. Production monitoring profile
 
 Initial VPS limits:
 
@@ -236,7 +256,7 @@ Initial VPS limits:
 Monitoring may be disabled or moved externally without changing application
 instrumentation.
 
-### R12. Alerts
+### R13. Alerts
 
 Initial alerts:
 
@@ -251,7 +271,7 @@ Initial alerts:
 
 Alert thresholds must be configurable and initially conservative.
 
-### R13. Node Exporter host metrics
+### R14. Node Exporter host metrics
 
 Node Exporter must be added as an optional monitoring service for localhost and
 the production VPS.
@@ -292,7 +312,8 @@ Node Exporter -> whole VPS CPU, memory, disk, network and filesystem metrics
 - Sentry scrubbing covers body, query, breadcrumbs, contexts and extras.
 - Receipt uses the foundation without owning duplicate infrastructure.
 - Prometheus and Grafana start through an optional local Docker profile.
-- Dashboard displays HTTP, process, BullMQ and Receipt reference metrics.
+- Dashboard displays HTTP, process, MongoDB pool, BullMQ and Receipt reference
+  metrics.
 - Host dashboard displays CPU, memory, disk, filesystem and network metrics
   when Node Exporter is enabled.
 - Metrics/Sentry failures do not change application behavior.
