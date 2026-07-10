@@ -13,3 +13,6 @@ export * from './auth.dto'
 
 // Report DTOs
 export * from './report.dto'
+
+// Notification DTOs
+export * from './notification.dto'

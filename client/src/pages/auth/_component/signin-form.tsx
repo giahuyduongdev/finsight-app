@@ -45,7 +45,7 @@ const SignInForm = ({
       allowLocalFallback: import.meta.env.DEV
     })
     if (!backendUrl) {
-      toast.error('OAuth is temporarily unavailable. Please try again later.')
+      toast.error('OAuth is temporarily unavailable. Please try again later')
       return
     }
     window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`

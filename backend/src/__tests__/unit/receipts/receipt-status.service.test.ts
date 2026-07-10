@@ -92,7 +92,7 @@ describe('receipt scan status service', () => {
         jobId: 'receipt-job-1',
         status,
         ...(status === 'failed'
-          ? { error: 'Receipt processing failed. Please try again.' }
+          ? { error: 'Receipt processing failed. Please try again' }
           : {})
       })
     }

@@ -357,7 +357,7 @@ describe('auth service hardening', () => {
         email: 'user@example.com',
         otp: '123456'
       })
-    ).rejects.toThrow('Registration session expired. Please register again.')
+    ).rejects.toThrow('Registration session expired. Please register again')
 
     expect(userConstructor).not.toHaveBeenCalled()
     expect(redisPipelineDel).toHaveBeenCalledWith(
@@ -520,7 +520,7 @@ describe('auth service hardening', () => {
         email: 'user@example.com',
         otp: '123456'
       })
-    ).rejects.toThrow('Registration session expired. Please register again.')
+    ).rejects.toThrow('Registration session expired. Please register again')
 
     expect(userConstructor).not.toHaveBeenCalled()
     expect(redisPipelineDel).toHaveBeenCalledWith(

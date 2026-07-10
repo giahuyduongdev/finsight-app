@@ -165,4 +165,5 @@ export interface TransactionFilterQuery {
   from?: string
   to?: string
   timezone?: string
+  importBatchId?: string
 }

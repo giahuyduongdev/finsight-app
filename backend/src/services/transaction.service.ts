@@ -134,6 +134,7 @@ export class TransactionService {
       from?: string | Date
       to?: string | Date
       timezone?: string
+      importBatchId?: string
     },
     pagination: {
       pageSize: number

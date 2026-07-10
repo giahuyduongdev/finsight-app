@@ -37,7 +37,7 @@ const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
       toast.success('Logged out successfully')
     } catch {
       // Dù API lỗi vẫn nên cho logout ở máy khách để đảm bảo an toàn
-      toast.error('Server error, but cleaning up session...')
+      toast.error('Server error, but cleaning up session')
     } finally {
       // 4. Dọn dẹp Redux và chuyển trang
       dispatch(logout())

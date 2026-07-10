@@ -66,6 +66,7 @@ interface DataTableProps<TData> {
   onPageChange?: (pageNumber: number) => void
   onPageSizeChange?: (pageSize: number) => void
   onHoverPage?: (page: number) => void
+  getRowClassName?: (row: TData) => string | undefined
   // Thêm 2 props này để nhận state từ component cha
   expanded?: ExpandedState
   onExpandedChange?: React.Dispatch<React.SetStateAction<ExpandedState>>
@@ -90,6 +91,7 @@ export function DataTable<TData>({
   onPageChange,
   onPageSizeChange,
   onHoverPage,
+  getRowClassName,
   expanded = {},
   onExpandedChange,
   renderExtraFilters
@@ -133,6 +135,25 @@ export function DataTable<TData>({
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const hasSelections = selectedRows.length > 0
+  const getColumnWidth = (columnId: string) => {
+    const widths: Record<string, string> = {
+      select: '32px',
+      expand: '28px',
+      date: '8%',
+      title: '15%',
+      category: '10%',
+      type: '8%',
+      amount: '9%',
+      currency: '7%',
+      createdAt: '9%',
+      paymentMethod: '10%',
+      recurringInterval: '10%',
+      status: '9%',
+      actions: '36px'
+    }
+
+    return widths[columnId]
+  }
 
   const handleSearch = (value: string) => {
     setSearchTerm(value)
@@ -247,22 +268,36 @@ export function DataTable<TData>({
       </div>
 
       {/* Table */}
-      <div className={cn('rounded-md border overflow-x-auto', className)}>
+      <div
+        className={cn(
+          'rounded-md border overflow-hidden [&_[data-slot=table-container]]:overflow-hidden',
+          className
+        )}
+      >
         {isLoading ? (
           <TableSkeleton columns={6} rows={20} />
         ) : (
           <Table
             className={cn(
+              'table-fixed',
               table.getRowModel().rows.length === 0 ? 'h-[200px]' : ''
             )}
           >
+            <colgroup>
+              {table.getVisibleLeafColumns().map((column) => (
+                <col
+                  key={column.id}
+                  style={{ width: getColumnWidth(column.id) }}
+                />
+              ))}
+            </colgroup>
             <TableHeader className="sticky top-0 bg-muted z-10 ">
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id}>
                   {group.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className="!font-medium !text-[13px]"
+                      className="max-w-0 overflow-hidden text-ellipsis !px-1.5 !font-medium !text-[13px]"
                     >
                       {flexRender(
                         header.column.columnDef.header,
@@ -279,9 +314,13 @@ export function DataTable<TData>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && 'selected'}
+                    className={getRowClassName?.(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="!text-[13.3px]">
+                      <TableCell
+                        key={cell.id}
+                        className="max-w-0 overflow-hidden text-ellipsis !px-1.5 !text-[13.3px]"
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

@@ -142,6 +142,7 @@ export interface TransactionFilters {
   from?: string | Date
   to?: string | Date
   timezone?: string
+  importBatchId?: string
 }
 
 // ─── Delete Result Types ──────────────────────────────────────────────────────

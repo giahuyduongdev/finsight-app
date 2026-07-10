@@ -22,6 +22,8 @@ export interface CreateTransactionBody {
   isRecurring: boolean
   recurringInterval?: RecurringIntervalType | null
   paymentMethod: string
+  status?: 'COMPLETED' | 'PENDING' | 'FAILED'
+  receiptUrl?: string
   backfill?: boolean
 }
 
@@ -37,6 +39,7 @@ export interface GetAllTransactionParams {
   from?: string | Date
   to?: string | Date
   timezone?: string
+  importBatchId?: string
 }
 
 export interface TransactionType {
@@ -87,6 +90,8 @@ export interface SuccessResponse<T> {
 }
 
 export type GetAllTransactionResponse = SuccessResponse<TransactionType[]>
+
+export type CreateTransactionResponse = SuccessResponse<TransactionType>
 
 export interface AIScanReceiptData {
   title: string

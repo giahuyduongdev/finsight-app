@@ -225,7 +225,7 @@ describe('UserService', () => {
       // Assert
       expect(result).toBeDefined()
       expect(result.message).toBe(
-        'Password changed successfully. Please login again.'
+        'Password changed successfully. Please login again'
       )
 
       // Verify password was updated

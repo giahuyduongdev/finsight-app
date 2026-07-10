@@ -38,13 +38,13 @@ Implement a persisted notification inbox with realtime Socket.IO delivery and a 
 - [x] Add bulk import batch filter support for `/transactions?importBatchId=<batchId>`.
 - [x] Add frontend tests for dropdown rendering, unread state, socket insert, and click behavior.
 - [x] Add frontend test coverage for transaction highlight.
-- [ ] Keep direct-action feedback in the existing top-center toast stack with a 4-second default duration.
-- [ ] Add a bottom-right stack for background-task toasts.
-- [ ] Remove the generic gear icon and `BACKGROUND TASK` label from background-task toasts.
-- [ ] Keep background-task toasts visible until dismissed or their action is followed.
-- [ ] Restyle transaction highlight with a pale green tint and 4px left accent.
-- [ ] Fade transaction highlight back to normal after 6 seconds.
-- [ ] Add frontend tests for toast placement, dismissal behavior, and the revised transaction highlight.
+- [x] Keep direct-action feedback in the existing top-center toast stack with a 4-second default duration.
+- [x] Add a bottom-right stack for background-task toasts.
+- [x] Remove the generic gear icon and `BACKGROUND TASK` label from background-task toasts.
+- [x] Keep background-task toasts visible until dismissed or their action is followed.
+- [x] Restyle transaction highlight with a pale green tint and 4px left accent.
+- [x] Fade transaction highlight back to normal after 6 seconds.
+- [x] Add frontend tests for toast placement, dismissal behavior, and the revised transaction highlight.
 - [x] Run backend tests, frontend tests, lint, typecheck, and build.
 - [ ] Perform manual two-tab realtime verification.
 
@@ -69,8 +69,8 @@ Implement a persisted notification inbox with realtime Socket.IO delivery and a 
 - [x] Clicking notification marks it read.
 - [x] Clicking notification with `actionUrl` navigates.
 - [x] Transaction row can be highlighted when notification action includes `?highlight=<transactionId>`.
-- [ ] Direct-action and background-task toasts render in their specified stacks.
-- [ ] Background-task toasts render without a generic gear icon or category label.
-- [ ] Transaction highlight uses the approved subtle style and clears after 6 seconds.
+- [x] Direct-action and background-task toasts render in their specified stacks.
+- [x] Background-task toasts render without a generic gear icon or category label.
+- [x] Transaction highlight uses the approved subtle style and clears after 6 seconds.
 - [x] Socket disconnect/reconnect does not lose persisted notifications.
 - [x] Security review completed because this adds user-scoped endpoints and persisted user data.

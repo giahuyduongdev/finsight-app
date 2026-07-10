@@ -31,6 +31,7 @@ import UserModel from '../models/user.model'
 import { sendReportEmail } from '../mailers/report.mailer'
 import { calculateNextReportDate } from '../utils/dates/index'
 import { emitReportListUpdated } from '../utils/report-socket.util'
+import { createSystemNotification } from '../utils/notification.util'
 import { buildReportDeliveryKey } from '../utils/report-delivery.util'
 import {
   getSafeJobErrorMessage,
@@ -277,6 +278,30 @@ export const processReportJob = async (
       period: persistedReport.period,
       source: 'worker'
     })
+
+    const status = persistedReport.status as ReportStatusEnum
+    await createSystemNotification({
+      userId,
+      type:
+        status === ReportStatusEnum.SENT
+          ? 'report.generated'
+          : 'report.no_activity',
+      title:
+        status === ReportStatusEnum.SENT
+          ? 'Monthly report generated'
+          : 'No report activity found',
+      description:
+        status === ReportStatusEnum.SENT
+          ? 'Your monthly report is ready.'
+          : 'No activity was found for this report period.',
+      severity: status === ReportStatusEnum.SENT ? 'success' : 'info',
+      actionUrl: '/reports',
+      metadata: {
+        entityType: 'report',
+        entityId: persistedReport._id?.toString()
+      },
+      idempotencyKey: `report:${persistedReport._id?.toString()}:${status}`
+    })
   }
 
   return {
@@ -424,6 +449,19 @@ reportWorker.on('failed', async (job, err) => {
         reason: 'generated',
         status: ReportStatusEnum.FAILED,
         source: 'worker'
+      })
+
+      await createSystemNotification({
+        userId: job.data.userId,
+        type: 'report.failed',
+        title: 'Monthly report failed',
+        description: 'Monthly report delivery failed',
+        severity: 'error',
+        actionUrl: '/reports',
+        metadata: {
+          entityType: 'report'
+        },
+        idempotencyKey: `report:${deliveryKey}:failed`
       })
     } catch (updateError) {
       logger.error('[JOB:Report] Failed to persist terminal delivery state', {

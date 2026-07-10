@@ -7,6 +7,7 @@ const mockRemoveTransactionsArray = jest.fn()
 const mockBulkCreate = jest.fn()
 const mockInvalidateAnalytics = jest.fn()
 const mockEmit = jest.fn()
+const mockCreateSystemNotification = jest.fn()
 const mockTransactionFindOne = jest.fn()
 const mockTransactionCreate = jest.fn()
 const mockTransactionUpdateOne = jest.fn()
@@ -76,6 +77,11 @@ jest.mock('../../../utils/cache.util', () => ({
     mockInvalidateAnalytics(...args)
 }))
 
+jest.mock('../../../utils/notification.util', () => ({
+  createSystemNotification: (...args: unknown[]) =>
+    mockCreateSystemNotification(...args)
+}))
+
 jest.mock('../../../models/transaction.model', () => ({
   __esModule: true,
   default: {
@@ -143,6 +149,7 @@ describe('transaction worker bulk import', () => {
     mockUpdateBatchProgress.mockResolvedValue(undefined)
     mockRemoveTransactionsArray.mockResolvedValue(undefined)
     mockInvalidateAnalytics.mockResolvedValue(undefined)
+    mockCreateSystemNotification.mockResolvedValue(undefined)
     mockTransactionCreate.mockResolvedValue([])
     mockTransactionUpdateOne.mockResolvedValue({ modifiedCount: 1 })
     mockTransactionExists.mockResolvedValue({ _id: 'occurrence-123' })
@@ -228,6 +235,29 @@ describe('transaction worker bulk import', () => {
       '507f1f77bcf86cd799439011',
       1,
       0
+    )
+  })
+
+  it('creates a completion notification that opens the imported batch view', async () => {
+    mockFindBatchById.mockResolvedValue({
+      status: 'PROCESSING',
+      transactions: [{ date: '2026-01-02', title: 'imported row' }],
+      processedCount: 0,
+      rejectedCount: 0
+    })
+    mockBulkCreate.mockResolvedValue({ insertedCount: 1 })
+
+    await processBulkImportJob(createJob())
+
+    expect(mockCreateSystemNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'bulk_import.completed',
+        actionUrl: '/transactions?importBatchId=507f1f77bcf86cd799439011',
+        metadata: expect.objectContaining({
+          entityType: 'import',
+          entityId: '507f1f77bcf86cd799439011'
+        })
+      })
     )
   })
 

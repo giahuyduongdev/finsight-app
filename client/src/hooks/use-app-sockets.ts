@@ -5,6 +5,12 @@ import { useSocket } from './use-socket'
 import { apiClient } from '@/app/api-client'
 import { AppDispatch } from '@/app/store'
 import { userApi } from '@/features/user/userAPI'
+import {
+  notificationApi,
+  upsertNotification
+} from '@/features/notification/notificationAPI'
+import { NotificationItem } from '@/features/notification/notificationType'
+import { consumeNotificationHandledInForeground } from '@/features/notification/notificationPresentation'
 import { logout, updateCredentials } from '@/features/auth/authSlice'
 import { redirectTo as navigateTo } from '@/lib/navigation'
 import { subscribeToLocalLogout } from '@/lib/local-logout-sync'
@@ -16,17 +22,6 @@ interface BulkImportProgressPayload {
   rejectedCount: number
   totalProcessed: number
   total: number
-}
-
-interface BulkImportCompletedPayload {
-  totalInserted: number
-  rejectedCount: number
-  totalProcessed: number
-  message: string
-}
-
-interface BulkImportFailedPayload {
-  message: string
 }
 
 interface RecurringTransactionProcessedPayload {
@@ -68,8 +63,69 @@ export const useAppSockets = () => {
   const logoutHandledRef = useRef(false)
 
   useEffect(() => {
+    const showNotificationToast = (notification: NotificationItem) => {
+      const options = {
+        ...(notification.actionUrl
+          ? {
+              action: {
+                label:
+                  notification.type === 'receipt_scan.completed'
+                    ? 'Review receipt'
+                    : 'View details',
+                onClick: () => navigateTo(notification.actionUrl!)
+              }
+            }
+          : {}),
+        description: notification.description,
+        duration: Infinity,
+        id: `notification-${notification._id}`,
+        position: 'bottom-right' as const
+      }
+
+      if (notification.severity === 'success') {
+        toast.success(notification.title, options)
+      } else if (notification.severity === 'error') {
+        toast.error(notification.title, options)
+      } else if (notification.severity === 'warning') {
+        toast.warning(notification.title, options)
+      } else {
+        toast.info(notification.title, options)
+      }
+    }
+
     const refreshTransactionData = () => {
       dispatch(apiClient.util.invalidateTags(['transactions', 'analytics']))
+    }
+
+    const handleNotificationCreated = (notification: NotificationItem) => {
+      dispatch(
+        notificationApi.util.updateQueryData(
+          'getNotifications',
+          undefined,
+          (draft) => {
+            const wasKnown = draft.data.some(
+              (item) => item._id === notification._id
+            )
+            draft.data = upsertNotification(draft.data, notification)
+
+            if (!wasKnown && notification.unread) {
+              draft.meta = {
+                ...draft.meta,
+                unreadCount: (draft.meta?.unreadCount || 0) + 1
+              }
+            }
+          }
+        )
+      )
+      dispatch(apiClient.util.invalidateTags(['notifications']))
+
+      if (
+        consumeNotificationHandledInForeground(notification.metadata?.entityId)
+      ) {
+        return
+      }
+
+      showNotificationToast(notification)
     }
 
     const refreshCurrentUser = () => {
@@ -176,6 +232,7 @@ export const useAppSockets = () => {
     socket.on('report:settings-updated', handleReportSettingsUpdated)
     socket.on('report:list-updated', handleReportListUpdated)
     socket.on('auth:session-revoked', handleAuthSessionRevoked)
+    socket.on('notification:created', handleNotificationCreated)
 
     socket.on(
       'bulk-import:progress',
@@ -188,31 +245,25 @@ export const useAppSockets = () => {
         const rejectedMsg =
           rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''
         toast.loading(
-          `Importing... ${totalProcessed}/${total}${rejectedMsg} (${progress}%)`,
+          `Importing ${totalProcessed}/${total}${rejectedMsg} (${progress}%)`,
           { id: 'bulk-import' }
         )
       }
     )
 
-    socket.on(
-      'bulk-import:completed',
-      ({ message }: BulkImportCompletedPayload) => {
-        toast.success(message || 'Import completed', {
-          id: 'bulk-import',
-          duration: 4000
-        })
-        refreshTransactionData()
-      }
-    )
+    socket.on('bulk-import:completed', () => {
+      toast.dismiss('bulk-import')
+      refreshTransactionData()
+    })
 
-    socket.on('bulk-import:failed', ({ message }: BulkImportFailedPayload) => {
-      toast.error(message, { id: 'bulk-import' })
+    socket.on('bulk-import:failed', () => {
+      toast.dismiss('bulk-import')
     })
 
     socket.on(
       'recurring-transaction:processed',
       (data: RecurringTransactionProcessedPayload) => {
-        toast.success(data.message || 'Processing recurring transactions...', {
+        toast.success(data.message || 'Processing recurring transactions', {
           id: 'recurring-update',
           duration: 3000
         })
@@ -230,6 +281,7 @@ export const useAppSockets = () => {
       socket.off('report:settings-updated', handleReportSettingsUpdated)
       socket.off('report:list-updated', handleReportListUpdated)
       socket.off('auth:session-revoked', handleAuthSessionRevoked)
+      socket.off('notification:created', handleNotificationCreated)
       socket.off('bulk-import:progress')
       socket.off('bulk-import:completed')
       socket.off('bulk-import:failed')

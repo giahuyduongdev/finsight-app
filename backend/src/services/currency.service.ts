@@ -5,6 +5,8 @@ import { CurrencyEnum } from '../enums/currency.enum'
 import { BadRequestException, InternalServerException } from '../utils/errors'
 import { ErrorCodeEnum } from '../enums/error-code.enum'
 import { fetchExchangeRatesWithFallback } from '../lib/exchange-rate-currency'
+import UserModel from '../models/user.model'
+import { createSystemNotification } from '../utils/notification.util'
 import crypto from 'crypto'
 
 const CACHE_KEY_PREFIX = 'rate:'
@@ -16,7 +18,7 @@ export class CurrencyService {
    * Fetch latest rates and broadcast via WebSocket
    * Base is VND by default to make it easy for the primary user
    */
-  static async fetchAndBroadcastRates() {
+  static async fetchAndBroadcastRates(options: { notifyUsers?: boolean } = {}) {
     try {
       logger.info('[APP:Currency] Fetching latest exchange rates...')
 
@@ -89,6 +91,11 @@ export class CurrencyService {
       })
 
       logger.info('[APP:Currency] Broadcasted rates to all clients')
+
+      if (options.notifyUsers) {
+        await CurrencyService.notifyUsersRatesUpdated(updatedAt)
+      }
+
       return rates
     } catch (error) {
       logger.error('[APP:Currency] Error updating rates', {
@@ -97,6 +104,35 @@ export class CurrencyService {
       })
       // Không ném lỗi ra ngoài để tránh làm hỏng cron job
       return null
+    }
+  }
+
+  private static async notifyUsersRatesUpdated(updatedAt: string) {
+    try {
+      const users = await UserModel.find({}, { _id: 1 }).lean()
+
+      await Promise.all(
+        users.map((user) =>
+          createSystemNotification({
+            userId: user._id.toString(),
+            type: 'currency.rates_updated',
+            title: 'Exchange rates updated',
+            description: 'Latest currency rates are ready to use',
+            severity: 'success',
+            actionUrl: '/rates',
+            metadata: {
+              entityType: 'rate',
+              source: 'scheduled'
+            },
+            idempotencyKey: `currency-rates:${user._id.toString()}:${updatedAt}`
+          })
+        )
+      )
+    } catch (error) {
+      logger.warn('[APP:Currency] Failed to create rates notifications', {
+        updatedAt,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
     }
   }
 

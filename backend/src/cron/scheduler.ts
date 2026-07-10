@@ -35,7 +35,7 @@ export const startJobs = () => {
   return [
     scheduleJob('Transaction', '* * * * *', processRecurringTransactions),
     scheduleJob('Currency Update', '*/30 * * * *', () =>
-      CurrencyService.fetchAndBroadcastRates()
+      CurrencyService.fetchAndBroadcastRates({ notifyUsers: true })
     ),
 
     //Run 2:30am every first of the month

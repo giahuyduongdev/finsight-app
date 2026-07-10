@@ -89,6 +89,12 @@ export class MockTransactionRepository implements ITransactionRepository {
       filtered = filtered.filter((t) => t.status === filters.status)
     }
 
+    if (filters.importBatchId) {
+      filtered = filtered.filter(
+        (t) => t.importBatchId?.toString() === filters.importBatchId
+      )
+    }
+
     if (filters.recurringStatus) {
       if (filters.recurringStatus === 'RECURRING') {
         filtered = filtered.filter((t) => t.isRecurring === true)

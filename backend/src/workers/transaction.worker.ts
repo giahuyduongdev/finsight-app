@@ -17,6 +17,7 @@ import TransactionModel, {
 import { calculateNextOccurrence } from '../utils/dates/index'
 import { container } from '../container'
 import { getJobAttemptContext } from '../utils/bullmq/job-reliability.util'
+import { createSystemNotification } from '../utils/notification.util'
 import {
   observeBullMQJobProcessing,
   observeBullMQJobWait,
@@ -218,6 +219,20 @@ export const processBulkImportJob = async (job: Job<BulkImportJobData>) => {
     })
   }
 
+  await createSystemNotification({
+    userId: userId.toString(),
+    type: 'bulk_import.completed',
+    title: 'Transactions imported',
+    description: `Successfully imported ${totalInserted} transactions${rejectedCount > 0 ? ` (${rejectedCount} rejected)` : ''}`,
+    severity: 'success',
+    actionUrl: `/transactions?importBatchId=${importBatchId}`,
+    metadata: {
+      entityType: 'import',
+      entityId: importBatchId
+    },
+    idempotencyKey: `bulk-import:${importBatchId}:completed`
+  })
+
   return { insertedCount: totalInserted, rejectedCount, success: true }
 }
 
@@ -374,13 +389,23 @@ const processRecurringSummaryJob = async (job: Job<RecurringJobData>) => {
   try {
     const io = getIO()
     io.to(userId).emit('recurring-transaction:processed', {
-      message: `The system has processed your recurring transactions.`
+      message: `The system has processed your recurring transactions`
     })
   } catch (error) {
     logger.error('[JOB:Transaction] Failed to emit recurring summary event', {
       error: error instanceof Error ? error.message : String(error)
     })
   }
+
+  await createSystemNotification({
+    userId,
+    type: 'recurring_transaction.processed',
+    title: 'Recurring transactions processed',
+    description: 'The system has processed your recurring transactions',
+    severity: 'success',
+    actionUrl: '/transactions',
+    idempotencyKey: `recurring:${job.id ?? Date.now()}:processed`
+  })
 
   logger.info(`[JOB:Transaction] Parent Summary Processed for user: ${userId}`)
   return { success: true, userId, timestamp: new Date().toISOString() }
@@ -493,6 +518,20 @@ transactionWorker.on('failed', async (job, err) => {
           emitError instanceof Error ? emitError.message : String(emitError)
       })
     }
+
+    await createSystemNotification({
+      userId: job.data.userId.toString(),
+      type: 'bulk_import.failed',
+      title: 'Transaction import failed',
+      description: 'Import failed, please try again',
+      severity: 'error',
+      actionUrl: '/transactions',
+      metadata: {
+        entityType: 'import',
+        entityId: job.data.importBatchId
+      },
+      idempotencyKey: `bulk-import:${job.data.importBatchId}:failed`
+    })
   }
 
   // Xử lý Poison Pill cho Recurring nếu cần

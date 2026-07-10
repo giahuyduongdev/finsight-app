@@ -222,7 +222,7 @@ export function ChangePasswordDialog() {
       setSeconds(60)
       setCanResend(false)
       otpForm.reset()
-      toast.success('New verification code sent.')
+      toast.success('New verification code sent')
     } catch (error) {
       const err = error as { data?: { message?: string } }
       toast.error(err.data?.message || 'Failed to resend code')

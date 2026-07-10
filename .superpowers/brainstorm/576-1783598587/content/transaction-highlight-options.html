@@ -1,0 +1,41 @@
+<h2>Which transaction highlight feels best?</h2>
+<p class="subtitle">All options fade back to the normal row after 6 seconds.</p>
+
+<div class="cards">
+  <div class="card" data-choice="soft-tint-left-accent" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px;background:#f6f7f9">
+      <div style="display:grid;grid-template-columns:1.2fr 2fr 1.2fr 1fr;align-items:center;min-height:54px;padding:0 16px;border-left:4px solid #16b86a;border-radius:6px;background:#ecfbf3;box-shadow:0 2px 8px #14251c12;color:#18202d">
+        <strong>Jan 01, 2018</strong><span>Lorem Ipsum, Dolor</span><span>Shopping</span><strong style="color:#0f9a59">Completed</strong>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Soft tint + left accent</h3>
+      <p>Recommended. Clear entry point, no full border, and visually distinct from row selection.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="soft-ring" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px;background:#f6f7f9">
+      <div style="display:grid;grid-template-columns:1.2fr 2fr 1.2fr 1fr;align-items:center;min-height:54px;padding:0 16px;border-radius:7px;background:#fff;box-shadow:0 0 0 2px #63dba0,0 5px 14px #16352516;color:#18202d">
+        <strong>Jan 01, 2018</strong><span>Lorem Ipsum, Dolor</span><span>Shopping</span><strong style="color:#0f9a59">Completed</strong>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Soft focus ring</h3>
+      <p>Keeps the row white and uses a temporary green ring. More visible, but still resembles focus state.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="leading-success-marker" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px;background:#f6f7f9">
+      <div style="display:grid;grid-template-columns:auto 1.2fr 2fr 1.2fr 1fr;gap:12px;align-items:center;min-height:54px;padding:0 16px;border-radius:6px;background:#fff;box-shadow:0 3px 10px #1c26300d;color:#18202d">
+        <span style="width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:#dff8eb;color:#0c9b58;font-weight:900">✓</span>
+        <strong>Jan 01, 2018</strong><span>Lorem Ipsum, Dolor</span><span>Shopping</span><strong style="color:#0f9a59">Completed</strong>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Temporary success marker</h3>
+      <p>Very gentle, but adding an icon can shift table columns unless space is reserved permanently.</p>
+    </div>
+  </div>
+</div>

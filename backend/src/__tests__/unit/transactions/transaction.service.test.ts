@@ -201,6 +201,48 @@ describe('TransactionService', () => {
       expect(result.data).toHaveLength(1)
       expect(result.data[0].type).toBe(TransactionTypeEnum.EXPENSE)
     })
+
+    it('should filter transactions by import batch id', async () => {
+      const importBatchId = new mongoose.Types.ObjectId()
+      const otherImportBatchId = new mongoose.Types.ObjectId()
+
+      await mockTransactionRepository.seed([
+        {
+          userId: new mongoose.Types.ObjectId(testUserId),
+          type: TransactionTypeEnum.EXPENSE,
+          title: 'Imported transaction',
+          amount: 100,
+          currency: 'USD',
+          category: 'Food',
+          date: new Date(),
+          isRecurring: false,
+          status: 'COMPLETED',
+          importBatchId
+        },
+        {
+          userId: new mongoose.Types.ObjectId(testUserId),
+          type: TransactionTypeEnum.EXPENSE,
+          title: 'Other imported transaction',
+          amount: 200,
+          currency: 'USD',
+          category: 'Food',
+          date: new Date(),
+          isRecurring: false,
+          status: 'COMPLETED',
+          importBatchId: otherImportBatchId
+        }
+      ])
+
+      const result = await transactionService.findByUserId(
+        testUserId,
+        { importBatchId: importBatchId.toString() },
+        { pageSize: 10, pageNumber: 1 }
+      )
+
+      expect(result.data).toHaveLength(1)
+      expect(result.data[0].title).toBe('Imported transaction')
+      expect(result.pagination.totalCount).toBe(1)
+    })
   })
 
   // ─── findById Tests ───────────────────────────────────────────────────────

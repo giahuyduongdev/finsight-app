@@ -106,7 +106,7 @@ export class UserService {
     await revokeAllUserSessions(userId)
 
     return {
-      message: 'Password changed successfully. Please login again.'
+      message: 'Password changed successfully. Please login again'
     }
   }
 }
