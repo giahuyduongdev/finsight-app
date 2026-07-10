@@ -57,7 +57,7 @@ const FileUploadStep = ({ onFileUpload }: FileUploadStepProps) => {
         complete: (results) => {
           if (results.data.length > MAX_IMPORT_LIMIT) {
             toast.error(
-              `You can only import up to ${MAX_IMPORT_LIMIT} transactions.`
+              `You can only import up to ${MAX_IMPORT_LIMIT} transactions`
             )
             resetProgress()
             return
@@ -142,7 +142,7 @@ const FileUploadStep = ({ onFileUpload }: FileUploadStepProps) => {
           <div className="mt-4 space-y-2">
             <Progress value={progress} className="h-2" />
             <p className="text-xs text-muted-foreground">
-              Parsing file... {progress}%
+              Parsing file {progress}%
             </p>
           </div>
         )}

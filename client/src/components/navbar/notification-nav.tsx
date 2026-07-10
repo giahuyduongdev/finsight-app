@@ -1,4 +1,5 @@
-import { Bell } from 'lucide-react'
+import { Bell, CheckCheck, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/button'
 import {
   DropdownMenu,
@@ -9,43 +10,70 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '../ui/dropdown-menu'
+import {
+  useGetNotificationsQuery,
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation
+} from '@/features/notification/notificationAPI'
+import { NotificationItem } from '@/features/notification/notificationType'
+import { cn } from '@/lib/utils'
 
-type NotificationItem = {
-  id: string
-  title: string
-  description: string
-  time: string
-  unread: boolean
+const formatNotificationTime = (createdAt: string) => {
+  const created = new Date(createdAt).getTime()
+  if (!Number.isFinite(created)) return ''
+
+  const diffMs = Date.now() - created
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000))
+
+  if (diffMinutes < 1) return 'Just now'
+  if (diffMinutes < 60) return `${diffMinutes} min ago`
+
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric'
+  }).format(new Date(createdAt))
 }
 
-const notifications: NotificationItem[] = [
-  {
-    id: 'budget-warning',
-    title: 'Budget threshold reached',
-    description: 'Dining expenses are close to this month budget.',
-    time: '5 min ago',
-    unread: true
-  },
-  {
-    id: 'transaction-import',
-    title: 'Transactions imported',
-    description: '12 new transactions were added successfully.',
-    time: '1 hour ago',
-    unread: true
-  },
-  {
-    id: 'rate-update',
-    title: 'Exchange rates updated',
-    description: 'Latest currency rates are ready to use.',
-    time: 'Today',
-    unread: false
-  }
-]
-
 export function NotificationNav() {
-  const hasUnreadNotifications = notifications.some(
-    (notification) => notification.unread
-  )
+  const navigate = useNavigate()
+  const { data, isLoading } = useGetNotificationsQuery()
+  const [markNotificationRead] = useMarkNotificationReadMutation()
+  const [markAllNotificationsRead, { isLoading: isMarkingAllRead }] =
+    useMarkAllNotificationsReadMutation()
+
+  const notifications = data?.data || []
+  const unreadCount =
+    data?.meta?.unreadCount ??
+    notifications.filter((notification) => notification.unread).length
+  const hasUnreadNotifications = unreadCount > 0
+
+  const handleNotificationSelect = async (
+    event: Event,
+    notification: NotificationItem
+  ) => {
+    event.preventDefault()
+
+    if (notification.unread) {
+      await markNotificationRead(notification._id)
+    }
+
+    if (notification.actionUrl) {
+      navigate(notification.actionUrl)
+    }
+  }
+
+  const handleMarkAllRead = async (event: Event) => {
+    event.preventDefault()
+    if (!hasUnreadNotifications || isMarkingAllRead) return
+
+    await markAllNotificationsRead()
+  }
 
   return (
     <DropdownMenu>
@@ -67,34 +95,73 @@ export function NotificationNav() {
         align="end"
         forceMount
       >
-        <DropdownMenuLabel className="flex flex-col items-start gap-1">
-          <span className="font-semibold">Notifications</span>
-          <span className="text-[13px] font-light text-gray-400">
-            Recent activity in your account
+        <DropdownMenuLabel className="flex items-start justify-between gap-3">
+          <span className="flex flex-col items-start gap-1">
+            <span className="font-semibold">Notifications</span>
+            <span className="text-[13px] font-light text-gray-400">
+              Recent activity in your account
+            </span>
           </span>
+          {hasUnreadNotifications && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={isMarkingAllRead}
+              onClick={(event) => handleMarkAllRead(event.nativeEvent)}
+              className="h-7 w-7 shrink-0 !bg-transparent text-gray-300 hover:!bg-white/10 hover:!text-white"
+              aria-label="Mark all notifications as read"
+              title="Mark all as read"
+            >
+              {isMarkingAllRead ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCheck className="h-4 w-4" />
+              )}
+            </Button>
+          )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="!bg-gray-700" />
         <DropdownMenuGroup>
-          {notifications.length > 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center px-4 py-6 text-sm text-gray-400">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading notifications
+            </div>
+          ) : notifications.length > 0 ? (
             notifications.map((notification) => (
               <DropdownMenuItem
-                key={notification.id}
-                className="flex cursor-default items-start gap-3 py-3 hover:!bg-gray-800 hover:!text-white"
+                key={notification._id}
+                onSelect={(event) =>
+                  handleNotificationSelect(event, notification)
+                }
+                className={cn(
+                  'flex cursor-pointer items-start gap-3 py-3 hover:!bg-gray-800 hover:!text-white',
+                  notification.unread && 'bg-white/[0.03]'
+                )}
               >
                 <span
-                  className={`mt-1 h-2 w-2 rounded-full ${
+                  className={cn(
+                    'mt-1 h-2 w-2 shrink-0 rounded-full',
                     notification.unread ? 'bg-red-500' : 'bg-gray-600'
-                  }`}
+                  )}
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-sm font-medium">
+                  <span
+                    className={cn(
+                      'text-sm',
+                      notification.unread ? 'font-semibold' : 'font-medium'
+                    )}
+                  >
                     {notification.title}
                   </span>
-                  <span className="text-[13px] leading-5 text-gray-400">
-                    {notification.description}
-                  </span>
+                  {notification.description && (
+                    <span className="text-[13px] leading-5 text-gray-400">
+                      {notification.description}
+                    </span>
+                  )}
                   <span className="text-xs text-gray-500">
-                    {notification.time}
+                    {formatNotificationTime(notification.createdAt)}
                   </span>
                 </span>
               </DropdownMenuItem>

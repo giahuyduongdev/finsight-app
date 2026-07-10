@@ -26,6 +26,15 @@ import {
   SortingFn // Import thêm type này
 } from '@tanstack/react-table'
 import { TransactionType } from '@/features/transaction/transactionType'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  getTransactionHighlightClassName,
+  TRANSACTION_HIGHLIGHT_EVENT,
+  TRANSACTION_HIGHLIGHT_DURATION_MS,
+  TRANSACTION_HIGHLIGHT_QUERY_PARAM,
+  TRANSACTION_HIGHLIGHT_STORAGE_KEY,
+  TransactionHighlightEvent
+} from '@/features/transaction/transactionHighlight'
 
 type FilterType = {
   type?: _TransactionType | undefined
@@ -71,6 +80,19 @@ const TransactionTable = (props: {
 
   const [expanded, setExpanded] = useState<ExpandedState>({})
   const [childrenMap, setChildrenMap] = useState<ChildrenMapType>({})
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const highlightParam = searchParams.get(TRANSACTION_HIGHLIGHT_QUERY_PARAM)
+  const importBatchIdParam = searchParams.get('importBatchId')
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(
+    () =>
+      highlightParam ||
+      (typeof window !== 'undefined'
+        ? window.sessionStorage.getItem(TRANSACTION_HIGHLIGHT_STORAGE_KEY)
+        : null)
+  )
+  const [pinnedHighlightedTransaction, setPinnedHighlightedTransaction] =
+    useState<TransactionType | null>(null)
 
   const { timezone } = useTypedSelector((state) => state.auth.user) || {
     timezone: 'UTC'
@@ -96,10 +118,81 @@ const TransactionTable = (props: {
     dateRangePreset: dateRange?.value as DateRangePreset,
     from: dateRange?.from?.toISOString() || undefined,
     to: dateRange?.to?.toISOString() || undefined,
-    timezone
+    timezone,
+    importBatchId: importBatchIdParam || undefined
   })
 
-  const transactions = useMemo(() => data?.data || [], [data?.data])
+  const transactions = useMemo(() => {
+    const currentTransactions = data?.data || []
+
+    if (
+      !pinnedHighlightedTransaction ||
+      currentTransactions.some(
+        (transaction) => transaction._id === pinnedHighlightedTransaction._id
+      )
+    ) {
+      return currentTransactions
+    }
+
+    return [pinnedHighlightedTransaction, ...currentTransactions]
+  }, [data?.data, pinnedHighlightedTransaction])
+
+  useEffect(() => {
+    const pendingHighlight =
+      typeof window !== 'undefined'
+        ? window.sessionStorage.getItem(TRANSACTION_HIGHLIGHT_STORAGE_KEY)
+        : null
+    const nextHighlight = highlightParam || pendingHighlight
+
+    setActiveHighlightId(nextHighlight)
+
+    if (
+      nextHighlight &&
+      pendingHighlight &&
+      nextHighlight === pendingHighlight
+    ) {
+      window.sessionStorage.removeItem(TRANSACTION_HIGHLIGHT_STORAGE_KEY)
+    }
+
+    if (!nextHighlight) return
+
+    const timeout = window.setTimeout(() => {
+      setActiveHighlightId((current) =>
+        current === nextHighlight ? null : current
+      )
+      setPinnedHighlightedTransaction((current) =>
+        current?._id === nextHighlight ? null : current
+      )
+    }, TRANSACTION_HIGHLIGHT_DURATION_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [highlightParam])
+
+  useEffect(() => {
+    const handleHighlightRequest = (event: Event) => {
+      const transactionId = (event as TransactionHighlightEvent).detail
+        ?.transactionId
+      const transaction = (event as TransactionHighlightEvent).detail
+        ?.transaction
+
+      if (transactionId) {
+        setActiveHighlightId(transactionId)
+      }
+
+      if (transaction) {
+        setPinnedHighlightedTransaction(transaction)
+      }
+    }
+
+    window.addEventListener(TRANSACTION_HIGHLIGHT_EVENT, handleHighlightRequest)
+
+    return () => {
+      window.removeEventListener(
+        TRANSACTION_HIGHLIGHT_EVENT,
+        handleHighlightRequest
+      )
+    }
+  }, [])
 
   const pagination = {
     totalItems: data?.meta?.pagination?.totalCount || 0,
@@ -331,6 +424,15 @@ const TransactionTable = (props: {
     setFilter((prev) => ({ ...prev, ...filters, pageNumber: 1 }))
   }
 
+  const handleClearImportBatchFilter = () => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('importBatchId')
+    navigate({
+      pathname: '/transactions',
+      search: nextParams.toString()
+    })
+  }
+
   const handlePageChange = (pageNumber: number) =>
     setFilter((prev) => ({ ...prev, pageNumber }))
 
@@ -448,11 +550,19 @@ const TransactionTable = (props: {
           dateRangePreset: filter.dateRangePreset,
           from: filter.from,
           to: filter.to,
-          timezone: filter.timezone
+          timezone: filter.timezone,
+          importBatchId: importBatchIdParam || undefined
         })
       }
     }
-  }, [isFetching, data, filter, debouncedTerm, prefetchTransactions])
+  }, [
+    isFetching,
+    data,
+    filter,
+    debouncedTerm,
+    prefetchTransactions,
+    importBatchIdParam
+  ])
 
   const handleHoverPage = (page: number) => {
     const currentPage = filter.pageNumber || 1
@@ -468,7 +578,8 @@ const TransactionTable = (props: {
         dateRangePreset: dateRange?.value as DateRangePreset, // Cast to proper union type
         from: dateRange?.from?.toISOString() || undefined,
         to: dateRange?.to?.toISOString() || undefined,
-        timezone
+        timezone,
+        importBatchId: importBatchIdParam || undefined
       })
     }
   }
@@ -525,10 +636,34 @@ const TransactionTable = (props: {
       onFilterChange={handleFilterChange}
       onBulkDelete={handleBulkDelete}
       onHoverPage={handleHoverPage}
-      renderExtraFilters={
-        !isSyncMode && (
-          <DateRangeSelect dateRange={dateRange} setDateRange={setDateRange} />
+      getRowClassName={(row) =>
+        getTransactionHighlightClassName(
+          Boolean(activeHighlightId && row._id === activeHighlightId)
         )
+      }
+      renderExtraFilters={
+        <>
+          {!isSyncMode && (
+            <DateRangeSelect
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+            />
+          )}
+          {importBatchIdParam && (
+            <div className="flex min-h-10 items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-800">
+              <span title={`Import batch ${importBatchIdParam}`}>
+                Showing transactions from the latest import
+              </span>
+              <button
+                type="button"
+                className="cursor-pointer font-medium underline-offset-2 hover:underline"
+                onClick={handleClearImportBatchFilter}
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </>
       }
     />
   )

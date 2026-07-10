@@ -138,7 +138,7 @@ describe('auth.controller', () => {
 
   it('emits auth session revoked event after password change succeeds', async () => {
     mockVerifyChangePasswordOTPService.mockResolvedValue({
-      message: 'Password changed successfully. Please login again.'
+      message: 'Password changed successfully. Please login again'
     })
 
     const mockRequest = {
@@ -171,7 +171,7 @@ describe('auth.controller', () => {
 
   it('emits auth session revoked event after email change succeeds', async () => {
     mockVerifyChangeEmailOTPService.mockResolvedValue({
-      message: 'Email changed successfully. Please login again.'
+      message: 'Email changed successfully. Please login again'
     })
 
     const mockRequest = {
@@ -204,7 +204,7 @@ describe('auth.controller', () => {
   it('emits auth session revoked event after password reset succeeds', async () => {
     mockResetPasswordService.mockResolvedValue({
       userId: 'user-456',
-      message: 'Password reset successfully. Please login again.'
+      message: 'Password reset successfully. Please login again'
     })
 
     const mockRequest = {
@@ -234,7 +234,7 @@ describe('auth.controller', () => {
     expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
     expect(jsonMock).toHaveBeenCalledWith({
       data: null,
-      meta: { message: 'Password reset successfully. Please login again.' }
+      meta: { message: 'Password reset successfully. Please login again' }
     })
     expect(nextMock).not.toHaveBeenCalled()
   })

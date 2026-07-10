@@ -261,13 +261,13 @@ const ForgotPasswordForm = () => {
       const errorCode = err.data?.errorCode
 
       if (errorCode === 'AUTH_OTP_EXPIRED') {
-        toast.error('OTP has expired. Please request a new one.')
+        toast.error('OTP has expired. Please request a new one')
         otpForm.reset()
         return
       }
 
       if (errorCode === 'AUTH_OTP_TOO_MANY_REQUESTS') {
-        toast.error('Too many failed attempts. Please request a new OTP.')
+        toast.error('Too many failed attempts. Please request a new OTP')
         otpForm.reset()
         resetCountdown()
         return
@@ -305,7 +305,7 @@ const ForgotPasswordForm = () => {
 
   const onResetSubmit = async (values: ResetValues) => {
     if (!resetToken) {
-      toast.error('Reset session expired. Please verify OTP again.')
+      toast.error('Reset session expired. Please verify OTP again')
       setStep('verify_otp')
       resetForm.reset()
       return
@@ -317,7 +317,7 @@ const ForgotPasswordForm = () => {
         resetToken,
         newPassword: values.newPassword
       }).unwrap()
-      toast.success('Password reset successfully! Please log in.')
+      toast.success('Password reset successfully! Please log in')
       navigate(AUTH_ROUTES.SIGN_IN)
     } catch (error: unknown) {
       const errorCode = getApiErrorCode(error)
@@ -330,7 +330,7 @@ const ForgotPasswordForm = () => {
       }
 
       if (errorCode === 'AUTH_OTP_EXPIRED') {
-        toast.error('Reset session expired. Please start over.')
+        toast.error('Reset session expired. Please start over')
         setStep('enter_email')
         emailForm.reset()
         otpForm.reset()

@@ -68,7 +68,7 @@ export const createReceiptStatusService = (
       }
 
       if (status === 'failed') {
-        response.error = 'Receipt processing failed. Please try again.'
+        response.error = 'Receipt processing failed. Please try again'
       }
 
       return response

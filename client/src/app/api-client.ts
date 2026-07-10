@@ -134,6 +134,6 @@ export const apiClient = createApi({
   baseQuery: baseQueryWithReauth,
   refetchOnMountOrArgChange: 60,
   // refetchOnMountOrArgChange: true, // Refetch on mount or arg change
-  tagTypes: ['transactions', 'analytics', 'report', 'user'], // Tag types for RTK Query
+  tagTypes: ['transactions', 'analytics', 'report', 'user', 'notifications'], // Tag types for RTK Query
   endpoints: () => ({}) // Endpoints for RTK Query
 })

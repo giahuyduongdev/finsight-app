@@ -341,7 +341,7 @@ const ConfirmationStep = ({
       // Close modal immediately and let background handle it
       onComplete()
 
-      toast.info('Import processing in background...', {
+      toast.info('Import processing in background', {
         id: 'bulk-import',
         duration: 3000
       })

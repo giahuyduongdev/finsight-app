@@ -9,6 +9,7 @@ import { ReportRepository } from './repositories/report.repository'
 import { ReportSettingRepository } from './repositories/report-setting.repository'
 import { RefreshTokenRepository } from './repositories/refresh-token.repository'
 import { ImportBatchRepository } from './repositories/import-batch.repository'
+import { NotificationRepository } from './repositories/notification.repository'
 
 import { IUserRepository } from './repositories/interfaces/user-repository.interface'
 import { ITransactionRepository } from './repositories/interfaces/transaction-repository.interface'
@@ -16,11 +17,13 @@ import { IReportRepository } from './repositories/interfaces/report-repository.i
 import { IReportSettingRepository } from './repositories/interfaces/report-setting-repository.interface'
 import { IRefreshTokenRepository } from './repositories/interfaces/refresh-token-repository.interface'
 import { IImportBatchRepository } from './repositories/interfaces/import-batch-repository.interface'
+import { INotificationRepository } from './repositories/interfaces/notification-repository.interface'
 
 import { UserService } from './services/user.service'
 import { TransactionService } from './services/transaction.service'
 import { ReportService } from './services/report.service'
 import { AnalyticsService } from './services/analytics.service'
+import { NotificationService } from './services/notification.service'
 
 /**
  * Dependency Injection Container
@@ -34,12 +37,14 @@ class Container {
   private readonly _reportSettingRepository: IReportSettingRepository
   private readonly _refreshTokenRepository: IRefreshTokenRepository
   private readonly _importBatchRepository: IImportBatchRepository
+  private readonly _notificationRepository: INotificationRepository
 
   // Service instances (singletons)
   private readonly _userService: UserService
   private readonly _transactionService: TransactionService
   private readonly _reportService: ReportService
   private readonly _analyticsService: AnalyticsService
+  private readonly _notificationService: NotificationService
 
   constructor() {
     // Initialize all repositories
@@ -49,6 +54,7 @@ class Container {
     this._reportSettingRepository = new ReportSettingRepository()
     this._refreshTokenRepository = new RefreshTokenRepository()
     this._importBatchRepository = new ImportBatchRepository()
+    this._notificationRepository = new NotificationRepository()
 
     // Initialize services with repository dependencies
     this._userService = new UserService(this._userRepository)
@@ -61,6 +67,9 @@ class Container {
       this._reportSettingRepository
     )
     this._analyticsService = new AnalyticsService(this._transactionRepository)
+    this._notificationService = new NotificationService(
+      this._notificationRepository
+    )
   }
 
   // ─── Repository Getters ───────────────────────────────────────────────────
@@ -113,6 +122,10 @@ class Container {
     return this._importBatchRepository
   }
 
+  getNotificationRepository(): INotificationRepository {
+    return this._notificationRepository
+  }
+
   // ─── Service Getters ──────────────────────────────────────────────────────
 
   /**
@@ -145,6 +158,10 @@ class Container {
    */
   getAnalyticsService(): AnalyticsService {
     return this._analyticsService
+  }
+
+  getNotificationService(): NotificationService {
+    return this._notificationService
   }
 
   /**

@@ -29,6 +29,7 @@ import {
   recordReceiptScan
 } from '../observability'
 import { captureBackgroundError } from '../config/sentry.config'
+import { createSystemNotification } from '../utils/notification.util'
 
 const MAX_RETRY_DELAY_MS = 30000
 
@@ -136,6 +137,20 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
             data: cachedReceipt.data
           })
 
+          await createSystemNotification({
+            userId,
+            type: 'receipt_scan.completed',
+            title: 'Receipt scan completed',
+            description: 'Receipt scan data is ready to review',
+            severity: 'success',
+            actionUrl: '/transactions',
+            metadata: {
+              entityType: 'receipt',
+              entityId: job.id
+            },
+            idempotencyKey: `receipt-scan:${job.id}:completed`
+          })
+
           return {
             status: 'skipped',
             reason: 'receipt-scan-cache-hit',
@@ -220,6 +235,20 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       io.to(userId).emit('receipt:scan-completed', {
         jobId: job.id,
         data: receiptData
+      })
+
+      await createSystemNotification({
+        userId,
+        type: 'receipt_scan.completed',
+        title: 'Receipt scan completed',
+        description: 'Receipt scan data is ready to review',
+        severity: 'success',
+        actionUrl: '/transactions',
+        metadata: {
+          entityType: 'receipt',
+          entityId: job.id
+        },
+        idempotencyKey: `receipt-scan:${job.id}:completed`
       })
 
       // Invalidate analytics cache
@@ -312,6 +341,20 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
         data: receiptData
       })
 
+      await createSystemNotification({
+        userId,
+        type: 'receipt_scan.completed',
+        title: 'Receipt scan completed',
+        description: 'Receipt scan data is ready to review',
+        severity: 'success',
+        actionUrl: '/transactions',
+        metadata: {
+          entityType: 'receipt',
+          entityId: job.id
+        },
+        idempotencyKey: `receipt-scan:${job.id}:completed`
+      })
+
       // Invalidate analytics cache
       await safeInvalidateUserAnalyticsCache(userId)
 
@@ -373,6 +416,20 @@ export async function processScanReceiptJob(job: Job<ScanReceiptJobData>) {
       io.to(userId).emit('receipt:scan-failed', {
         jobId: job.id,
         error: friendlyMessage
+      })
+
+      await createSystemNotification({
+        userId,
+        type: 'receipt_scan.failed',
+        title: 'Receipt scan failed',
+        description: friendlyMessage,
+        severity: 'error',
+        actionUrl: '/transactions',
+        metadata: {
+          entityType: 'receipt',
+          entityId: job.id
+        },
+        idempotencyKey: `receipt-scan:${job.id}:failed`
       })
     }
 

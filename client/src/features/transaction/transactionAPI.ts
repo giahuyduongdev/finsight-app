@@ -4,6 +4,7 @@ import {
   ReceiptScanStatusResponse,
   BulkImportTransactionPayload,
   CreateTransactionBody,
+  CreateTransactionResponse,
   GetAllTransactionParams,
   GetAllTransactionResponse,
   GetChildTransactionsResponse,
@@ -13,7 +14,10 @@ import {
 
 export const transactionApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
-    createTransaction: builder.mutation<void, CreateTransactionBody>({
+    createTransaction: builder.mutation<
+      CreateTransactionResponse,
+      CreateTransactionBody
+    >({
       query: (body) => ({
         url: '/transactions',
         method: 'POST',
@@ -53,7 +57,8 @@ export const transactionApi = apiClient.injectEndpoints({
           dateRangePreset,
           from,
           to,
-          timezone
+          timezone,
+          importBatchId
         } = params
 
         const queryParams: Record<string, unknown> = { pageNumber, pageSize }
@@ -66,6 +71,7 @@ export const transactionApi = apiClient.injectEndpoints({
         if (from) queryParams.from = from
         if (to) queryParams.to = to
         if (timezone) queryParams.timezone = timezone
+        if (importBatchId) queryParams.importBatchId = importBatchId
 
         return {
           url: '/transactions/all',

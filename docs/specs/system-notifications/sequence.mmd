@@ -1,0 +1,34 @@
+sequenceDiagram
+  autonumber
+  participant W as Worker/API Domain Flow
+  participant NS as NotificationService
+  participant DB as MongoDB
+  participant S as Socket.IO
+  participant C as Client useAppSockets
+  participant N as NotificationNav
+  participant R as Related Page
+
+  W->>W: Complete business operation
+  W->>NS: createNotification(userId, payload)
+  NS->>DB: Insert notification
+  DB-->>NS: Saved notification
+  NS->>S: emit notification:created to user room
+  S-->>C: notification:created
+  C->>N: Upsert notification and unread count
+
+  N->>N: User opens dropdown
+  Note over N: Opening does not mark read
+
+  N->>NS: PATCH /notifications/:id/read
+  NS->>DB: Set unread=false, readAt=now
+  DB-->>NS: Updated notification
+  NS-->>N: Updated notification
+
+  alt Notification has actionUrl
+    N->>R: Navigate to actionUrl
+    alt actionUrl includes highlight id
+      R->>R: Temporarily highlight related entity
+    end
+  else No actionUrl
+    N->>N: Stay on current page
+  end

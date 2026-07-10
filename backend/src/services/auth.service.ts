@@ -250,7 +250,7 @@ export const verifyRegisterOTPService = async (
   const storedOTP = await redis.get(REDIS_KEYS.registerOtp(email))
   if (!storedOTP) {
     throw new BadRequestException(
-      'OTP has expired. Please register again.',
+      'OTP has expired. Please register again',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -276,7 +276,7 @@ export const verifyRegisterOTPService = async (
         .exec()
 
       throw new BadRequestException(
-        'Too many invalid attempts. Your OTP has been revoked. Please request a new one.',
+        'Too many invalid attempts. Your OTP has been revoked. Please request a new one',
         ErrorCodeEnum.AUTH_OTP_INVALID // Hoặc bạn có thể tự tạo mã lỗi mới như AUTH_TOO_MANY_ATTEMPTS
       )
     }
@@ -284,7 +284,7 @@ export const verifyRegisterOTPService = async (
     // Nếu vẫn còn lượt thử, báo lỗi kèm số lần còn lại
     const attemptsLeft = OTP_CONFIG.MAX_ATTEMPTS - currentFails
     throw new BadRequestException(
-      `Invalid OTP. You have ${attemptsLeft} attempts left.`,
+      `Invalid OTP. You have ${attemptsLeft} attempts left`,
       ErrorCodeEnum.AUTH_OTP_INVALID
     )
   }
@@ -292,7 +292,7 @@ export const verifyRegisterOTPService = async (
   const pendingData = await redis.get(REDIS_KEYS.registerPending(email))
   if (!pendingData) {
     throw new BadRequestException(
-      'Registration session expired. Please register again.',
+      'Registration session expired. Please register again',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -318,7 +318,7 @@ export const verifyRegisterOTPService = async (
   } catch {
     await clearRegisterState(email)
     throw new BadRequestException(
-      'Registration session expired. Please register again.',
+      'Registration session expired. Please register again',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -478,7 +478,7 @@ export const verifyForgotPasswordOTPService = async (
   const storedOTP = await redis.get(REDIS_KEYS.forgotOtp(email))
   if (!storedOTP) {
     throw new BadRequestException(
-      'OTP has expired. Please request a new one.',
+      'OTP has expired. Please request a new one',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -496,7 +496,7 @@ export const verifyForgotPasswordOTPService = async (
       .exec()
 
     throw new BadRequestException(
-      'Too many failed attempts. Please request a new OTP.',
+      'Too many failed attempts. Please request a new OTP',
       ErrorCodeEnum.AUTH_OTP_TOO_MANY_REQUESTS
     )
   }
@@ -510,7 +510,7 @@ export const verifyForgotPasswordOTPService = async (
     const remainingAttempts = OTP_CONFIG.MAX_ATTEMPTS - (attempts + 1)
 
     throw new BadRequestException(
-      `Invalid OTP. You have ${remainingAttempts} attempts remaining.`,
+      `Invalid OTP. You have ${remainingAttempts} attempts remaining`,
       ErrorCodeEnum.AUTH_OTP_INVALID,
       { remainingAttempts }
     )
@@ -519,7 +519,7 @@ export const verifyForgotPasswordOTPService = async (
   const user = await findUserByEmailWithLookup(email)
   if (!user) {
     throw new BadRequestException(
-      'OTP has expired. Please request a new one.',
+      'OTP has expired. Please request a new one',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -567,7 +567,7 @@ export const resendForgotPasswordOTPService = async (
   if (!user) {
     // Không ném lỗi NotFoundException ở đây để hacker không biết email có tồn tại hay không
     return {
-      message: 'If your email is registered, a new OTP has been sent.'
+      message: 'If your email is registered, a new OTP has been sent'
     }
   }
 
@@ -590,7 +590,7 @@ export const resendForgotPasswordOTPService = async (
   await sendPasswordResetEmail({ email, username: user.name, otpCode: otp })
 
   return {
-    message: 'If your email is registered, a new OTP has been sent.'
+    message: 'If your email is registered, a new OTP has been sent'
   }
 }
 
@@ -601,7 +601,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
   const storedHashedToken = await redis.get(REDIS_KEYS.resetToken(email))
   if (!storedHashedToken) {
     throw new BadRequestException(
-      'Reset session expired. Please request a new OTP.',
+      'Reset session expired. Please request a new OTP',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -611,7 +611,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
 
   if (storedHashedToken !== hashedInputToken) {
     throw new BadRequestException(
-      'Invalid reset token.',
+      'Invalid reset token',
       ErrorCodeEnum.AUTH_TOKEN_INVALID
     )
   }
@@ -629,7 +629,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
 
   if (isValidPassword) {
     throw new BadRequestException(
-      'New password must be different from the old password.',
+      'New password must be different from the old password',
       ErrorCodeEnum.AUTH_PASSWORD_MUST_BE_DIFFERENT
     )
   }
@@ -647,7 +647,7 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
 
   return {
     userId: user._id.toString(),
-    message: 'Password reset successfully. Please login again.'
+    message: 'Password reset successfully. Please login again'
   }
 }
 
@@ -1072,7 +1072,7 @@ export const changePasswordRequestService = async (
   })
 
   return {
-    message: 'Verification code sent to your email.'
+    message: 'Verification code sent to your email'
   }
 }
 
@@ -1110,7 +1110,7 @@ export const verifyChangePasswordOTPService = async (
       .exec()
 
     throw new BadRequestException(
-      'Too many failed attempts. Please request a new OTP.',
+      'Too many failed attempts. Please request a new OTP',
       ErrorCodeEnum.AUTH_TOO_MANY_ATTEMPTS
     )
   }
@@ -1121,7 +1121,7 @@ export const verifyChangePasswordOTPService = async (
     await redis.incr(attemptsKey)
     const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
     throw new BadRequestException(
-      `Invalid OTP. You have ${remaining} attempts left.`,
+      `Invalid OTP. You have ${remaining} attempts left`,
       ErrorCodeEnum.AUTH_OTP_INVALID,
       { remainingAttempts: remaining }
     )
@@ -1150,7 +1150,7 @@ export const verifyChangePasswordOTPService = async (
       redis.del(attemptsKey)
     ])
     throw new BadRequestException(
-      'Session data corrupted. Please start over.',
+      'Session data corrupted. Please start over',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -1169,7 +1169,7 @@ export const verifyChangePasswordOTPService = async (
   ])
 
   return {
-    message: 'Password changed successfully. Please login again.'
+    message: 'Password changed successfully. Please login again'
   }
 }
 
@@ -1199,7 +1199,7 @@ export const resendChangePasswordOTPService = async (userId: string) => {
   )
   if (!pendingPassword) {
     throw new BadRequestException(
-      'Change password session expired. Please start over.',
+      'Change password session expired. Please start over',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -1232,7 +1232,7 @@ export const resendChangePasswordOTPService = async (userId: string) => {
   })
 
   return {
-    message: 'New verification code sent to your email.'
+    message: 'New verification code sent to your email'
   }
 }
 
@@ -1314,7 +1314,7 @@ export const changeEmailRequestService = async (
   ])
 
   return {
-    message: 'Verification codes sent to both your old and new email addresses.'
+    message: 'Verification codes sent to both your old and new email addresses'
   }
 }
 
@@ -1355,7 +1355,7 @@ export const verifyChangeEmailOTPService = async (
       .exec()
 
     throw new BadRequestException(
-      'Too many failed attempts. Please request new codes.',
+      'Too many failed attempts. Please request new codes',
       ErrorCodeEnum.AUTH_TOO_MANY_ATTEMPTS
     )
   }
@@ -1371,15 +1371,15 @@ export const verifyChangeEmailOTPService = async (
     await redis.incr(attemptsKey)
     const remaining = OTP_CONFIG.MAX_ATTEMPTS - (currentAttempts + 1)
 
-    let errorMsg = 'Invalid verification codes.'
-    if (!isOldValid && !isNewValid) errorMsg = 'Both codes are invalid.'
+    let errorMsg = 'Invalid verification codes'
+    if (!isOldValid && !isNewValid) errorMsg = 'Both codes are invalid'
     else if (!isOldValid)
-      errorMsg = 'Authorization code for old email is invalid.'
+      errorMsg = 'Authorization code for old email is invalid'
     else if (!isNewValid)
-      errorMsg = 'Verification code for new email is invalid.'
+      errorMsg = 'Verification code for new email is invalid'
 
     throw new BadRequestException(
-      `${errorMsg} You have ${remaining} attempts left.`,
+      `${errorMsg}. You have ${remaining} attempts left`,
       ErrorCodeEnum.AUTH_OTP_INVALID,
       { remainingAttempts: remaining }
     )
@@ -1426,7 +1426,7 @@ export const verifyChangeEmailOTPService = async (
   await syncChangedUserEmailLookup(oldEmail, newEmail, user.id)
 
   return {
-    message: 'Email updated successfully.'
+    message: 'Email updated successfully'
   }
 }
 
@@ -1450,7 +1450,7 @@ export const resendChangeEmailOTPService = async (userId: string) => {
   const pendingEmail = await redis.get(REDIS_KEYS.changeEmailPending(userId))
   if (!pendingEmail) {
     throw new BadRequestException(
-      'Change email session expired. Please start over.',
+      'Change email session expired. Please start over',
       ErrorCodeEnum.AUTH_OTP_EXPIRED
     )
   }
@@ -1498,6 +1498,6 @@ export const resendChangeEmailOTPService = async (userId: string) => {
 
   return {
     message:
-      'New verification codes sent to both your old and new email addresses.'
+      'New verification codes sent to both your old and new email addresses'
   }
 }

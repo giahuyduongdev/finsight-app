@@ -1,0 +1,59 @@
+<h2>Toast placement: direct action vs background task</h2>
+<p class="subtitle">Recommended layout for the Finsight dashboard</p>
+
+<div class="mockup">
+  <div class="mockup-header">Dashboard preview</div>
+  <div class="mockup-body" style="position:relative;min-height:520px;padding:0;overflow:hidden;background:#161b2a;border-radius:0 0 10px 10px">
+    <div style="height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#181d2b;color:#fff">
+      <strong style="font-size:20px">▣ Finsight</strong>
+      <span style="color:#c7cede">Overview &nbsp;&nbsp; Transactions &nbsp;&nbsp; Settings</span>
+    </div>
+
+    <div style="padding:34px 24px;color:#fff">
+      <h3 style="font-size:28px;margin:0 0 8px">Welcome back, Gia Huy Duong</h3>
+      <p style="color:#9ba7bd;margin:0">Your overview report for the selected period</p>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:30px">
+        <div style="height:120px;padding:18px;border-radius:12px;background:#242a3a">Available Balance</div>
+        <div style="height:120px;padding:18px;border-radius:12px;background:#242a3a">Total Income</div>
+        <div style="height:120px;padding:18px;border-radius:12px;background:#242a3a">Total Expenses</div>
+        <div style="height:120px;padding:18px;border-radius:12px;background:#242a3a">Savings Rate</div>
+      </div>
+    </div>
+
+    <div style="position:absolute;right:18px;top:78px;width:330px;padding:14px 16px;display:flex;gap:12px;border:1px solid #64dc94;border-radius:11px;background:#eafff1;color:#087d36;box-shadow:0 12px 30px #0007">
+      <span style="font-size:18px">✓</span>
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.08em;opacity:.7">DIRECT ACTION</div>
+        <strong style="font-size:14px">Transaction created successfully</strong>
+        <div style="font-size:11px;margin-top:4px;opacity:.75">Auto-dismiss after 4 seconds</div>
+      </div>
+    </div>
+
+    <div style="position:absolute;right:18px;bottom:18px;width:330px;padding:14px 16px;display:flex;gap:12px;border:1px solid #91adf5;border-radius:11px;background:#f1f5ff;color:#183c7a;box-shadow:0 12px 30px #0007">
+      <span style="font-size:18px">⚙</span>
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.08em;opacity:.7">BACKGROUND TASK</div>
+        <strong style="font-size:14px">Receipt scan completed</strong>
+        <div style="font-size:12px;margin-top:4px">Receipt data is ready for review.</div>
+        <div style="font-size:12px;font-weight:800;margin-top:8px;color:#175bcc">Review receipt →</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="approve-dual-corner" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Approve dual-corner layout</h3>
+      <p>Top-right for direct feedback; bottom-right for background tasks with an action.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="needs-adjustment" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>Needs adjustment</h3>
+      <p>Select this if placement, size, color, or behavior should change.</p>
+    </div>
+  </div>
+</div>

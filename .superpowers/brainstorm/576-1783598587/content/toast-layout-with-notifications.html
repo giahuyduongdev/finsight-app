@@ -1,0 +1,87 @@
+<h2>Collision behavior with Notifications open</h2>
+<p class="subtitle">The action toast moves left of the dropdown; the background-task toast stays bottom-right.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Finsight overview — Notifications open</div>
+  <div class="mockup-body" style="position:relative;min-height:620px;padding:0;overflow:hidden;background:#f5f6f8">
+    <div style="height:470px;background:#171c2a;color:#fff">
+      <div style="height:78px;display:flex;align-items:center;padding:0 32px;position:relative">
+        <strong style="font-size:21px">▣ Finsight</strong>
+        <div style="position:absolute;left:50%;transform:translateX(-50%);color:#b8c0d2">
+          <strong style="color:#fff">Overview</strong> &nbsp;&nbsp;&nbsp; Transactions &nbsp;&nbsp;&nbsp; Rates &nbsp;&nbsp;&nbsp; Reports &nbsp;&nbsp;&nbsp; Settings
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+          <div style="width:44px;height:44px;border-radius:50%;background:#2a3040;display:grid;place-items:center;font-size:19px">♧</div>
+          <div style="width:38px;height:38px;border-radius:50%;background:#3d4659;display:grid;place-items:center">GH</div>
+        </div>
+      </div>
+
+      <div style="padding:34px 24px">
+        <h3 style="font-size:32px;margin:0 0 8px">Welcome back, Gia Huy Duong</h3>
+        <p style="color:#9ba7bd;margin:0">This is your overview report for the selected period</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:30px">
+          <div style="height:145px;padding:22px;border-radius:12px;background:#242a3a">Available Balance<br><strong style="display:block;margin-top:24px;font-size:25px;color:#ff6169">-$ 84.80</strong></div>
+          <div style="height:145px;padding:22px;border-radius:12px;background:#242a3a">Total Income<br><strong style="display:block;margin-top:24px;font-size:25px">$ 0.00</strong></div>
+          <div style="height:145px;padding:22px;border-radius:12px;background:#242a3a">Total Expenses<br><strong style="display:block;margin-top:24px;font-size:25px">-$ 84.80</strong></div>
+          <div style="height:145px;padding:22px;border-radius:12px;background:#242a3a">Savings Rate<br><strong style="display:block;margin-top:24px;font-size:25px">0.0%</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;padding:28px 24px">
+      <div style="height:125px;border-radius:12px;background:#fff;padding:22px;color:#111"><strong>Transaction Overview</strong></div>
+      <div style="height:125px;border-radius:12px;background:#fff;padding:22px;color:#111"><strong>Expenses Breakdown</strong></div>
+    </div>
+
+    <div style="position:absolute;right:18px;top:70px;width:350px;border:1px solid #3a4357;border-radius:9px;background:#181e2d;color:#fff;box-shadow:0 16px 35px #0008;z-index:30">
+      <div style="padding:15px 16px;border-bottom:1px solid #394154">
+        <strong>Notifications</strong>
+        <div style="font-size:12px;color:#919caf;margin-top:5px">Recent activity in your account</div>
+      </div>
+      <div style="padding:16px;display:flex;gap:12px">
+        <span style="width:9px;height:9px;margin-top:5px;border-radius:50%;background:#68758b"></span>
+        <div>
+          <strong style="font-size:14px">Receipt scan completed</strong>
+          <div style="font-size:12px;color:#9ca7ba;margin-top:7px">Receipt scan data is ready to review.</div>
+          <div style="font-size:11px;color:#717d92;margin-top:10px">28 min ago</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:absolute;right:384px;top:82px;width:300px;padding:14px 16px;display:flex;gap:11px;border:1px solid #64dc94;border-radius:10px;background:#eafff1;color:#087d36;box-shadow:0 12px 30px #0007;z-index:20">
+      <span style="font-size:18px">✓</span>
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.08em;opacity:.7">DIRECT ACTION</div>
+        <strong style="font-size:13px">Transaction created successfully</strong>
+        <div style="font-size:11px;margin-top:4px;opacity:.75">Auto-dismiss after 4 seconds</div>
+      </div>
+    </div>
+
+    <div style="position:absolute;right:18px;bottom:18px;width:350px;padding:14px 16px;display:flex;gap:11px;border:1px solid #91adf5;border-radius:10px;background:#f1f5ff;color:#183c7a;box-shadow:0 12px 30px #0005;z-index:20">
+      <span style="font-size:18px">⚙</span>
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.08em;opacity:.7">BACKGROUND TASK</div>
+        <strong style="font-size:13px">Receipt scan completed</strong>
+        <div style="font-size:12px;margin-top:4px">Receipt data is ready for review.</div>
+        <div style="font-size:12px;font-weight:800;margin-top:8px;color:#175bcc">Review receipt →</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="approve-collision-layout" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Approve this collision behavior</h3>
+      <p>Move the top toast left while Notifications is open.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="revise-collision-layout" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Revise placement</h3>
+      <p>Choose this if the top toast should move somewhere else.</p>
+    </div>
+  </div>
+</div>

@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppSockets } from './use-app-sockets'
+import { markNotificationHandledInForeground } from '@/features/notification/notificationPresentation'
 
 type SocketHandler = (payload?: unknown) => void
 
@@ -13,6 +14,25 @@ const mocks = vi.hoisted(() => ({
   resetApiState: vi.fn(() => ({
     type: 'api/resetApiState'
   })),
+  updateNotificationQueryData: vi.fn(
+    (_endpoint: string, _arg: undefined, updater: (draft: unknown) => void) => {
+      const action = {
+        payload: {
+          data: [],
+          meta: { unreadCount: 0 }
+        },
+        type: 'api/updateQueryData'
+      }
+      updater(action.payload)
+      return action
+    }
+  ),
+  upsertNotification: vi.fn(
+    (notifications: unknown[], notification: unknown) => [
+      notification,
+      ...notifications
+    ]
+  ),
   logout: vi.fn(() => ({
     type: 'auth/logout'
   })),
@@ -27,10 +47,12 @@ const mocks = vi.hoisted(() => ({
   unsubscribeLocalLogout: vi.fn(),
   localLogoutHandler: undefined as undefined | (() => void),
   toast: {
+    dismiss: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
     loading: vi.fn(),
-    success: vi.fn()
+    success: vi.fn(),
+    warning: vi.fn()
   },
   handlers: {} as Record<string, SocketHandler>,
   socket: {
@@ -85,6 +107,15 @@ vi.mock('@/features/user/userAPI', () => ({
       }
     }
   }
+}))
+
+vi.mock('@/features/notification/notificationAPI', () => ({
+  notificationApi: {
+    util: {
+      updateQueryData: mocks.updateNotificationQueryData
+    }
+  },
+  upsertNotification: mocks.upsertNotification
 }))
 
 const HookHost = () => {
@@ -175,6 +206,110 @@ describe('useAppSockets', () => {
     expect(mocks.invalidateTags).toHaveBeenCalledWith(['report'])
   })
 
+  it('upserts realtime notifications and invalidates notification cache', () => {
+    render(<HookHost />)
+
+    const notification = {
+      _id: 'notification-123',
+      type: 'receipt_scan.completed',
+      title: 'Receipt scan completed',
+      description: 'Receipt scan data is ready to review',
+      severity: 'success',
+      unread: true,
+      actionUrl: '/transactions',
+      createdAt: '2026-07-08T00:00:00.000Z'
+    }
+
+    mocks.handlers['notification:created']?.(notification)
+
+    expect(mocks.updateNotificationQueryData).toHaveBeenCalledWith(
+      'getNotifications',
+      undefined,
+      expect.any(Function)
+    )
+    expect(mocks.upsertNotification).toHaveBeenCalledWith([], notification)
+    expect(mocks.invalidateTags).toHaveBeenCalledWith(['notifications'])
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      payload: ['notifications'],
+      type: 'api/invalidateTags'
+    })
+    expect(mocks.toast.success).toHaveBeenCalledWith('Receipt scan completed', {
+      action: {
+        label: 'Review receipt',
+        onClick: expect.any(Function)
+      },
+      description: 'Receipt scan data is ready to review',
+      duration: Infinity,
+      id: 'notification-notification-123',
+      position: 'bottom-right'
+    })
+
+    const toastOptions = mocks.toast.success.mock.calls[0]?.[1]
+    toastOptions.action.onClick()
+    expect(mocks.redirectTo).toHaveBeenCalledWith('/transactions')
+  })
+
+  it('does not show a background toast when this tab handled the result in the foreground', () => {
+    render(<HookHost />)
+    markNotificationHandledInForeground('receipt-job-123')
+
+    mocks.handlers['notification:created']?.({
+      _id: 'notification-foreground-receipt',
+      type: 'receipt_scan.completed',
+      title: 'Receipt scan completed',
+      description: 'Receipt scan data is ready to review',
+      severity: 'success',
+      unread: true,
+      metadata: {
+        entityType: 'receipt',
+        entityId: 'receipt-job-123'
+      },
+      createdAt: '2026-07-08T00:00:00.000Z'
+    })
+
+    expect(mocks.updateNotificationQueryData).toHaveBeenCalled()
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+  })
+
+  it('dismisses bulk import progress and refreshes data without showing a duplicate completion toast', () => {
+    render(<HookHost />)
+
+    mocks.handlers['bulk-import:completed']?.({
+      totalInserted: 300,
+      rejectedCount: 0,
+      totalProcessed: 300,
+      message: 'Successfully imported 300 transactions'
+    })
+
+    expect(mocks.toast.dismiss).toHaveBeenCalledWith('bulk-import')
+    expect(mocks.invalidateTags).toHaveBeenCalledWith([
+      'transactions',
+      'analytics'
+    ])
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      payload: ['transactions', 'analytics'],
+      type: 'api/invalidateTags'
+    })
+    expect(mocks.toast.success).not.toHaveBeenCalledWith(
+      'Successfully imported 300 transactions',
+      expect.anything()
+    )
+  })
+
+  it('dismisses bulk import progress without showing a duplicate failure toast', () => {
+    render(<HookHost />)
+
+    mocks.handlers['bulk-import:failed']?.({
+      message: 'Import failed, please try again'
+    })
+
+    expect(mocks.toast.dismiss).toHaveBeenCalledWith('bulk-import')
+    expect(mocks.toast.error).not.toHaveBeenCalledWith(
+      'Import failed, please try again',
+      expect.anything()
+    )
+  })
+
   it('stores a flash message, clears auth data, and redirects on auth session revoked', () => {
     render(<HookHost />)
 
@@ -240,6 +375,10 @@ describe('useAppSockets', () => {
     )
     expect(mocks.socket.off).toHaveBeenCalledWith(
       'auth:session-revoked',
+      expect.any(Function)
+    )
+    expect(mocks.socket.off).toHaveBeenCalledWith(
+      'notification:created',
       expect.any(Function)
     )
     expect(mocks.unsubscribeLocalLogout).toHaveBeenCalled()

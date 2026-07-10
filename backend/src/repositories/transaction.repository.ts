@@ -12,7 +12,7 @@ import {
 import { getDateRange } from '../utils/dates/index'
 import { invalidateUserAnalyticsCache } from '../utils/cache.util'
 import { normalizeSearchKeyword } from '../utils/query-parser.util'
-import { ClientSession } from 'mongoose'
+import mongoose, { ClientSession } from 'mongoose'
 
 /**
  * Transaction Repository Implementation
@@ -341,6 +341,13 @@ export class TransactionRepository implements ITransactionRepository {
     if (filters.type) conditions.type = filters.type
     if (filters.currency) conditions.currency = filters.currency
     if (filters.status) conditions.status = filters.status
+    if (filters.importBatchId) {
+      conditions.importBatchId = mongoose.Types.ObjectId.isValid(
+        filters.importBatchId
+      )
+        ? new mongoose.Types.ObjectId(filters.importBatchId)
+        : null
+    }
 
     // Recurring status filter
     if (filters.recurringStatus === 'RECURRING') {

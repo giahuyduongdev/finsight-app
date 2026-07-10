@@ -52,7 +52,8 @@ export const getAllTransactionController = asyncHandler(
         .dateRangePreset as TransactionFilterQuery['dateRangePreset'],
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined,
-      timezone: req.query.timezone as string | undefined
+      timezone: req.query.timezone as string | undefined,
+      importBatchId: req.query.importBatchId as string | undefined
     }
 
     const pagination = parsePaginationQuery(req.query)

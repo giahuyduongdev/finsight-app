@@ -261,7 +261,7 @@ describe('user.controller', () => {
   describe('changeUserPasswordController', () => {
     it('emits session revoked after a successful password change', async () => {
       mockChangePassword.mockResolvedValue({
-        message: 'Password changed successfully. Please login again.'
+        message: 'Password changed successfully. Please login again'
       })
       const mockRequest = {
         body: {

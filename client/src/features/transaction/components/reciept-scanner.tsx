@@ -5,6 +5,7 @@ import { ScanText } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import { AIScanReceiptData } from '@/features/transaction/transactionType'
 import { toast } from 'sonner'
+import { markNotificationHandledInForeground } from '@/features/notification/notificationPresentation'
 import { useProgressLoader } from '@/hooks/use-progress-loader'
 import {
   useAiScanReceiptMutation,
@@ -164,6 +165,7 @@ const ReceiptScanner = ({
 
       setPendingJobId(null) // Clear immediately for idempotency
       try {
+        markNotificationHandledInForeground(payload.jobId)
         onScanComplete(payload.data)
         toast.success('Receipt scanned successfully')
         completeSuccess()
@@ -178,6 +180,7 @@ const ReceiptScanner = ({
       if (!pendingJobIdRef.current || payload.jobId !== pendingJobIdRef.current)
         return
 
+      markNotificationHandledInForeground(payload.jobId)
       toast.error(payload.error || 'Failed to scan receipt')
       resetState()
     }
@@ -210,6 +213,7 @@ const ReceiptScanner = ({
 
         if (response.data.status === 'completed' && response.data.receipt) {
           setPendingJobId(null)
+          markNotificationHandledInForeground(pendingJobId)
           onScanComplete(response.data.receipt)
           toast.success('Receipt scanned successfully')
           completeSuccess()
@@ -219,6 +223,7 @@ const ReceiptScanner = ({
           )
           resetState()
         } else if (response.data.status === 'failed') {
+          markNotificationHandledInForeground(pendingJobId)
           toast.error(
             response.data.error || 'Receipt processing failed. Please try again'
           )

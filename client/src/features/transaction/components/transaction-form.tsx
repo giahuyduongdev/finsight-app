@@ -51,6 +51,8 @@ import {
 } from '@/features/transaction/transactionAPI'
 import { toast } from 'sonner'
 import { useTypedSelector } from '@/app/hook'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { requestTransactionHighlight } from '@/features/transaction/transactionHighlight'
 
 // Đặt ngoài component, trước dòng const TransactionForm = ...
 const countMissedOccurrences = (date?: Date, interval?: string): number => {
@@ -123,6 +125,8 @@ const TransactionForm = (props: {
   onCloseDrawer?: () => void
 }) => {
   const { onCloseDrawer, isEdit = false, transactionId } = props
+  const navigate = useNavigate()
+  const location = useLocation()
   const preferredCurrency =
     useTypedSelector((state) => state.auth?.user?.preferredCurrency) || 'USD'
 
@@ -237,7 +241,15 @@ const TransactionForm = (props: {
     }
     createTransaction(payload)
       .unwrap()
-      .then(() => {
+      .then((response) => {
+        const createdTransaction = response.data
+        const createdTransactionId = createdTransaction._id
+        requestTransactionHighlight(createdTransaction)
+        if (location.pathname === '/transactions') {
+          navigate(
+            `/transactions?highlight=${encodeURIComponent(createdTransactionId)}`
+          )
+        }
         form.reset()
         onCloseDrawer?.()
         toast.success('Transaction created successfully')
