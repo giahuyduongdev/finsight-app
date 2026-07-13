@@ -55,10 +55,12 @@ Build note:
 
 ### Batch 2 - Performance And Bundle
 
-- [ ] Evaluate Recharts `prefer-dynamic-import` findings.
-- [ ] Decide whether chart code-splitting should use `React.lazy` at page/component boundary.
-- [ ] Consider `build.rollupOptions.output.manualChunks` only after measuring bundle impact.
-- [ ] Re-run build and check chunk warning movement.
+- [x] Evaluate Recharts `prefer-dynamic-import` findings.
+- [x] Decide whether chart code-splitting should use `React.lazy` at page/component boundary.
+- [x] Implement dashboard chart lazy loading in `fix/dashboard-chart-splitting`.
+- [x] Consider `build.rollupOptions.output.manualChunks` only after measuring bundle impact.
+- [x] Re-run build and check chunk warning movement.
+- [ ] Defer deeper chart primitive splitting or dedicated build vendor chunking.
 
 ### Batch 3 - Maintainability Refactors
 
