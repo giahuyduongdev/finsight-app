@@ -29,16 +29,22 @@ Kết quả full scan sau batch hiện tại:
 
 - Scope: full client scan
 - Error: 0
-- Warning: 47
-- Affected files: 20
-- Score: 64/100, `Needs work`
+- Warning: 28
+- Affected files: 14
+- Score: 69/100, `Needs work`
+
+Follow-up branch:
+
+- `chore/react-doctor-client-followup`
+- Started from `develop` at merge commit `5dfbdd5`
+- Reduced full scan from `0 errors / 47 warnings / score 63` to `0 errors / 28 warnings / score 69`
 
 Build validation:
 
 - `pnpm.cmd --dir client run type-check`: pass
 - `pnpm.cmd --dir client run lint`: pass
 - `pnpm.cmd --dir client run build`: pass
-- Build vẫn còn warning chunk lớn: `assets/index-DtgZaNT-.js` khoảng 1,559.50 kB, gzip khoảng 459.06 kB.
+- Build vẫn còn warning chunk lớn: `assets/index-D9oDlAXl.js` khoảng 1,559.93 kB, gzip khoảng 459.24 kB.
 
 Ghi chú: chunk warning không làm build fail. Hướng xử lý phù hợp là batch code-splitting riêng cho các entry Recharts/dashboard và xem xét `manualChunks`, không nên trộn vào batch cleanup cơ học.
 
@@ -76,6 +82,12 @@ Các nhóm đã xử lý trong branch hiện tại:
 - `unused-file`: xóa 16 file React Doctor xác nhận không còn reference.
 - `unused-export`: bỏ các export không được import, giữ type/runtime cần thiết.
 - `unused-dependency`: remove các dependency không còn import khỏi `client/package.json` và importer lockfile.
+- Follow-up: version localStorage keys for auth refresh/logout coordination.
+- Follow-up: fix mechanical accessibility/render warnings in `single-select`.
+- Follow-up: replace small map/filter iteration patterns with `flatMap`.
+- Follow-up: move dashboard legend out of component scope and replace index keys where stable names exist.
+- Follow-up: split `buttonVariants` and `badgeVariants` out of component files for Fast Refresh.
+- Follow-up: convert handler-only state in forgot password/account forms to refs.
 
 ## Remaining Diagnostic Groups
 
@@ -84,29 +96,15 @@ Các nhóm diagnostic còn lại sau full client scan final:
 - Bugs/state effects:
   - `prefer-use-effect-event`: 8
   - `no-chain-state-updates`: 3
-  - `client-localstorage-no-version`: 2
   - `no-pass-data-to-parent`: 1
   - `no-mirror-prop-effect`: 1
   - `no-prop-callback-in-effect`: 1
-  - `no-nested-component-definition`: 1
 - Performance:
   - `prefer-dynamic-import`: 3
-  - `rerender-state-only-in-handlers`: 2
-  - `js-flatmap-filter`: 1
   - `rerender-memo-before-early-return`: 1
-  - `rerender-memo-with-default-value`: 1
-  - `rerender-lazy-state-init`: 1
-  - `js-combine-iterations`: 1
   - `rendering-usetransition-loading`: 1
-  - `no-unstable-nested-components`: 1
-- Accessibility:
-  - `click-events-have-key-events`: 1
-  - `no-static-element-interactions`: 1
-  - `control-has-associated-label`: 1
 - Maintainability:
   - `no-giant-component`: 8
-  - `no-array-index-as-key`: 4
-  - `only-export-components`: 2
   - `no-many-boolean-props`: 1
 
 ## Remaining Diagnostic Details
@@ -116,39 +114,25 @@ Các nhóm diagnostic còn lại sau full client scan final:
 - `prefer-use-effect-event` - `src/features/transaction/components/reciept-scanner.tsx:195`
 - `prefer-use-effect-event` - `src/features/transaction/components/reciept-scanner.tsx:251`
 - `no-chain-state-updates` - `src/components/date-range-select/index.tsx:163`
-- `no-chain-state-updates` - `src/components/ui/single-select.tsx:192`
-- `no-chain-state-updates` - `src/components/ui/single-select.tsx:221`
-- `client-localstorage-no-version` - `src/hooks/use-auth-expiration.ts:43`
-- `client-localstorage-no-version` - `src/lib/local-logout-sync.ts:26`
+- `no-chain-state-updates` - `src/components/ui/single-select.tsx:194`
+- `no-chain-state-updates` - `src/components/ui/single-select.tsx:223`
 - `no-pass-data-to-parent` - `src/components/date-range-select/index.tsx:184`
-- `no-mirror-prop-effect` - `src/components/ui/single-select.tsx:211`
+- `no-mirror-prop-effect` - `src/components/ui/single-select.tsx:213`
 - `no-prop-callback-in-effect` - `src/features/transaction/components/reciept-scanner.tsx:132`
-- `no-nested-component-definition` - `src/pages/dashboard/expense-pie-chart.tsx:60`
 
 ### Performance And Bundle
 
 - `prefer-dynamic-import` - `src/components/ui/chart.tsx:2`
 - `prefer-dynamic-import` - `src/pages/dashboard/dashboard-data-chart.tsx:3`
 - `prefer-dynamic-import` - `src/pages/dashboard/expense-pie-chart.tsx:1`
-- `js-flatmap-filter` - `src/components/ui/chart.tsx:109`
-- `rerender-memo-before-early-return` - `src/components/ui/chart.tsx:161`
-- `rerender-memo-with-default-value` - `src/components/ui/single-select.tsx:118`
-- `rerender-lazy-state-init` - `src/components/ui/single-select.tsx:144`
-- `js-combine-iterations` - `src/components/ui/single-select.tsx:501`
+- `rerender-memo-before-early-return` - `src/components/ui/chart.tsx:160`
 - `rendering-usetransition-loading` - `src/hooks/use-progress-loader.ts:23`
-- `no-unstable-nested-components` - `src/pages/dashboard/expense-pie-chart.tsx:60`
-- Build chunk warning - `assets/index-DtgZaNT-.js` khoảng 1,559.50 kB.
-
-### Accessibility
-
-- `click-events-have-key-events` - `src/components/ui/single-select.tsx:369`
-- `no-static-element-interactions` - `src/components/ui/single-select.tsx:369`
-- `control-has-associated-label` - `src/components/ui/single-select.tsx:413`
+- Build chunk warning - `assets/index-D9oDlAXl.js` khoảng 1,559.93 kB.
 
 ### Maintainability
 
 - `no-giant-component`:
-  - `src/components/ui/single-select.tsx:112`
+  - `src/components/ui/single-select.tsx:114`
   - `src/features/transaction/components/import-transaction-modal/confirmation-step.tsx:136`
   - `src/features/transaction/components/import-transaction-modal/edit-form.tsx:37`
   - `src/features/transaction/components/reciept-scanner.tsx:24`
@@ -156,14 +140,6 @@ Các nhóm diagnostic còn lại sau full client scan final:
   - `src/features/transaction/components/transaction-table/index.tsx:56`
   - `src/pages/auth/_component/forgot-password-form.tsx:204`
   - `src/pages/auth/_component/signup-form.tsx:181`
-- `no-array-index-as-key`:
-  - `src/components/ui/chart.tsx:219`
-  - `src/pages/dashboard/expense-pie-chart.tsx:64`
-  - `src/pages/dashboard/expense-pie-chart.tsx:133`
-  - `src/pages/settings/_components/change-email-dialog.tsx:114`
-- `only-export-components`:
-  - `src/components/ui/badge.tsx:46`
-  - `src/components/ui/button.tsx:59`
 - `no-many-boolean-props` - `src/components/data-table/index.tsx:96`
 
 ## User Stories
@@ -200,5 +176,5 @@ As a frontend maintainer, I want score movement and remaining categories recorde
 
 - React Doctor full client scan has 0 errors.
 - Full client scan warning debt is tracked explicitly for follow-up batches.
-- Score improves from `49/Critical` to `64/Needs work` without breaking validation.
+- Score improves from `49/Critical` to `69/Needs work` without breaking validation.
 - Remaining high-risk warnings have documented deferral reasons or follow-up tasks.

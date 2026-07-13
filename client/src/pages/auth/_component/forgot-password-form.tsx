@@ -205,7 +205,7 @@ const ForgotPasswordForm = () => {
   const navigate = useNavigate()
   const [step, setStep] = useState<Step>('enter_email')
   const [pendingEmail, setPendingEmail] = useState('')
-  const [resetToken, setResetToken] = useState('')
+  const resetTokenRef = useRef('')
 
   const [forgotPassword, { isLoading: isSendingOTP }] =
     useForgotPasswordMutation()
@@ -250,7 +250,7 @@ const ForgotPasswordForm = () => {
         email: pendingEmail,
         otp: values.otp
       }).unwrap()
-      setResetToken(result.resetToken)
+      resetTokenRef.current = result.resetToken
       setStep('reset_password')
     } catch (error: unknown) {
       const err = error as {
@@ -306,7 +306,7 @@ const ForgotPasswordForm = () => {
   })
 
   const onResetSubmit = async (values: ResetValues) => {
-    if (!resetToken) {
+    if (!resetTokenRef.current) {
       toast.error('Reset session expired. Please verify OTP again')
       setStep('verify_otp')
       resetForm.reset()
@@ -316,7 +316,7 @@ const ForgotPasswordForm = () => {
     try {
       await resetPassword({
         email: pendingEmail,
-        resetToken,
+        resetToken: resetTokenRef.current,
         newPassword: values.newPassword
       }).unwrap()
       toast.success('Password reset successfully! Please log in')

@@ -9,7 +9,7 @@ import { useRefreshMutation } from '@/features/auth/authAPI'
 
 // Shared refresh coordination using BroadcastChannel
 const REFRESH_CHANNEL_NAME = 'auth_refresh_channel'
-const REFRESH_LOCK_KEY = 'auth_refresh_lock'
+const REFRESH_LOCK_KEY = 'auth_refresh_lock:v1'
 const REFRESH_LOCK_TIMEOUT = 5000 // 5 seconds
 
 /**

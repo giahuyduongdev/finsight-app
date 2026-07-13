@@ -107,16 +107,15 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const cssRules = Object.entries(THEMES)
     .map(([theme, prefix]) => {
       const rules = colorConfig
-        .map(([key, itemConfig]) => {
+        .flatMap(([key, itemConfig]) => {
           const color =
             itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
             itemConfig.color
-          if (!color) return null
+          if (!color) return []
           const sanitizedColor = sanitizeColor(color)
           const sanitizedKey = sanitizeKey(key)
-          return `  --color-${sanitizedKey}: ${sanitizedColor};`
+          return [`  --color-${sanitizedKey}: ${sanitizedColor};`]
         })
-        .filter(Boolean)
         .join('\n')
 
       return `${prefix} [data-chart="${id}"] {\n${rules}\n}`
@@ -216,7 +215,7 @@ function ChartTooltipContent({
 
           return (
             <div
-              key={`${item.dataKey || item.name || 'item'}-${index}`}
+              key={`${item.dataKey || item.name || item.value || 'item'}`}
               className={cn(
                 '[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5',
                 indicator === 'dot' && 'items-center'

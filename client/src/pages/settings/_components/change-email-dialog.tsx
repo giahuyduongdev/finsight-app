@@ -54,6 +54,15 @@ const otpSchema = z.object({
 type ChangeEmailRequestValues = z.infer<typeof changeEmailRequestSchema>
 type OtpValues = z.infer<typeof otpSchema>
 
+const OTP_DIGIT_KEYS = [
+  'otp-digit-1',
+  'otp-digit-2',
+  'otp-digit-3',
+  'otp-digit-4',
+  'otp-digit-5',
+  'otp-digit-6'
+] as const
+
 // ─── OTP Input Component (Shared internal) ────────────────────────────────────
 
 interface OtpInputProps {
@@ -111,7 +120,7 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
     <div className="flex gap-2 justify-center">
       {digits.map((digit, i) => (
         <input
-          key={i}
+          key={OTP_DIGIT_KEYS[i]}
           ref={(el) => {
             inputsRef.current[i] = el
           }}

@@ -46,6 +46,8 @@ interface SingleSelectorProps {
   >
 }
 
+const EMPTY_OPTIONS: Option[] = []
+
 export interface SingleSelectorRef {
   selectedValue: Option | undefined
   input: HTMLInputElement
@@ -115,7 +117,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
       value,
       onChange,
       placeholder,
-      defaultOptions = [],
+      defaultOptions = EMPTY_OPTIONS,
       options: arrayOptions,
       delay,
       onSearch,
@@ -140,7 +142,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
     const dropdownRef = React.useRef<HTMLDivElement>(null)
 
     const [selected, setSelected] = React.useState<Option | undefined>(value)
-    const [options, setOptions] = React.useState<GroupOption>(
+    const [options, setOptions] = React.useState<GroupOption>(() =>
       transToGroupOption(defaultOptions, groupBy)
     )
     const [inputValue, setInputValue] = React.useState('')
@@ -354,6 +356,37 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
       return undefined
     }, [creatable, commandProps?.filter])
 
+    const openDropdown = React.useCallback(() => {
+      if (disabled) return
+
+      setOpen(true)
+      setShowAllOptions(true)
+      setInputValue('')
+      setCommandValue(Math.random().toString())
+
+      if (arrayOptions) {
+        setOptions(transToGroupOption(arrayOptions, groupBy))
+      }
+
+      inputRef?.current?.focus()
+
+      if (triggerSearchOnFocus) {
+        if (onSearch) {
+          onSearch('')
+        } else if (onSearchSync) {
+          const res = onSearchSync('')
+          setOptions(transToGroupOption(res || [], groupBy))
+        }
+      }
+    }, [
+      arrayOptions,
+      disabled,
+      groupBy,
+      onSearch,
+      onSearchSync,
+      triggerSearchOnFocus
+    ])
+
     return (
       <Command
         ref={dropdownRef}
@@ -367,42 +400,18 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
         filter={commandFilter()}
       >
         <div
+          role="button"
+          tabIndex={disabled ? -1 : 0}
+          aria-disabled={disabled}
           className={cn(
             'flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
             className
           )}
-          onClick={() => {
-            if (disabled) return
-
-            // Always open the dropdown and show all options
-            setOpen(true)
-
-            // Clear input value when opening to ensure filtering doesn't restrict options
-
-            // Force showing all options
-            setShowAllOptions(true)
-
-            setInputValue('')
-
-            // Reset cmdk's internal search state
-            setCommandValue(Math.random().toString())
-
-            // Always refresh options when opening
-            if (arrayOptions) {
-              setOptions(transToGroupOption(arrayOptions, groupBy))
-            }
-
-            // Focus the input
-            inputRef?.current?.focus()
-
-            // If search functions are provided, trigger them
-            if (triggerSearchOnFocus) {
-              if (onSearch) {
-                onSearch('')
-              } else if (onSearchSync) {
-                const res = onSearchSync('')
-                setOptions(transToGroupOption(res || [], groupBy))
-              }
+          onClick={openDropdown}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              openDropdown()
             }
           }}
         >
@@ -412,6 +421,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
               {!disabled && (
                 <button
                   type="button"
+                  aria-label="Clear selected option"
                   className="ml-2"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -498,45 +508,46 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
                       className="h-full overflow-auto"
                     >
                       <>
-                        {dropdowns
-                          .filter(
-                            (option) =>
-                              showAllOptions ||
-                              option.label
-                                .toLowerCase()
-                                .includes(inputValue.toLowerCase())
-                          )
-                          .map((option) => {
-                            return (
-                              <CommandItem
-                                key={option.value}
-                                value={option.label}
-                                disabled={option.disable}
-                                onMouseDown={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                }}
-                                onSelect={() => {
-                                  // Clear input to ensure no filtering is applied next time
-                                  setInputValue('')
+                        {dropdowns.flatMap((option) => {
+                          if (
+                            !showAllOptions &&
+                            !option.label
+                              .toLowerCase()
+                              .includes(inputValue.toLowerCase())
+                          ) {
+                            return []
+                          }
 
-                                  // Set selected option
-                                  setSelected(option)
-                                  onChange?.(option)
+                          return [
+                            <CommandItem
+                              key={option.value}
+                              value={option.label}
+                              disabled={option.disable}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onSelect={() => {
+                                // Clear input to ensure no filtering is applied next time
+                                setInputValue('')
 
-                                  // Close dropdown
-                                  setOpen(false)
-                                }}
-                                className={cn(
-                                  'cursor-pointer',
-                                  option.disable &&
-                                    'cursor-default text-muted-foreground'
-                                )}
-                              >
-                                {option.label}
-                              </CommandItem>
-                            )
-                          })}
+                                // Set selected option
+                                setSelected(option)
+                                onChange?.(option)
+
+                                // Close dropdown
+                                setOpen(false)
+                              }}
+                              className={cn(
+                                'cursor-pointer',
+                                option.disable &&
+                                  'cursor-default text-muted-foreground'
+                              )}
+                            >
+                              {option.label}
+                            </CommandItem>
+                          ]
+                        })}
                       </>
                     </CommandGroup>
                   ))}
