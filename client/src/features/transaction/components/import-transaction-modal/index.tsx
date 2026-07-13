@@ -8,6 +8,18 @@ import { CsvColumn, TransactionField } from '@/@types/transaction.type'
 import ConfirmationStep from './confirmation-step'
 import { cn } from '@/lib/utils'
 
+const transactionFields: TransactionField[] = [
+  { fieldName: 'title', required: true },
+  { fieldName: 'amount', required: true },
+  { fieldName: 'currency', required: false },
+  { fieldName: 'type', required: true },
+  { fieldName: 'date', required: true },
+  { fieldName: 'category', required: true },
+  { fieldName: 'paymentMethod', required: true },
+  { fieldName: 'status', required: false },
+  { fieldName: 'description', required: false }
+]
+
 const ImportTransactionModal = () => {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [csvColumns, setCsvColumns] = useState<CsvColumn[]>([])
@@ -15,18 +27,6 @@ const ImportTransactionModal = () => {
   const [csvData, setCsvData] = useState<any[]>([])
   const [mappings, setMappings] = useState<Record<string, string>>({})
   const [open, setOpen] = useState(false)
-
-  const transactionFields: TransactionField[] = [
-    { fieldName: 'title', required: true },
-    { fieldName: 'amount', required: true },
-    { fieldName: 'currency', required: false },
-    { fieldName: 'type', required: true },
-    { fieldName: 'date', required: true },
-    { fieldName: 'category', required: true },
-    { fieldName: 'paymentMethod', required: true },
-    { fieldName: 'status', required: false },
-    { fieldName: 'description', required: false }
-  ]
 
   // console.log(transactionFields, file, csvColumns, csvData, mappings);
 

@@ -12,6 +12,109 @@ export const ZERO_DECIMAL_CURRENCIES = [
 
 export const DEFAULT_LOCALE = 'en-US'
 
+const standardDecimalFormatters = {
+  0: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }),
+  1: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1
+  }),
+  2: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }),
+  3: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3
+  }),
+  4: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4
+  }),
+  5: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 5,
+    maximumFractionDigits: 5
+  }),
+  6: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6
+  })
+} as const
+
+const compactDecimalFormatters = {
+  0: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    notation: 'compact'
+  }),
+  1: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    notation: 'compact'
+  }),
+  2: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    notation: 'compact'
+  }),
+  3: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+    notation: 'compact'
+  }),
+  4: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+    notation: 'compact'
+  }),
+  5: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 5,
+    maximumFractionDigits: 5,
+    notation: 'compact'
+  }),
+  6: new Intl.NumberFormat(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
+    notation: 'compact'
+  })
+} as const
+
+const formatDecimal = (
+  value: number,
+  decimalPlaces: number,
+  compact = false
+) => {
+  const key = decimalPlaces as keyof typeof standardDecimalFormatters
+  const formatter = compact
+    ? compactDecimalFormatters[key]
+    : standardDecimalFormatters[key]
+
+  if (formatter) return formatter.format(value)
+
+  return value.toLocaleString(DEFAULT_LOCALE, {
+    style: 'decimal',
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+    notation: compact ? 'compact' : 'standard'
+  })
+}
+
 export const formatCurrency = (
   value: number,
   options: {
@@ -42,14 +145,11 @@ export const formatCurrency = (
   const symbol = CURRENCY_SYMBOLS[currency as CurrencyType] || currency
 
   // 2. Định dạng Locale (Dùng en-US cho tất cả để đồng bộ dấu phẩy ngăn hàng nghìn như Add Transaction)
-  const locale = DEFAULT_LOCALE
-
-  const formattedNumber = new Intl.NumberFormat(locale, {
-    style: 'decimal',
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces,
-    notation: compact ? 'compact' : 'standard'
-  }).format(Math.abs(displayValue))
+  const formattedNumber = formatDecimal(
+    Math.abs(displayValue),
+    decimalPlaces,
+    compact
+  )
 
   // 3. Tự xử lý dấu cho chuẩn UI
   const isNegative = displayValue < 0 || (value === 0 && isExpense)
@@ -68,15 +168,11 @@ export const formatCurrency = (
  */
 export const formatRate = (rate: number, toCurrency: string): string => {
   if (ZERO_DECIMAL_CURRENCIES.includes(toCurrency)) {
-    return new Intl.NumberFormat(DEFAULT_LOCALE, {
-      maximumFractionDigits: 0
-    }).format(Math.round(rate))
+    return standardDecimalFormatters[0].format(Math.round(rate))
   }
-  if (rate >= 100)
-    return new Intl.NumberFormat(DEFAULT_LOCALE, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(rate)
+  if (rate >= 100) {
+    return standardDecimalFormatters[2].format(rate)
+  }
   if (rate >= 1) return rate.toFixed(4)
   return rate.toFixed(6)
 }

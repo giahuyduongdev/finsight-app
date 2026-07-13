@@ -400,10 +400,12 @@ const TransactionTable = (props: {
 
     if (!props.hiddenColumns) return enhancedCols
 
+    const hiddenColumnSet = new Set(props.hiddenColumns)
+
     return enhancedCols.filter((col) => {
       const key =
         'accessorKey' in col ? String(col.accessorKey) : (col.id ?? '')
-      return !props.hiddenColumns!.includes(key)
+      return !hiddenColumnSet.has(key)
     })
   }, [expanded, handleExpandRow, handleLoadMoreChilds, props.hiddenColumns])
 

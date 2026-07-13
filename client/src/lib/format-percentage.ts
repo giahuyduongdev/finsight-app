@@ -1,3 +1,54 @@
+const percentFormatters = {
+  0: new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }),
+  1: new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1
+  }),
+  2: new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }),
+  3: new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3
+  }),
+  4: new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4
+  }),
+  5: new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 5,
+    maximumFractionDigits: 5
+  }),
+  6: new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6
+  })
+} as const
+
+const formatPercentValue = (value: number, decimalPlaces: number) => {
+  const formatter =
+    percentFormatters[decimalPlaces as keyof typeof percentFormatters]
+
+  if (formatter) return formatter.format(value)
+
+  return value.toLocaleString('en-US', {
+    style: 'percent',
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces
+  })
+}
+
 export const formatPercentage = (
   value: number,
   options: {
@@ -11,11 +62,7 @@ export const formatPercentage = (
   if (typeof value !== 'number' || isNaN(value)) return '0%'
 
   const absValue = Math.abs(value)
-  const formatted = new Intl.NumberFormat('en-US', {
-    style: 'percent',
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces
-  }).format(absValue / 100)
+  const formatted = formatPercentValue(absValue / 100, decimalPlaces)
 
   if (!showSign) return formatted
   // Special handling for expenses (opposite of normal)

@@ -199,6 +199,8 @@ const useResendCountdown = (initialSeconds = RESEND_COOLDOWN) => {
 
 type Step = 'enter_email' | 'verify_otp' | 'reset_password'
 
+const steps: Step[] = ['enter_email', 'verify_otp', 'reset_password']
+
 const ForgotPasswordForm = () => {
   const navigate = useNavigate()
   const [step, setStep] = useState<Step>('enter_email')
@@ -344,7 +346,6 @@ const ForgotPasswordForm = () => {
 
   // ─── Step indicator ────────────────────────────────────────────────────────
 
-  const steps: Step[] = ['enter_email', 'verify_otp', 'reset_password']
   const currentIndex = steps.indexOf(step)
 
   // ─── Render ────────────────────────────────────────────────────────────────

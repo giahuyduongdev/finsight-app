@@ -136,6 +136,10 @@ const ColumnMappingStep = ({
     () => [{ fieldName: 'Skip' }, ...transactionFields],
     [transactionFields]
   )
+  const mappedFields = useMemo(
+    () => new Set(Object.values(mappings)),
+    [mappings]
+  )
 
   const handleMappingChange = (csvColumn: string, field: string) => {
     setMappings((prev) => ({
@@ -171,8 +175,7 @@ const ColumnMappingStep = ({
   }
 
   const hasRequiredMappings = transactionFields.every(
-    (field) =>
-      !field.required || Object.values(mappings).includes(field.fieldName)
+    (field) => !field.required || mappedFields.has(field.fieldName)
   )
 
   // Calculate the count of non-"none" mappings
@@ -237,7 +240,7 @@ const ColumnMappingStep = ({
                             const isDisabled =
                               attr.fieldName !== 'Skip' &&
                               attr.fieldName !== mappings[column.name] &&
-                              Object.values(mappings).includes(attr.fieldName)
+                              mappedFields.has(attr.fieldName)
 
                             return (
                               <SelectItem

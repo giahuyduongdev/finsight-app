@@ -14,7 +14,6 @@ import {
 import type { PersistedState } from 'redux-persist/es/types'
 import { apiClient } from './api-client'
 import { normalizeTimeZone } from '@/lib/timezone'
-//import { encryptTransform } from 'redux-persist-transform-encrypt';
 
 type RootReducerType = ReturnType<typeof rootReducer>
 
@@ -65,14 +64,6 @@ const persistConfig = {
   key: 'root', // Key for the persisted data in storage
   storage, // Storage engine to use (localStorage)
   blacklist: ['auth', apiClient.reducerPath] // Specify which reducers not to persist (RTK Query cache)
-  // transforms: [
-  //     encryptTransform({
-  //       secretKey: import.meta.env.VITE_REDUX_PERSIST_SECRET_KEY!,
-  //       onError: function (error) {
-  //         console.error('Encryption error:', error);
-  //       },
-  //     }),
-  //   ],
 }
 
 const rootReducer = combineReducers({

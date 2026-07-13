@@ -1,6 +1,6 @@
 export const MAX_IMPORT_LIMIT = 1000
 export const MAX_FILE_SIZE = 5 * 1024 * 1024
-export enum DateRangeEnum {
+enum DateRangeEnum {
   LAST_30_DAYS = '30days',
   LAST_MONTH = 'lastMonth',
   LAST_3_MONTHS = 'last3Months',
@@ -62,13 +62,7 @@ export const _TRANSACTION_TYPE = {
 
 export type _TransactionType = keyof typeof _TRANSACTION_TYPE
 
-export const _TRANSACTION_STATUS = {
-  PENDING: 'PENDING',
-  COMPLETED: 'COMPLETED',
-  FAILED: 'FAILED'
-} as const
-
-export type TransactionStatusType = keyof typeof _TRANSACTION_STATUS
+export type TransactionStatusType = 'PENDING' | 'COMPLETED' | 'FAILED'
 
 export const _REPORT_STATUS = {
   SENT: 'SENT',
@@ -169,47 +163,3 @@ export const TIMEZONE_OPTIONS = [
     label: '(UTC-08:00) Pacific Time (US & Canada)'
   }
 ]
-
-// 5. BỘ TỪ ĐIỂN ÁNH XẠ (Fixed: Remove incorrect DST mappings)
-export const TIMEZONE_ALIAS_MAPPING: Record<string, string> = {
-  'Asia/Bangkok': 'Asia/Ho_Chi_Minh',
-  'Asia/Jakarta': 'Asia/Ho_Chi_Minh',
-  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
-  'Asia/Phnom_Penh': 'Asia/Ho_Chi_Minh',
-  'Asia/Vientiane': 'Asia/Ho_Chi_Minh',
-  'Asia/Shanghai': 'Asia/Singapore',
-  'Asia/Hong_Kong': 'Asia/Singapore',
-  'Asia/Taipei': 'Asia/Singapore',
-  'Asia/Kuala_Lumpur': 'Asia/Singapore',
-  'Asia/Manila': 'Asia/Singapore',
-  'Asia/Macau': 'Asia/Singapore',
-  'Asia/Seoul': 'Asia/Tokyo',
-  'Asia/Pyongyang': 'Asia/Tokyo',
-  'Australia/Melbourne': 'Australia/Sydney',
-  'Australia/Brisbane': 'Australia/Sydney',
-  'Pacific/Guam': 'Australia/Sydney',
-  'Europe/Dublin': 'Europe/London',
-  'Europe/Lisbon': 'Europe/London',
-  'Africa/Casablanca': 'Europe/London',
-  'Europe/Berlin': 'Europe/Paris',
-  'Europe/Zurich': 'Europe/Paris',
-  'Europe/Rome': 'Europe/Paris',
-  'Europe/Madrid': 'Europe/Paris',
-  'Europe/Amsterdam': 'Europe/Paris',
-  'Europe/Brussels': 'Europe/Paris',
-  'Europe/Vienna': 'Europe/Paris',
-  'Africa/Lagos': 'Europe/Paris',
-  'America/Toronto': 'America/New_York',
-  'America/Havana': 'America/New_York',
-  // FIXED: Remove incorrect mappings for non-DST zones
-  // 'America/Bogota': 'America/New_York', // REMOVED - Bogota doesn't observe DST
-  // 'America/Lima': 'America/New_York', // REMOVED - Lima doesn't observe DST
-  'America/Mexico_City': 'America/Chicago',
-  'America/Monterrey': 'America/Chicago',
-  'America/Vancouver': 'America/Los_Angeles',
-  'America/Tijuana': 'America/Los_Angeles',
-  'America/Buenos_Aires': 'America/Sao_Paulo'
-  // FIXED: Remove incorrect mapping for Santiago
-  // 'America/Santiago': 'America/Sao_Paulo', // REMOVED - Chile has different DST schedule
-  // 'America/Montevideo': 'America/Sao_Paulo' // REMOVED - Uruguay has different DST schedule
-}

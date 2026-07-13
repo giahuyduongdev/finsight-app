@@ -95,6 +95,7 @@ const RatesPage = () => {
   }
 
   const currencyList = rates?.rates ? Object.entries(rates.rates) : []
+  const usedCurrencySet = new Set(rates?.usedCurrencies ?? [])
   const isRefreshing = isFetching || isRefreshingRates || showRefreshSpinner
 
   return (
@@ -240,7 +241,7 @@ const RatesPage = () => {
                                         Base
                                       </Badge>
                                     )}
-                                    {rates.usedCurrencies?.includes(code) &&
+                                    {usedCurrencySet.has(code) &&
                                       code !== preferredCurrency && (
                                         <Badge
                                           variant="secondary"

@@ -171,6 +171,7 @@ export const EditForm = ({
             </div>
             <div className="space-y-1.5">
               <label
+                htmlFor={`currency-${rowId}`}
                 id={`currency-label-${rowId}`}
                 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
               >
@@ -197,6 +198,7 @@ export const EditForm = ({
                 }}
               >
                 <SelectTrigger
+                  id={`currency-${rowId}`}
                   aria-labelledby={`currency-label-${rowId}`}
                   className="h-9 text-sm"
                 >
@@ -221,6 +223,7 @@ export const EditForm = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label
+                htmlFor={`type-${rowId}`}
                 id={`type-label-${rowId}`}
                 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
               >
@@ -234,6 +237,7 @@ export const EditForm = ({
                 }
               >
                 <SelectTrigger
+                  id={`type-${rowId}`}
                   aria-labelledby={`type-label-${rowId}`}
                   className="h-9 text-sm"
                 >
@@ -257,6 +261,7 @@ export const EditForm = ({
             </div>
             <div className="space-y-1.5">
               <label
+                htmlFor={`status-${rowId}`}
                 id={`status-label-${rowId}`}
                 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider"
               >
@@ -269,6 +274,7 @@ export const EditForm = ({
                 }
               >
                 <SelectTrigger
+                  id={`status-${rowId}`}
                   aria-labelledby={`status-label-${rowId}`}
                   className="h-9 text-sm"
                 >

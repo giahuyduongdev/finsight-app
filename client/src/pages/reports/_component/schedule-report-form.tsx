@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Loader, Mail } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import {
@@ -53,6 +53,10 @@ const ScheduleReportForm = ({
       frequency: 'MONTHLY'
     }
   })
+  const isReportEnabled = useWatch({
+    control: form.control,
+    name: 'isEnabled'
+  })
 
   useEffect(() => {
     if (user && reportSetting) {
@@ -81,7 +85,7 @@ const ScheduleReportForm = ({
 
   // Get summary text based on form values
   const getScheduleSummary = () => {
-    if (!form.watch('isEnabled')) {
+    if (!isReportEnabled) {
       return 'Reports are currently deactivated'
     }
     return 'Report will be sent once a month on the 1st day of the next month'
@@ -104,7 +108,7 @@ const ScheduleReportForm = ({
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">Monthly Reports</FormLabel>
                     <p className="text-sm text-muted-foreground">
-                      {form.watch('isEnabled')
+                      {isReportEnabled
                         ? 'Reports activated'
                         : 'Reports deactivated'}
                     </p>
@@ -170,7 +174,7 @@ const ScheduleReportForm = ({
               />
 
               {/* Disabled overlay */}
-              {!form.watch('isEnabled') && (
+              {!isReportEnabled && (
                 <div className="absolute inset-0 bg-white/50 dark:bg-black/50 z-10" />
               )}
             </div>

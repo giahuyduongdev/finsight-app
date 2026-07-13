@@ -18,6 +18,11 @@ import {
 import { NotificationItem } from '@/features/notification/notificationType'
 import { cn } from '@/lib/utils'
 
+const notificationDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric'
+})
+
 const formatNotificationTime = (createdAt: string) => {
   const created = new Date(createdAt).getTime()
   if (!Number.isFinite(created)) return ''
@@ -34,10 +39,7 @@ const formatNotificationTime = (createdAt: string) => {
   const diffDays = Math.floor(diffHours / 24)
   if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
 
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric'
-  }).format(new Date(createdAt))
+  return notificationDateFormatter.format(new Date(createdAt))
 }
 
 export function NotificationNav() {

@@ -13,6 +13,29 @@ import { usePrefetch as useTransactionPrefetch } from '@/features/transaction/tr
 import { usePrefetch as useReportPrefetch } from '@/features/report/reportAPI'
 import { NotificationNav } from './notification-nav'
 
+const routes = [
+  {
+    href: PROTECTED_ROUTES.OVERVIEW,
+    label: 'Overview'
+  },
+  {
+    href: PROTECTED_ROUTES.TRANSACTIONS,
+    label: 'Transactions'
+  },
+  {
+    href: PROTECTED_ROUTES.RATES,
+    label: 'Rates'
+  },
+  {
+    href: PROTECTED_ROUTES.REPORTS,
+    label: 'Reports'
+  },
+  {
+    href: PROTECTED_ROUTES.SETTINGS,
+    label: 'Settings'
+  }
+]
+
 const Navbar = () => {
   const { pathname } = useLocation()
   const { user } = useTypedSelector((state) => state.auth)
@@ -31,29 +54,6 @@ const Navbar = () => {
       prefetchReports({ pageNumber: 1, pageSize: 10 })
     }
   }
-
-  const routes = [
-    {
-      href: PROTECTED_ROUTES.OVERVIEW,
-      label: 'Overview'
-    },
-    {
-      href: PROTECTED_ROUTES.TRANSACTIONS,
-      label: 'Transactions'
-    },
-    {
-      href: PROTECTED_ROUTES.RATES,
-      label: 'Rates'
-    },
-    {
-      href: PROTECTED_ROUTES.REPORTS,
-      label: 'Reports'
-    },
-    {
-      href: PROTECTED_ROUTES.SETTINGS,
-      label: 'Settings'
-    }
-  ]
 
   return (
     <>
