@@ -60,7 +60,9 @@ Build note:
 - [x] Implement dashboard chart lazy loading in `fix/dashboard-chart-splitting`.
 - [x] Consider `build.rollupOptions.output.manualChunks` only after measuring bundle impact.
 - [x] Re-run build and check chunk warning movement.
-- [ ] Defer deeper chart primitive splitting or dedicated build vendor chunking.
+- [x] Add dedicated vendor chunking in `fix/client-vendor-chunk-strategy`.
+- [x] Bring main and vendor JS chunks below 500 kB without circular chunk warnings.
+- [ ] Defer deeper chart primitive splitting.
 
 ### Batch 3 - Maintainability Refactors
 
