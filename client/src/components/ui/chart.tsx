@@ -22,6 +22,32 @@ type ChartContextProps = {
 
 const ChartContext = React.createContext<ChartContextProps | null>(null)
 
+// Sanitize CSS values to prevent injection.
+const sanitizeColor = (color: string): string => {
+  const trimmed = color.trim()
+  const hexRegex = /^#[0-9A-Fa-f]{3,8}$/
+  const rgbRegex = /^rgba?\(\s*[\d.%\s,/]+\s*\)$/
+  const hslRegex = /^hsla?\(\s*[\d.%\s,/deg]+\s*\)$/
+  const oklchRegex = /^oklch\(\s*[\d.%\s,/]+\s*\)$/
+  const namedColorRegex = /^[a-z]+$/i
+
+  if (
+    hexRegex.test(trimmed) ||
+    rgbRegex.test(trimmed) ||
+    hslRegex.test(trimmed) ||
+    oklchRegex.test(trimmed) ||
+    namedColorRegex.test(trimmed)
+  ) {
+    return trimmed
+  }
+
+  return 'transparent'
+}
+
+const sanitizeKey = (key: string): string => {
+  return /^[a-zA-Z0-9-]+$/.test(key) ? key : 'invalid'
+}
+
 function useChart() {
   const context = React.useContext(ChartContext)
 
@@ -46,9 +72,10 @@ function ChartContainer({
 }) {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, '')}`
+  const chartContextValue = React.useMemo(() => ({ config }), [config])
 
   return (
-    <ChartContext.Provider value={{ config }}>
+    <ChartContext.Provider value={chartContextValue}>
       <div
         data-slot="chart"
         data-chart={chartId}
@@ -74,33 +101,6 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
   if (!colorConfig.length) {
     return null
-  }
-
-  // Sanitize CSS values to prevent injection
-  const sanitizeColor = (color: string): string => {
-    const trimmed = color.trim()
-    // Validate complete color values with anchored patterns
-    const hexRegex = /^#[0-9A-Fa-f]{3,8}$/
-    const rgbRegex = /^rgba?\(\s*[\d.%\s,/]+\s*\)$/
-    const hslRegex = /^hsla?\(\s*[\d.%\s,/deg]+\s*\)$/
-    const oklchRegex = /^oklch\(\s*[\d.%\s,/]+\s*\)$/
-    const namedColorRegex = /^[a-z]+$/i
-
-    if (
-      hexRegex.test(trimmed) ||
-      rgbRegex.test(trimmed) ||
-      hslRegex.test(trimmed) ||
-      oklchRegex.test(trimmed) ||
-      namedColorRegex.test(trimmed)
-    ) {
-      return trimmed
-    }
-    return 'transparent'
-  }
-
-  // Sanitize CSS variable names
-  const sanitizeKey = (key: string): string => {
-    return /^[a-zA-Z0-9-]+$/.test(key) ? key : 'invalid'
   }
 
   // Build CSS safely without dangerouslySetInnerHTML

@@ -47,9 +47,6 @@ const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
       navigate(AUTH_ROUTES.SIGN_IN)
 
       localStorage.removeItem('persist:root')
-      // 5. (Tùy chọn) Xóa thủ công cookie nếu Server không làm
-      document.cookie =
-        'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
     }
   }
   return (

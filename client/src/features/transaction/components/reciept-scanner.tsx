@@ -240,6 +240,10 @@ const ReceiptScanner = ({
     return () => {
       cancelled = true
       clearInterval(interval)
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
     }
   }, [
     pendingJobId,

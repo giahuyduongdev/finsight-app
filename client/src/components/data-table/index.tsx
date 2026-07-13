@@ -73,6 +73,26 @@ interface DataTableProps<TData> {
   renderExtraFilters?: React.ReactNode
 }
 
+const getColumnWidth = (columnId: string) => {
+  const widths: Record<string, string> = {
+    select: '32px',
+    expand: '28px',
+    date: '8%',
+    title: '15%',
+    category: '10%',
+    type: '8%',
+    amount: '9%',
+    currency: '7%',
+    createdAt: '9%',
+    paymentMethod: '10%',
+    recurringInterval: '10%',
+    status: '9%',
+    actions: '36px'
+  }
+
+  return widths[columnId]
+}
+
 export function DataTable<TData>({
   data,
   columns,
@@ -135,25 +155,6 @@ export function DataTable<TData>({
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const hasSelections = selectedRows.length > 0
-  const getColumnWidth = (columnId: string) => {
-    const widths: Record<string, string> = {
-      select: '32px',
-      expand: '28px',
-      date: '8%',
-      title: '15%',
-      category: '10%',
-      type: '8%',
-      amount: '9%',
-      currency: '7%',
-      createdAt: '9%',
-      paymentMethod: '10%',
-      recurringInterval: '10%',
-      status: '9%',
-      actions: '36px'
-    }
-
-    return widths[columnId]
-  }
 
   const handleSearch = (value: string) => {
     setSearchTerm(value)

@@ -14,10 +14,15 @@ const OAuthCallback = () => {
   const [refresh] = useRefreshMutation()
 
   useEffect(() => {
+    let isActive = true
+    let redirectTimeoutId: ReturnType<typeof setTimeout> | undefined
+
     const syncUserAccount = async () => {
       try {
         const { accessToken, expiresAt } = await refresh(undefined).unwrap()
         const userData = await getMe(accessToken).unwrap()
+
+        if (!isActive) return
 
         dispatch(
           setCredentials({
@@ -29,16 +34,26 @@ const OAuthCallback = () => {
 
         toast.success('Login successful!')
 
-        setTimeout(() => {
+        redirectTimeoutId = setTimeout(() => {
           navigate(PROTECTED_ROUTES.OVERVIEW, { replace: true })
         }, 100)
       } catch {
+        if (!isActive) return
+
         toast.error('Data synchronization failed, please try again!')
         navigate(AUTH_ROUTES.SIGN_IN, { replace: true })
       }
     }
 
     syncUserAccount()
+
+    return () => {
+      isActive = false
+
+      if (redirectTimeoutId) {
+        clearTimeout(redirectTimeoutId)
+      }
+    }
   }, [dispatch, navigate, getMe, refresh])
 
   // Giao diện chờ xoay xoay mượt mà

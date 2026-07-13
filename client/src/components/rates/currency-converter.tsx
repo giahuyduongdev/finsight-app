@@ -61,7 +61,9 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Amount</label>
+          <label className="text-sm font-medium" htmlFor="amount-input">
+            Amount
+          </label>
           <CurrencyInput
             id="amount-input"
             name="amount"
@@ -78,9 +80,14 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
 
         <div className="grid grid-cols-[1fr,auto,1fr] items-end gap-2">
           <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">From</label>
+            <label
+              className="text-xs text-muted-foreground"
+              htmlFor="from-currency"
+            >
+              From
+            </label>
             <Select value={fromCurrency} onValueChange={setFromCurrency}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="from-currency" className="w-full">
                 <SelectValue placeholder="Currency" />
               </SelectTrigger>
               <SelectContent>
@@ -96,6 +103,7 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
           <Button
             variant="ghost"
             size="icon"
+            type="button"
             onClick={handleSwap}
             className="mb-1"
           >
@@ -103,9 +111,14 @@ const CurrencyConverter = ({ rates, baseCurrency }: CurrencyConverterProps) => {
           </Button>
 
           <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">To</label>
+            <label
+              className="text-xs text-muted-foreground"
+              htmlFor="to-currency"
+            >
+              To
+            </label>
             <Select value={toCurrency} onValueChange={setToCurrency}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="to-currency" className="w-full">
                 <SelectValue placeholder="Currency" />
               </SelectTrigger>
               <SelectContent>

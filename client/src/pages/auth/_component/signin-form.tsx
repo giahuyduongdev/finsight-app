@@ -31,6 +31,18 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+const handleOAuth = (provider: 'github' | 'google') => {
+  const currentTz = getBrowserTimeZone() || 'UTC'
+  const backendUrl = getApiBaseUrl({
+    allowLocalFallback: import.meta.env.DEV
+  })
+  if (!backendUrl) {
+    toast.error('OAuth is temporarily unavailable. Please try again later')
+    return
+  }
+  window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
+}
+
 const SignInForm = ({
   className,
   ...props
@@ -38,18 +50,6 @@ const SignInForm = ({
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const [login, { isLoading }] = useLoginMutation()
-
-  const handleOAuth = (provider: 'github' | 'google') => {
-    const currentTz = getBrowserTimeZone() || 'UTC'
-    const backendUrl = getApiBaseUrl({
-      allowLocalFallback: import.meta.env.DEV
-    })
-    if (!backendUrl) {
-      toast.error('OAuth is temporarily unavailable. Please try again later')
-      return
-    }
-    window.location.href = `${backendUrl}/auth/oauth/${provider}?tz=${encodeURIComponent(currentTz)}`
-  }
 
   // const isLoading = false
 

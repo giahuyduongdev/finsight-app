@@ -75,6 +75,10 @@ export const createTransactionColumns = (
       return (
         <div className="w-[20px] flex justify-center">
           <button
+            type="button"
+            aria-label={
+              isExpanded ? 'Collapse transaction' : 'Expand transaction'
+            }
             onClick={(e) => {
               e.stopPropagation()
               onExpandRow(tx._id)
@@ -440,9 +444,3 @@ export const createTransactionColumns = (
     }
   }
 ]
-
-export const transactionColumns = createTransactionColumns(
-  new Set(),
-  () => {},
-  () => {}
-)
