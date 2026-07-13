@@ -37,6 +37,46 @@ const chartConfig = {
   }
 } satisfies ChartConfig
 
+type ExpenseCategory = {
+  name: string
+  value: number
+  percentage: number
+}
+
+const CustomLegend = ({
+  categories,
+  preferredCurrency
+}: {
+  categories: ExpenseCategory[]
+  preferredCurrency: string
+}) => {
+  return (
+    <div className="grid grid-cols-1 gap-x-4 gap-y-2 mt-4">
+      {categories.map((entry, index) => (
+        <div key={`legend-${entry.name}`} className="flex items-center gap-2">
+          <div
+            className="h-3 w-3 rounded-full"
+            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+          ></div>
+          <div className="flex justify-between w-full">
+            <span className="text-xs font-medium truncate capitalize">
+              {entry.name}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {formatCurrency(entry.value, { currency: preferredCurrency })}
+              </span>
+              <span className="text-xs text-muted-foreground/60">
+                ({formatPercentage(entry.percentage, { decimalPlaces: 0 })})
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   const { dateRange } = props
 
@@ -49,42 +89,13 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
     from: dateRange?.from?.toISOString(),
     to: dateRange?.to?.toISOString()
   })
-  const categories = data?.data?.breakdown || []
+  const categories: ExpenseCategory[] = data?.data?.breakdown || []
   const totalSpent = data?.data?.totalSpent || 0
 
   // Chỉ hiện Skeleton nếu thực sự KHÔNG có dữ liệu (lần đầu load)
   if (isLoading && !data) {
     return <PieChartSkeleton />
   }
-  // Custom legend component
-  const CustomLegend = () => {
-    return (
-      <div className="grid grid-cols-1 gap-x-4 gap-y-2 mt-4">
-        {categories.map((entry, index) => (
-          <div key={`legend-${index}`} className="flex items-center gap-2">
-            <div
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-            ></div>
-            <div className="flex justify-between w-full">
-              <span className="text-xs font-medium truncate capitalize">
-                {entry.name}
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatCurrency(entry.value, { currency: preferredCurrency })}
-                </span>
-                <span className="text-xs text-muted-foreground/60">
-                  ({formatPercentage(entry.percentage, { decimalPlaces: 0 })})
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   return (
     <Card className="!shadow-none border-1 border-gray-100 dark:border-border">
       <CardHeader className="pb-2">
@@ -128,9 +139,9 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                   strokeWidth={2}
                   stroke="#fff"
                 >
-                  {categories.map((_, index) => (
+                  {categories.map((category, index) => (
                     <Cell
-                      key={`cell-${index}`}
+                      key={`cell-${category.name}`}
                       fill={COLORS[index % COLORS.length]}
                     />
                   ))}
@@ -167,7 +178,14 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                     }}
                   />
                 </Pie>
-                <ChartLegend content={<CustomLegend />} />
+                <ChartLegend
+                  content={
+                    <CustomLegend
+                      categories={categories}
+                      preferredCurrency={preferredCurrency}
+                    />
+                  }
+                />
               </PieChart>
             </ChartContainer>
           )}

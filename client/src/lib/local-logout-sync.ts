@@ -1,5 +1,5 @@
 const LOCAL_LOGOUT_CHANNEL = 'auth_local_logout_channel'
-const LOCAL_LOGOUT_STORAGE_KEY = 'auth:local-logout'
+const LOCAL_LOGOUT_STORAGE_KEY = 'auth:local-logout:v1'
 
 type LocalLogoutPayload = {
   id: string

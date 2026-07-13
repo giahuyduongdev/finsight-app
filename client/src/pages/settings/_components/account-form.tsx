@@ -1,4 +1,4 @@
-import { useEffect, useState, useId } from 'react'
+import { useEffect, useRef, useState, useId } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -51,7 +51,7 @@ export function AccountForm() {
   const dispatch = useAppDispatch()
   const { user } = useTypedSelector((state) => state.auth)
 
-  const [file, setFile] = useState<File | null>(null)
+  const fileRef = useRef<File | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isDetectingTimezone, setIsDetectingTimezone] = useState(false)
 
@@ -92,7 +92,7 @@ export function AccountForm() {
     formData.append('name', values.name || '')
     formData.append('timezone', values.timezone || '')
     formData.append('preferredCurrency', values.preferredCurrency || '')
-    if (file) formData.append('profilePicture', file)
+    if (fileRef.current) formData.append('profilePicture', fileRef.current)
 
     updateUserMutation(formData)
       .unwrap()
@@ -152,7 +152,7 @@ export function AccountForm() {
       toast.error('Image size must be less than 5MB')
       return
     }
-    setFile(file)
+    fileRef.current = file
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
@@ -160,7 +160,7 @@ export function AccountForm() {
     }
     reader.onerror = () => {
       toast.error('Failed to read image file')
-      setFile(null)
+      fileRef.current = null
       setAvatarUrl(null)
     }
     reader.readAsDataURL(file)

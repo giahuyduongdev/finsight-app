@@ -1,5 +1,5 @@
 import PageLayout from '@/components/page-layout'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { PROTECTED_ROUTES } from '@/routes/common/routePath'
