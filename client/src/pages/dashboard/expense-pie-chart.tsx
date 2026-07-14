@@ -1,5 +1,3 @@
-import { Label, Pie, PieChart, Cell } from 'recharts'
-
 import {
   Card,
   CardContent,
@@ -14,6 +12,7 @@ import {
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart'
+import { useRecharts } from '@/components/ui/use-recharts'
 import { DateRangeType } from '@/components/date-range-select/date-range-options'
 import { formatCurrency } from '@/lib/format-currency'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -41,6 +40,19 @@ type ExpenseCategory = {
   name: string
   value: number
   percentage: number
+}
+
+const isCenterViewBox = (
+  viewBox: unknown
+): viewBox is { cx: number; cy: number } => {
+  return (
+    typeof viewBox === 'object' &&
+    viewBox !== null &&
+    'cx' in viewBox &&
+    'cy' in viewBox &&
+    typeof viewBox.cx === 'number' &&
+    typeof viewBox.cy === 'number'
+  )
 }
 
 const CustomLegend = ({
@@ -79,6 +91,7 @@ const CustomLegend = ({
 
 const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   const { dateRange } = props
+  const recharts = useRecharts()
 
   const preferredCurrency =
     useSelector((state: RootState) => state.auth?.user?.preferredCurrency) ||
@@ -109,12 +122,14 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
               title="No expenses found"
               description="There are no expenses recorded for this period."
             />
+          ) : !recharts ? (
+            <PieChartSkeleton />
           ) : (
             <ChartContainer
               config={chartConfig}
               className="mx-auto aspect-square h-[300px]"
             >
-              <PieChart key={preferredCurrency}>
+              <recharts.PieChart key={preferredCurrency}>
                 <ChartTooltip
                   cursor={false}
                   content={
@@ -129,7 +144,7 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                   }
                 />
 
-                <Pie
+                <recharts.Pie
                   data={categories}
                   dataKey="value"
                   nameKey="name"
@@ -140,15 +155,15 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                   stroke="#fff"
                 >
                   {categories.map((category, index) => (
-                    <Cell
+                    <recharts.Cell
                       key={`cell-${category.name}`}
                       fill={COLORS[index % COLORS.length]}
                     />
                   ))}
 
-                  <Label
-                    content={({ viewBox }) => {
-                      if (viewBox && 'cx' in viewBox && 'cy' in viewBox) {
+                  <recharts.Label
+                    content={({ viewBox }: { viewBox?: unknown }) => {
+                      if (isCenterViewBox(viewBox)) {
                         return (
                           <text
                             x={viewBox.cx}
@@ -175,9 +190,11 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                           </text>
                         )
                       }
+
+                      return null
                     }}
                   />
-                </Pie>
+                </recharts.Pie>
                 <ChartLegend
                   content={
                     <CustomLegend
@@ -186,7 +203,7 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                     />
                   }
                 />
-              </PieChart>
+              </recharts.PieChart>
             </ChartContainer>
           )}
         </div>

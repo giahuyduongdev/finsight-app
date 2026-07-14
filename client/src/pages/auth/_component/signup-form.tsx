@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -55,6 +55,82 @@ const otpSchema = z.object({
 
 type RegisterValues = z.infer<typeof registerSchema>
 type OtpValues = z.infer<typeof otpSchema>
+const SignUpOtpStep = ({
+  otpForm,
+  pendingEmail,
+  isVerifying,
+  resendControl,
+  onOtpSubmit,
+  onBack
+}: {
+  otpForm: UseFormReturn<OtpValues>
+  pendingEmail: string
+  isVerifying: boolean
+  resendControl: React.ReactNode
+  onOtpSubmit: (values: OtpValues) => Promise<void>
+  onBack: () => void
+}) => (
+  <div className="flex flex-col gap-6">
+    <div className="flex flex-col items-center gap-2 text-center">
+      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-1">
+        <MailCheck className="h-6 w-6 text-primary" />
+      </div>
+      <h1 className="text-2xl font-bold">Check your email</h1>
+      <p className="text-sm text-muted-foreground text-balance">
+        If this email can be registered, a 6-digit code will be sent to{' '}
+        <span className="font-medium text-foreground">{pendingEmail}</span>
+      </p>
+    </div>
+
+    <Form {...otpForm}>
+      <form
+        onSubmit={otpForm.handleSubmit(onOtpSubmit)}
+        className="flex flex-col gap-6"
+      >
+        <FormField
+          control={otpForm.control}
+          name="otp"
+          render={({ field }) => (
+            <FormItem>
+              <FormControl>
+                <OtpInput
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={isVerifying}
+                />
+              </FormControl>
+              <FormMessage className="text-center" />
+            </FormItem>
+          )}
+        />
+
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={isVerifying || otpForm.watch('otp').length < 6}
+        >
+          {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+          Verify account
+        </Button>
+      </form>
+    </Form>
+
+    <div className="flex flex-col items-center gap-3">
+      <div className="text-sm text-muted-foreground">{resendControl}</div>
+
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+      >
+        <ArrowLeft className="h-3 w-3" />
+        Back to sign up
+      </button>
+    </div>
+  </div>
+)
+
+type Step = 'form' | 'verify_otp'
 
 // ─── OAuth helper ─────────────────────────────────────────────────────────────
 
@@ -176,8 +252,6 @@ const useResendCountdown = (initialSeconds = RESEND_COOLDOWN) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-type Step = 'form' | 'verify_otp'
-
 const SignUpForm = () => {
   const navigate = useNavigate()
   const [step, setStep] = useState<Step>('form')
@@ -287,96 +361,43 @@ const SignUpForm = () => {
 
   // Step 2: OTP verification
   if (step === 'verify_otp') {
+    const resendControl = canResend ? (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleResend}
+        disabled={isResending}
+        className="gap-2 h-auto py-1"
+      >
+        {isResending ? (
+          <Loader className="h-3 w-3 animate-spin" />
+        ) : (
+          <RefreshCw className="h-3 w-3" />
+        )}
+        Resend OTP
+      </Button>
+    ) : (
+      <span>
+        Resend in{' '}
+        <span className="font-mono font-medium text-foreground tabular-nums">
+          {String(Math.floor(seconds / 60)).padStart(2, '0')}:
+          {String(seconds % 60).padStart(2, '0')}
+        </span>
+      </span>
+    )
+
     return (
-      <div className="flex flex-col gap-6">
-        {/* Header */}
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-1">
-            <MailCheck className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold">Check your email</h1>
-          <p className="text-sm text-muted-foreground text-balance">
-            If this email can be registered, a 6-digit code will be sent to{' '}
-            <span className="font-medium text-foreground">{pendingEmail}</span>
-          </p>
-        </div>
-
-        {/* OTP Form */}
-        <Form {...otpForm}>
-          <form
-            onSubmit={otpForm.handleSubmit(onOtpSubmit)}
-            className="flex flex-col gap-6"
-          >
-            <FormField
-              control={otpForm.control}
-              name="otp"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <OtpInput
-                      value={field.value}
-                      onChange={field.onChange}
-                      disabled={isVerifying}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-center" />
-                </FormItem>
-              )}
-            />
-
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isVerifying || otpForm.watch('otp').length < 6}
-            >
-              {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
-              Verify account
-            </Button>
-          </form>
-        </Form>
-
-        {/* Resend + Back */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="text-sm text-muted-foreground">
-            {canResend ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleResend}
-                disabled={isResending}
-                className="gap-2 h-auto py-1"
-              >
-                {isResending ? (
-                  <Loader className="h-3 w-3 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3 w-3" />
-                )}
-                Resend OTP
-              </Button>
-            ) : (
-              <span>
-                Resend in{' '}
-                <span className="font-mono font-medium text-foreground tabular-nums">
-                  {String(Math.floor(seconds / 60)).padStart(2, '0')}:
-                  {String(seconds % 60).padStart(2, '0')}
-                </span>
-              </span>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setStep('form')
-              otpForm.reset()
-            }}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="h-3 w-3" />
-            Back to sign up
-          </button>
-        </div>
-      </div>
+      <SignUpOtpStep
+        otpForm={otpForm}
+        pendingEmail={pendingEmail}
+        isVerifying={isVerifying}
+        resendControl={resendControl}
+        onOtpSubmit={onOtpSubmit}
+        onBack={() => {
+          setStep('form')
+          otpForm.reset()
+        }}
+      />
     )
   }
 

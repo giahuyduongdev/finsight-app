@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Calendar, Loader } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import RecieptScanner from './reciept-scanner'
+import { useReceiptScanner } from './receipt-scanner/use-receipt-scanner'
 import {
   _TRANSACTION_FREQUENCY,
   _TRANSACTION_TYPE,
@@ -119,11 +120,13 @@ type FormValues = z.infer<typeof formSchema>
 type FormInput = z.input<typeof formSchema>
 type FormOutput = z.output<typeof formSchema>
 
-const TransactionForm = (props: {
+type TransactionFormProps = {
   isEdit?: boolean
   transactionId?: string
   onCloseDrawer?: () => void
-}) => {
+}
+
+const useTransactionFormView = (props: TransactionFormProps) => {
   const { onCloseDrawer, isEdit = false, transactionId } = props
   const navigate = useNavigate()
   const location = useLocation()
@@ -193,23 +196,31 @@ const TransactionForm = (props: {
     })
   )
 
-  const handleScanComplete = (data: AIScanReceiptData) => {
-    form.reset({
-      ...form.getValues(),
-      title: data.title || '',
-      amount: data.amount.toString(),
-      currency: data.currency || 'USD',
-      type: data.type || _TRANSACTION_TYPE.EXPENSE,
-      category: data.category?.toLowerCase() || '',
-      date: new Date(data.date),
-      paymentMethod: data.paymentMethod || '',
-      status: 'COMPLETED',
-      isRecurring: false,
-      frequency: null,
-      description: data.description || '',
-      receiptUrl: data.receiptUrl || ''
-    })
-  }
+  const handleScanComplete = useCallback(
+    (data: AIScanReceiptData) => {
+      form.reset({
+        ...form.getValues(),
+        title: data.title || '',
+        amount: data.amount.toString(),
+        currency: data.currency || 'USD',
+        type: data.type || _TRANSACTION_TYPE.EXPENSE,
+        category: data.category?.toLowerCase() || '',
+        date: new Date(data.date),
+        paymentMethod: data.paymentMethod || '',
+        status: 'COMPLETED',
+        isRecurring: false,
+        frequency: null,
+        description: data.description || '',
+        receiptUrl: data.receiptUrl || ''
+      })
+    },
+    [form]
+  )
+
+  const receiptScanner = useReceiptScanner({
+    onScanComplete: handleScanComplete,
+    onLoadingChange: setIsScanning
+  })
 
   const onSubmit = (values: FormValues) => {
     const payload = {
@@ -267,8 +278,9 @@ const TransactionForm = (props: {
             {!isEdit && (
               <RecieptScanner
                 loadingChange={isScanning}
-                onLoadingChange={setIsScanning}
-                onScanComplete={handleScanComplete}
+                receipt={receiptScanner.receipt}
+                progress={receiptScanner.progress}
+                onReceiptUpload={receiptScanner.handleReceiptUpload}
               />
             )}
 
@@ -814,5 +826,8 @@ const TransactionForm = (props: {
     </div>
   )
 }
+
+const TransactionForm = (props: TransactionFormProps) =>
+  useTransactionFormView(props)
 
 export default TransactionForm

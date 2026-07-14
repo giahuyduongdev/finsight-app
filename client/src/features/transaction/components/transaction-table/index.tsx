@@ -57,13 +57,15 @@ import { GetChildTransactionsResponse } from '@/features/transaction/transaction
 
 type ChildrenMapType = Record<string, GetChildTransactionsResponse>
 
-const TransactionTable = (props: {
+type TransactionTableProps = {
   pageSize?: number
   isShowPagination?: boolean
   hiddenColumns?: string[]
   dateRange?: DateRangeType
   setDateRange?: (range: DateRangeType) => void
-}) => {
+}
+
+const useTransactionTableView = (props: TransactionTableProps) => {
   const [internalDateRange, setInternalDateRange] = useState<DateRangeType>(
     () => getDateRangeByPreset()
   )
@@ -677,5 +679,8 @@ const TransactionTable = (props: {
     />
   )
 }
+
+const TransactionTable = (props: TransactionTableProps) =>
+  useTransactionTableView(props)
 
 export default TransactionTable

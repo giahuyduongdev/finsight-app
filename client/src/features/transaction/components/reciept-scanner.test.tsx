@@ -1,6 +1,7 @@
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ReceiptScanner from './reciept-scanner'
+import { useReceiptScanner } from './receipt-scanner/use-receipt-scanner'
 
 type SocketHandler = (payload: unknown) => void
 
@@ -46,6 +47,30 @@ vi.mock('sonner', () => ({
   toast: mocks.toast
 }))
 
+const TestReceiptScanner = ({
+  loadingChange,
+  onScanComplete,
+  onLoadingChange
+}: {
+  loadingChange: boolean
+  onScanComplete: (data: unknown) => void
+  onLoadingChange: (isLoading: boolean) => void
+}) => {
+  const scanner = useReceiptScanner({
+    onScanComplete,
+    onLoadingChange
+  })
+
+  return (
+    <ReceiptScanner
+      loadingChange={loadingChange}
+      receipt={scanner.receipt}
+      progress={scanner.progress}
+      onReceiptUpload={scanner.handleReceiptUpload}
+    />
+  )
+}
+
 describe('ReceiptScanner recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,7 +109,7 @@ describe('ReceiptScanner recovery', () => {
     const onLoadingChange = vi.fn()
 
     render(
-      <ReceiptScanner
+      <TestReceiptScanner
         loadingChange
         onScanComplete={onScanComplete}
         onLoadingChange={onLoadingChange}
@@ -122,7 +147,7 @@ describe('ReceiptScanner recovery', () => {
     const onScanComplete = vi.fn()
 
     render(
-      <ReceiptScanner
+      <TestReceiptScanner
         loadingChange
         onScanComplete={onScanComplete}
         onLoadingChange={vi.fn()}

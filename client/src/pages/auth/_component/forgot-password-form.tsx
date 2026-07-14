@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -62,6 +62,193 @@ const resetSchema = z
 type EmailValues = z.infer<typeof emailSchema>
 type OtpValues = z.infer<typeof otpSchema>
 type ResetValues = z.infer<typeof resetSchema>
+const ForgotPasswordEmailStep = ({
+  emailForm,
+  isSendingOTP,
+  onEmailSubmit
+}: {
+  emailForm: UseFormReturn<EmailValues>
+  isSendingOTP: boolean
+  onEmailSubmit: (values: EmailValues) => Promise<void>
+}) => (
+  <Form {...emailForm}>
+    <form
+      onSubmit={emailForm.handleSubmit(onEmailSubmit)}
+      className="flex flex-col gap-6"
+    >
+      <div className="flex flex-col items-center gap-2 text-center">
+        <h1 className="text-2xl font-bold">Forgot password?</h1>
+        <p className="text-sm text-muted-foreground text-balance">
+          Enter your email and we'll send you a verification code
+        </p>
+      </div>
+
+      <FormField
+        control={emailForm.control}
+        name="email"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="!font-normal">Email</FormLabel>
+            <FormControl>
+              <Input placeholder="m@example.com" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <Button type="submit" className="w-full" disabled={isSendingOTP}>
+        {isSendingOTP && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+        Send OTP
+      </Button>
+
+      <div className="text-center">
+        <Link
+          to={AUTH_ROUTES.SIGN_IN}
+          className="flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-3 w-3" />
+          Back to sign in
+        </Link>
+      </div>
+    </form>
+  </Form>
+)
+
+const ForgotPasswordOtpStep = ({
+  otpForm,
+  pendingEmail,
+  isVerifying,
+  resendControl,
+  onOtpSubmit,
+  onBack
+}: {
+  otpForm: UseFormReturn<OtpValues>
+  pendingEmail: string
+  isVerifying: boolean
+  resendControl: React.ReactNode
+  onOtpSubmit: (values: OtpValues) => Promise<void>
+  onBack: () => void
+}) => (
+  <Form {...otpForm}>
+    <form
+      onSubmit={otpForm.handleSubmit(onOtpSubmit)}
+      className="flex flex-col gap-6"
+    >
+      <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-1">
+          <MailCheck className="h-6 w-6 text-primary" />
+        </div>
+        <h1 className="text-2xl font-bold">Check your email</h1>
+        <p className="text-sm text-muted-foreground text-balance">
+          We sent a 6-digit code to{' '}
+          <span className="font-medium text-foreground">{pendingEmail}</span>
+        </p>
+      </div>
+
+      <FormField
+        control={otpForm.control}
+        name="otp"
+        render={({ field }) => (
+          <FormItem>
+            <FormControl>
+              <OtpInput
+                value={field.value}
+                onChange={field.onChange}
+                disabled={isVerifying}
+              />
+            </FormControl>
+            <FormMessage className="text-center" />
+          </FormItem>
+        )}
+      />
+
+      <Button
+        type="submit"
+        className="w-full cursor-pointer disabled:cursor-not-allowed"
+        disabled={isVerifying || otpForm.watch('otp').length < 6}
+      >
+        {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+        Verify OTP
+      </Button>
+
+      <div className="flex flex-col items-center gap-3">
+        <div className="text-sm text-muted-foreground">{resendControl}</div>
+
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="h-3 w-3" />
+          Back
+        </button>
+      </div>
+    </form>
+  </Form>
+)
+
+const ForgotPasswordResetStep = ({
+  resetForm,
+  isResetting,
+  onResetSubmit
+}: {
+  resetForm: UseFormReturn<ResetValues>
+  isResetting: boolean
+  onResetSubmit: (values: ResetValues) => Promise<void>
+}) => (
+  <Form {...resetForm}>
+    <form
+      onSubmit={resetForm.handleSubmit(onResetSubmit)}
+      className="flex flex-col gap-6"
+    >
+      <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-1">
+          <KeyRound className="h-6 w-6 text-primary" />
+        </div>
+        <h1 className="text-2xl font-bold">Set new password</h1>
+        <p className="text-sm text-muted-foreground text-balance">
+          Choose a strong password for your account
+        </p>
+      </div>
+
+      <div className="grid gap-4">
+        <FormField
+          control={resetForm.control}
+          name="newPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="!font-normal">New password</FormLabel>
+              <FormControl>
+                <PasswordInput placeholder="â€¢â€¢â€¢â€¢â€¢â€¢" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={resetForm.control}
+          name="confirmPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="!font-normal">Confirm password</FormLabel>
+              <FormControl>
+                <PasswordInput placeholder="â€¢â€¢â€¢â€¢â€¢â€¢" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <Button type="submit" className="w-full" disabled={isResetting}>
+        {isResetting && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+        Reset password
+      </Button>
+    </form>
+  </Form>
+)
 
 type ApiErrorData = {
   data?: {
@@ -347,6 +534,31 @@ const ForgotPasswordForm = () => {
   // ─── Step indicator ────────────────────────────────────────────────────────
 
   const currentIndex = steps.indexOf(step)
+  const resendControl = canResend ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={handleResend}
+      disabled={isResending}
+      className="gap-2 h-auto py-1 cursor-pointer disabled:cursor-not-allowed"
+    >
+      {isResending ? (
+        <Loader className="h-3 w-3 animate-spin" />
+      ) : (
+        <RefreshCw className="h-3 w-3" />
+      )}
+      Resend OTP
+    </Button>
+  ) : (
+    <span>
+      Resend in{' '}
+      <span className="font-mono font-medium text-foreground tabular-nums">
+        {String(Math.floor(seconds / 60)).padStart(2, '0')}:
+        {String(seconds % 60).padStart(2, '0')}
+      </span>
+    </span>
+  )
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -367,197 +579,35 @@ const ForgotPasswordForm = () => {
 
       {/* ── Step 1: Enter email ──────────────────────────────────────────── */}
       {step === 'enter_email' && (
-        <Form {...emailForm}>
-          <form
-            onSubmit={emailForm.handleSubmit(onEmailSubmit)}
-            className="flex flex-col gap-6"
-          >
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h1 className="text-2xl font-bold">Forgot password?</h1>
-              <p className="text-sm text-muted-foreground text-balance">
-                Enter your email and we'll send you a verification code
-              </p>
-            </div>
-
-            <FormField
-              control={emailForm.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="!font-normal">Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="m@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button type="submit" className="w-full" disabled={isSendingOTP}>
-              {isSendingOTP && <Loader className="mr-2 h-4 w-4 animate-spin" />}
-              Send OTP
-            </Button>
-
-            <div className="text-center">
-              <Link
-                to={AUTH_ROUTES.SIGN_IN}
-                className="flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="h-3 w-3" />
-                Back to sign in
-              </Link>
-            </div>
-          </form>
-        </Form>
+        <ForgotPasswordEmailStep
+          emailForm={emailForm}
+          isSendingOTP={isSendingOTP}
+          onEmailSubmit={onEmailSubmit}
+        />
       )}
 
       {/* ── Step 2: Verify OTP ───────────────────────────────────────────── */}
       {step === 'verify_otp' && (
-        <Form {...otpForm}>
-          <form
-            onSubmit={otpForm.handleSubmit(onOtpSubmit)}
-            className="flex flex-col gap-6"
-          >
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-1">
-                <MailCheck className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-2xl font-bold">Check your email</h1>
-              <p className="text-sm text-muted-foreground text-balance">
-                We sent a 6-digit code to{' '}
-                <span className="font-medium text-foreground">
-                  {pendingEmail}
-                </span>
-              </p>
-            </div>
-
-            <FormField
-              control={otpForm.control}
-              name="otp"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <OtpInput
-                      value={field.value}
-                      onChange={field.onChange}
-                      disabled={isVerifying}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-center" />
-                </FormItem>
-              )}
-            />
-
-            <Button
-              type="submit"
-              className="w-full cursor-pointer disabled:cursor-not-allowed"
-              disabled={isVerifying || otpForm.watch('otp').length < 6}
-            >
-              {isVerifying && <Loader className="mr-2 h-4 w-4 animate-spin" />}
-              Verify OTP
-            </Button>
-
-            {/* Resend + Back */}
-            <div className="flex flex-col items-center gap-3">
-              <div className="text-sm text-muted-foreground">
-                {canResend ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleResend}
-                    disabled={isResending}
-                    className="gap-2 h-auto py-1 cursor-pointer disabled:cursor-not-allowed"
-                  >
-                    {isResending ? (
-                      <Loader className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3" />
-                    )}
-                    Resend OTP
-                  </Button>
-                ) : (
-                  <span>
-                    Resend in{' '}
-                    <span className="font-mono font-medium text-foreground tabular-nums">
-                      {String(Math.floor(seconds / 60)).padStart(2, '0')}:
-                      {String(seconds % 60).padStart(2, '0')}
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('enter_email')
-                  otpForm.reset()
-                }}
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="h-3 w-3" />
-                Back
-              </button>
-            </div>
-          </form>
-        </Form>
+        <ForgotPasswordOtpStep
+          otpForm={otpForm}
+          pendingEmail={pendingEmail}
+          isVerifying={isVerifying}
+          resendControl={resendControl}
+          onOtpSubmit={onOtpSubmit}
+          onBack={() => {
+            setStep('enter_email')
+            otpForm.reset()
+          }}
+        />
       )}
 
       {/* ── Step 3: Reset password ───────────────────────────────────────── */}
       {step === 'reset_password' && (
-        <Form {...resetForm}>
-          <form
-            onSubmit={resetForm.handleSubmit(onResetSubmit)}
-            className="flex flex-col gap-6"
-          >
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-1">
-                <KeyRound className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-2xl font-bold">Set new password</h1>
-              <p className="text-sm text-muted-foreground text-balance">
-                Choose a strong password for your account
-              </p>
-            </div>
-
-            <div className="grid gap-4">
-              <FormField
-                control={resetForm.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="!font-normal">New password</FormLabel>
-                    <FormControl>
-                      <PasswordInput placeholder="••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={resetForm.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="!font-normal">
-                      Confirm password
-                    </FormLabel>
-                    <FormControl>
-                      <PasswordInput placeholder="••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isResetting}>
-              {isResetting && <Loader className="mr-2 h-4 w-4 animate-spin" />}
-              Reset password
-            </Button>
-          </form>
-        </Form>
+        <ForgotPasswordResetStep
+          resetForm={resetForm}
+          isResetting={isResetting}
+          onResetSubmit={onResetSubmit}
+        />
       )}
     </div>
   )
