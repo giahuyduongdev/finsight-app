@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useReducer, useCallback } from 'react'
 
 interface UseProgressLoaderOptions {
   initialProgress?: number
@@ -19,35 +19,46 @@ export function useProgressLoader(
 ): UseProgressLoaderReturn {
   const { initialProgress = 10, completionDelay = 500 } = options
 
-  const [progress, setProgress] = useState<number>(0)
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [state, updateState] = useReducer(
+    (
+      current: { progress: number; isLoading: boolean },
+      nextState: Partial<{ progress: number; isLoading: boolean }>
+    ) => ({ ...current, ...nextState }),
+    { progress: 0, isLoading: false }
+  )
 
   const startProgress = useCallback(
     (initial = initialProgress) => {
-      setProgress(Math.min(Math.max(initial, 0), 100))
-      setIsLoading(true)
+      updateState({
+        progress: Math.min(Math.max(initial, 0), 100),
+        isLoading: true
+      })
     },
     [initialProgress]
   )
 
   const updateProgress = useCallback((value: number) => {
-    setProgress(Math.min(Math.max(value, 0), 100))
+    updateState({
+      progress: Math.min(Math.max(value, 0), 100)
+    })
   }, [])
 
   const doneProgress = useCallback(() => {
-    setProgress(100)
-    const timer = setTimeout(() => setIsLoading(false), completionDelay)
+    updateState({ progress: 100, isLoading: true })
+    const timer = setTimeout(
+      () => updateState({ progress: 100, isLoading: false }),
+      completionDelay
+    )
     return () => clearTimeout(timer)
   }, [completionDelay])
 
   const resetProgress = useCallback(() => {
-    setProgress(0)
-    setIsLoading(false)
+    updateState({ progress: 0, isLoading: false })
   }, [])
 
   return {
-    progress,
-    isLoading,
+    progress: state.progress,
+    isLoading: state.isLoading,
     startProgress,
     updateProgress,
     doneProgress,

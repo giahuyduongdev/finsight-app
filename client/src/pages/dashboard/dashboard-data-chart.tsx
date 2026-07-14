@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/chart'
 import { EmptyState } from '@/components/empty-state'
 import { TrendingUpIcon, TrendingDownIcon } from 'lucide-react'
-import { DateRangeType } from '@/components/date-range-select'
+import { DateRangeType } from '@/components/date-range-select/date-range-options'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format-currency'
 import { useChartAnalyticsQuery } from '@/features/analytics/analyticsAPI'

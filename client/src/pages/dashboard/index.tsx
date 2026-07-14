@@ -3,7 +3,10 @@ import PageLayout from '@/components/page-layout'
 //import ExpenseBreakDown from "./expense-breakdown";
 import DashboardRecentTransactions from './dashboard-recent-transactions'
 import { lazy, Suspense, useState } from 'react'
-import { DateRangeType } from '@/components/date-range-select'
+import {
+  DateRangeType,
+  getDateRangeByPreset
+} from '@/components/date-range-select/date-range-options'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -78,7 +81,9 @@ const ChartPanelFallback = ({ variant }: { variant: 'area' | 'pie' }) => {
 }
 
 const Dashboard = () => {
-  const [dateRange, _setDateRange] = useState<DateRangeType>(null)
+  const [dateRange, _setDateRange] = useState<DateRangeType>(() =>
+    getDateRangeByPreset()
+  )
 
   return (
     <div className="w-full flex flex-col">

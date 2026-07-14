@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useReducer, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -147,7 +147,10 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
 
 export function ChangePasswordDialog() {
   const dispatch = useAppDispatch()
-  const [open, setOpen] = useState(false)
+  const [open, updateOpen] = useReducer(
+    (_current: boolean, nextOpen: boolean) => nextOpen,
+    false
+  )
   const [step, setStep] = useState<'form' | 'otp'>('form')
 
   const [requestChange, { isLoading: isRequesting }] =
@@ -184,6 +187,14 @@ export function ChangePasswordDialog() {
     defaultValues: { otp: '' }
   })
 
+  useEffect(() => {
+    if (open) return
+
+    setStep('form')
+    requestForm.reset()
+    otpForm.reset()
+  }, [open, otpForm, requestForm])
+
   const onRequestSubmit = async (values: ChangePasswordRequestValues) => {
     try {
       await requestChange(values).unwrap()
@@ -204,7 +215,7 @@ export function ChangePasswordDialog() {
         message: 'Password changed successfully. Please sign in again',
         type: 'success'
       })
-      setOpen(false)
+      updateOpen(false)
       dispatch(logout())
       dispatch(apiClient.util.resetApiState())
       localStorage.removeItem('persist:root')
@@ -230,13 +241,7 @@ export function ChangePasswordDialog() {
   }
 
   const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen)
-    if (!newOpen) {
-      // Reset state when closing
-      setStep('form')
-      requestForm.reset()
-      otpForm.reset()
-    }
+    updateOpen(newOpen)
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { useSocket } from '@/hooks/use-socket'
 import { useTypedSelector } from '@/app/hook'
 import {
@@ -27,7 +27,11 @@ const RatesPage = () => {
   const { data: initialData, isFetching } = useGetExchangeRatesQuery()
   const [refreshExchangeRates, { isLoading: isRefreshingRates }] =
     useRefreshExchangeRatesMutation()
-  const [rates, setRates] = useState<ExchangeRates | null>(null)
+  const [rates, updateRates] = useReducer(
+    (_current: ExchangeRates | null, nextRates: ExchangeRates | null) =>
+      nextRates,
+    null
+  )
   const [showRefreshSpinner, setShowRefreshSpinner] = useState(false)
   const [isConnected, setIsConnected] = useState(socket?.connected || false)
   const hasManualRefreshAttempted = useRef(false)
@@ -37,7 +41,7 @@ const RatesPage = () => {
   // Sync initial data from API
   useEffect(() => {
     if (initialData?.data) {
-      setRates(initialData.data)
+      updateRates(initialData.data)
     }
   }, [initialData])
 
@@ -47,7 +51,7 @@ const RatesPage = () => {
     const handleConnect = () => setIsConnected(true)
     const handleDisconnect = () => setIsConnected(false)
     const handleRatesUpdate = (data: ExchangeRates) => {
-      setRates(data)
+      updateRates(data)
     }
 
     // Set initial status
@@ -86,7 +90,7 @@ const RatesPage = () => {
         minimumSpinner
       ])
       hasManualRefreshAttempted.current = true
-      setRates(response.data)
+      updateRates(response.data)
       toast.success('Exchange rates updated')
     } finally {
       hasManualRefreshAttempted.current = true

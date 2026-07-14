@@ -30,8 +30,8 @@ const ReportTable = () => {
     <DataTable
       data={data?.reports || []} //data?.reports || []
       columns={reportColumns}
-      isLoading={isLoading || isFetching}
-      showSearch={false}
+      features={{ search: false }}
+      loadingState={{ table: isLoading || isFetching }}
       className="[&_td]:!w-[5%]"
       pagination={pagination}
       onPageChange={handlePageChange}

@@ -1,6 +1,6 @@
 import { useSummaryAnalyticsQuery } from '@/features/analytics/analyticsAPI'
 import SummaryCard from './summary-card'
-import { DateRangeType } from '@/components/date-range-select'
+import { DateRangeType } from '@/components/date-range-select/date-range-options'
 import { useSelector } from 'react-redux'
 import { RootState } from '@/app/store'
 

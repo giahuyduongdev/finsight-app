@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 
 interface UseDebouncedSearchOptions {
   delay?: number
@@ -13,10 +13,6 @@ const useDebouncedSearch = (
 
   const [searchTerm, setSearchTerm] = useState(initialValue)
   const [debouncedTerm, setDebouncedTerm] = useState(initialValue)
-
-  const setSearchTermDebounced = useCallback((term: string) => {
-    setSearchTerm(term)
-  }, [])
 
   useEffect(() => {
     if (immediate && searchTerm === initialValue) {
@@ -33,7 +29,7 @@ const useDebouncedSearch = (
     }
   }, [searchTerm, delay, initialValue, immediate])
 
-  return { debouncedTerm, searchTerm, setSearchTerm: setSearchTermDebounced }
+  return { debouncedTerm, searchTerm, setSearchTerm }
 }
 
 export default useDebouncedSearch

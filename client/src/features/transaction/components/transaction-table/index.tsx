@@ -1,5 +1,9 @@
 import { DataTable } from '@/components/data-table'
-import { DateRangeSelect, DateRangeType } from '@/components/date-range-select'
+import { DateRangeSelect } from '@/components/date-range-select'
+import {
+  DateRangeType,
+  getDateRangeByPreset
+} from '@/components/date-range-select/date-range-options'
 import { createTransactionColumns, DisplayTransaction } from './column'
 import {
   _TRANSACTION_TYPE,
@@ -60,8 +64,9 @@ const TransactionTable = (props: {
   dateRange?: DateRangeType
   setDateRange?: (range: DateRangeType) => void
 }) => {
-  const [internalDateRange, setInternalDateRange] =
-    useState<DateRangeType>(null)
+  const [internalDateRange, setInternalDateRange] = useState<DateRangeType>(
+    () => getDateRangeByPreset()
+  )
 
   // Use external state if provided, otherwise use internal state
   const dateRange =
@@ -593,9 +598,11 @@ const TransactionTable = (props: {
       expanded={expanded}
       onExpandedChange={setExpanded}
       searchPlaceholder="Search transactions..."
-      isLoading={isLoading && !data}
-      isBulkDeleting={isBulkDeleting}
-      isShowPagination={props.isShowPagination}
+      features={{ pagination: props.isShowPagination }}
+      loadingState={{
+        table: isLoading && !data,
+        bulkDelete: isBulkDeleting
+      }}
       pagination={pagination}
       filters={[
         {

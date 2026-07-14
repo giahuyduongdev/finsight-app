@@ -1,7 +1,7 @@
 import { useTypedSelector } from '@/app/hook'
 import DashboardHeader from './_component/dashboard-header'
 import DashboardStats from './_component/dashboard-stats'
-import { DateRangeType } from '@/components/date-range-select'
+import { DateRangeType } from '@/components/date-range-select/date-range-options'
 
 const DashboardSummary = ({
   dateRange,

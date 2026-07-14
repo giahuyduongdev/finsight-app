@@ -1,4 +1,5 @@
-import { DateRangeSelect, DateRangeType } from '@/components/date-range-select'
+import { DateRangeSelect } from '@/components/date-range-select'
+import { DateRangeType } from '@/components/date-range-select/date-range-options'
 import AddTransactionDrawer from '@/features/transaction/components/add-transaction-drawer'
 
 interface Props {

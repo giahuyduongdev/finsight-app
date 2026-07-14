@@ -20,41 +20,75 @@ const transactionFields: TransactionField[] = [
   { fieldName: 'description', required: false }
 ]
 
-const ImportTransactionModal = () => {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [csvColumns, setCsvColumns] = useState<CsvColumn[]>([])
+type ImportStep = 1 | 2 | 3
+
+type ImportState = {
+  step: ImportStep
+  csvColumns: CsvColumn[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [csvData, setCsvData] = useState<any[]>([])
-  const [mappings, setMappings] = useState<Record<string, string>>({})
-  const [open, setOpen] = useState(false)
+  csvData: any[]
+  mappings: Record<string, string>
+  open: boolean
+}
+
+const initialImportState: ImportState = {
+  step: 1,
+  csvColumns: [],
+  csvData: [],
+  mappings: {},
+  open: false
+}
+
+const ImportTransactionModal = () => {
+  const [importState, setImportState] =
+    useState<ImportState>(initialImportState)
+  const { step, csvColumns, csvData, mappings, open } = importState
 
   // console.log(transactionFields, file, csvColumns, csvData, mappings);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFileUpload = (_file: File, columns: CsvColumn[], data: any[]) => {
-    setCsvColumns(columns)
-    setCsvData(data)
-    setMappings({})
-    setStep(2)
-  }
-
-  const resetImport = () => {
-    setCsvColumns([])
-    setMappings({})
-    setStep(1)
+    setImportState({
+      open,
+      step: 2,
+      csvColumns: columns,
+      csvData: data,
+      mappings: {}
+    })
   }
 
   const handleClose = () => {
-    setOpen(false)
+    setImportState({
+      ...importState,
+      open: false
+    })
   }
 
-  const handleMappingComplete = (mappings: Record<string, string>) => {
-    setMappings(mappings)
-    setStep(3)
+  const handleMappingComplete = (nextMappings: Record<string, string>) => {
+    setImportState({
+      ...importState,
+      step: 3,
+      mappings: nextMappings
+    })
   }
 
-  const handleBack = (step: 1 | 2 | 3) => {
-    setStep(step)
+  const handleBack = (nextStep: ImportStep) => {
+    setImportState({
+      ...importState,
+      step: nextStep
+    })
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setImportState({
+        ...importState,
+        open: true
+      })
+      return
+    }
+
+    setImportState(initialImportState)
   }
 
   const renderStep = () => {
@@ -86,13 +120,7 @@ const ImportTransactionModal = () => {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(val) => {
-        setOpen(val)
-        if (!val) resetImport()
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           variant="outline"
