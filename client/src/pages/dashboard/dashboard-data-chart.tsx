@@ -1,6 +1,5 @@
 import * as React from 'react'
 import { format } from 'date-fns'
-import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   Card,
@@ -17,6 +16,7 @@ import {
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart'
+import { useRecharts } from '@/components/ui/use-recharts'
 import { EmptyState } from '@/components/empty-state'
 import { TrendingUpIcon, TrendingDownIcon } from 'lucide-react'
 import { DateRangeType } from '@/components/date-range-select/date-range-options'
@@ -47,6 +47,7 @@ const chartConfig = {
 const DashboardDataChart: React.FC<PropsType> = (props) => {
   const { dateRange } = props
   const isMobile = useIsMobile()
+  const recharts = useRecharts()
 
   const preferredCurrency =
     useSelector((state: RootState) => state.auth?.user?.preferredCurrency) ||
@@ -110,12 +111,14 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
             title="No transaction data"
             description="There are no transactions recorded for this period."
           />
+        ) : !recharts ? (
+          <ChartSkeleton />
         ) : (
           <ChartContainer
             config={chartConfig}
             className="aspect-auto h-[300px] w-full"
           >
-            <AreaChart key={preferredCurrency} data={chartData || []}>
+            <recharts.AreaChart key={preferredCurrency} data={chartData || []}>
               <defs>
                 <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={COLORS[0]} stopOpacity={1.0} />
@@ -132,14 +135,14 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                   <stop offset="95%" stopColor={COLORS[1]} stopOpacity={0.1} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
+              <recharts.CartesianGrid strokeDasharray="3 3" />
+              <recharts.XAxis
                 dataKey="date"
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
                 minTickGap={isMobile ? 20 : 25}
-                tickFormatter={(value) =>
+                tickFormatter={(value: string | number) =>
                   format(new Date(value), isMobile ? 'MMM d' : 'MMMM d, yyyy')
                 }
               />
@@ -152,7 +155,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) =>
-                      format(new Date(value), 'MMM d, yyyy')
+                      format(new Date(String(value)), 'MMM d, yyyy')
                     }
                     indicator="line"
                     formatter={(value, name) => {
@@ -173,7 +176,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                   />
                 }
               />
-              <Area
+              <recharts.Area
                 dataKey="expenses"
                 stackId="1"
                 type="step"
@@ -181,7 +184,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                 stroke={COLORS[1]}
                 className="drop-shadow-sm"
               />
-              <Area
+              <recharts.Area
                 dataKey="income"
                 stackId="1"
                 type="step"
@@ -192,7 +195,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                 verticalAlign="bottom"
                 content={<ChartLegendContent />}
               />
-            </AreaChart>
+            </recharts.AreaChart>
           </ChartContainer>
         )}
       </CardContent>

@@ -28,6 +28,15 @@ const getVendorChunkName = (id: string) => {
     return 'vendor-recharts'
   }
 
+  if (
+    id.includes('/d3-') ||
+    id.includes('victory-vendor') ||
+    id.includes('/clsx/') ||
+    id.includes('/tiny-invariant/')
+  ) {
+    return 'vendor-chart-utils'
+  }
+
   if (id.includes('@radix-ui')) {
     return 'vendor-radix'
   }

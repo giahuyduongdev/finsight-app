@@ -133,7 +133,7 @@ const transactionSchema = z.object({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const ConfirmationStep = ({
+const useConfirmationStepView = ({
   mappings,
   csvData: initialCsvData,
   onComplete,
@@ -708,5 +708,8 @@ const ConfirmationStep = ({
     </div>
   )
 }
+
+const ConfirmationStep = (props: ConfirmationStepProps) =>
+  useConfirmationStepView(props)
 
 export default ConfirmationStep

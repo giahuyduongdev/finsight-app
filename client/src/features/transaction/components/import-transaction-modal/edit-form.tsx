@@ -34,7 +34,7 @@ interface EditFormProps {
   open: boolean
 }
 
-export const EditForm = ({
+const useEditFormView = ({
   transaction,
   index: rowId,
   onUpdate,
@@ -355,3 +355,5 @@ export const EditForm = ({
     </Dialog>
   )
 }
+
+export const EditForm = (props: EditFormProps) => useEditFormView(props)
