@@ -1,14 +1,5 @@
-import { useEffect, useState } from 'react'
-import {
-  format,
-  subDays,
-  subMonths,
-  subYears,
-  startOfMonth,
-  startOfYear,
-  startOfDay,
-  endOfDay
-} from 'date-fns'
+import { useEffect, useReducer } from 'react'
+import { format, startOfDay, endOfDay } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -19,148 +10,31 @@ import { cn } from '@/lib/utils'
 import { ChevronDownIcon } from 'lucide-react'
 import { Calendar } from '../ui/calendar'
 import { DateRange } from 'react-day-picker'
-
-export const DateRangeEnum = {
-  LAST_30_DAYS: '30days',
-  LAST_MONTH: 'lastMonth',
-  LAST_3_MONTHS: 'last3Months',
-  LAST_YEAR: 'lastYear',
-  THIS_MONTH: 'thisMonth',
-  THIS_YEAR: 'thisYear',
-  ALL_TIME: 'allTime',
-  CUSTOM: 'custom'
-} as const
-
-export type DateRangeEnumType =
-  (typeof DateRangeEnum)[keyof typeof DateRangeEnum]
-
-export type DateRangeType = {
-  from: Date | null
-  to: Date | null
-  value?: string
-  label: string
-} | null
-
-type DateRangePreset = {
-  label: string
-  value: string
-  getRange: () => DateRangeType
-}
+import { DateRangeEnum, DateRangeType, presets } from './date-range-options'
 
 interface DateRangeSelectProps {
   dateRange: DateRangeType
   setDateRange: (range: DateRangeType) => void
-  defaultRange?: DateRangeEnumType
 }
-
-const today = new Date()
-
-const presets: DateRangePreset[] = [
-  {
-    label: 'Last 30 Days',
-    value: DateRangeEnum.LAST_30_DAYS,
-    getRange: () => ({
-      from: startOfDay(subDays(today, 30)),
-      to: endOfDay(today),
-      value: DateRangeEnum.LAST_30_DAYS,
-      label: 'for Past 30 Days'
-    })
-  },
-  {
-    label: 'Last Month',
-    value: DateRangeEnum.LAST_MONTH,
-    getRange: () => {
-      const lastMonth = subMonths(today, 1)
-      return {
-        from: startOfMonth(lastMonth),
-        to: endOfDay(subDays(startOfMonth(today), 1)),
-        value: DateRangeEnum.LAST_MONTH,
-        label: 'for Last Month'
-      }
-    }
-  },
-  {
-    label: 'Last 3 Months',
-    value: DateRangeEnum.LAST_3_MONTHS,
-    getRange: () => {
-      const start = startOfMonth(subMonths(today, 3))
-      return {
-        from: start,
-        to: endOfDay(subDays(startOfMonth(today), 1)),
-        value: DateRangeEnum.LAST_3_MONTHS,
-        label: 'for Past 3 Months'
-      }
-    }
-  },
-  {
-    label: 'Last Year',
-    value: DateRangeEnum.LAST_YEAR,
-    getRange: () => {
-      const lastYear = subYears(today, 1)
-      return {
-        from: startOfYear(lastYear),
-        to: endOfDay(subDays(startOfYear(today), 1)),
-        value: DateRangeEnum.LAST_YEAR,
-        label: 'for Past Year'
-      }
-    }
-  },
-  {
-    label: 'This Month',
-    value: DateRangeEnum.THIS_MONTH,
-    getRange: () => ({
-      from: startOfMonth(today),
-      to: endOfDay(today),
-      value: DateRangeEnum.THIS_MONTH,
-      label: 'for This Month'
-    })
-  },
-  {
-    label: 'This Year',
-    value: DateRangeEnum.THIS_YEAR,
-    getRange: () => ({
-      from: startOfYear(today),
-      to: endOfDay(today),
-      value: DateRangeEnum.THIS_YEAR,
-      label: 'for This Year'
-    })
-  },
-  {
-    label: 'All Time',
-    value: DateRangeEnum.ALL_TIME,
-    getRange: () => ({
-      from: null,
-      to: null,
-      value: DateRangeEnum.ALL_TIME,
-      label: 'across All Time'
-    })
-  },
-  {
-    label: 'Custom Range',
-    value: DateRangeEnum.CUSTOM,
-    getRange: () => ({
-      from: null,
-      to: null,
-      value: DateRangeEnum.CUSTOM,
-      label: 'Custom Range'
-    })
-  }
-]
 
 export const DateRangeSelect = ({
   dateRange,
-  setDateRange,
-  defaultRange = DateRangeEnum.ALL_TIME
+  setDateRange
 }: DateRangeSelectProps) => {
-  const [open, setOpen] = useState(false)
-  const [pendingRange, setPendingRange] = useState<DateRange | undefined>(
+  const [open, updateOpen] = useReducer(
+    (_current: boolean, nextOpen: boolean) => nextOpen,
+    false
+  )
+  const [pendingRange, updatePendingRange] = useReducer(
+    (_current: DateRange | undefined, nextRange: DateRange | undefined) =>
+      nextRange,
     undefined
   )
 
   // Sync pendingRange when popover opens and it's a custom range
   useEffect(() => {
     if (open && dateRange?.value === DateRangeEnum.CUSTOM) {
-      setPendingRange({
+      updatePendingRange({
         from: dateRange?.from || undefined,
         to: dateRange?.to || undefined
       })
@@ -176,18 +50,8 @@ export const DateRangeSelect = ({
         : 'Select a duration')
     : 'Select a duration'
 
-  // Set default range on initial render
-  useEffect(() => {
-    if (!dateRange) {
-      const defaultPreset = presets.find((p) => p.value === defaultRange)
-      if (defaultPreset) {
-        setDateRange(defaultPreset.getRange())
-      }
-    }
-  }, [dateRange, defaultRange, setDateRange])
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={updateOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -222,7 +86,7 @@ export const DateRangeSelect = ({
               onClick={() => {
                 setDateRange(preset.getRange())
                 if (preset.value !== DateRangeEnum.CUSTOM) {
-                  setOpen(false)
+                  updateOpen(false)
                 }
               }}
             >
@@ -237,7 +101,7 @@ export const DateRangeSelect = ({
               mode="range"
               defaultMonth={pendingRange?.from || dateRange?.from || undefined}
               selected={pendingRange}
-              onSelect={setPendingRange}
+              onSelect={updatePendingRange}
               numberOfMonths={1}
               className="p-3"
             />
@@ -247,8 +111,8 @@ export const DateRangeSelect = ({
                 size="sm"
                 className="h-8"
                 onClick={() => {
-                  setPendingRange(undefined)
-                  setOpen(false)
+                  updatePendingRange(undefined)
+                  updateOpen(false)
                 }}
               >
                 Cancel
@@ -269,7 +133,7 @@ export const DateRangeSelect = ({
                     value: DateRangeEnum.CUSTOM,
                     label: 'Custom Range'
                   })
-                  setOpen(false)
+                  updateOpen(false)
                 }}
               >
                 Apply Range

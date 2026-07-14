@@ -12,7 +12,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { PROTECTED_ROUTES } from '@/routes/common/routePath'
 
-import { DateRangeType } from '@/components/date-range-select'
+import { DateRangeType } from '@/components/date-range-select/date-range-options'
 
 const DashboardRecentTransactions = ({
   dateRange,

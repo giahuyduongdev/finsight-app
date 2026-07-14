@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useReducer } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -148,7 +148,10 @@ const OtpInput = ({ value, onChange, disabled }: OtpInputProps) => {
 
 export function ChangeEmailDialog() {
   const dispatch = useAppDispatch()
-  const [open, setOpen] = useState(false)
+  const [open, updateOpen] = useReducer(
+    (_current: boolean, nextOpen: boolean) => nextOpen,
+    false
+  )
   const [step, setStep] = useState<'form' | 'otp'>('form')
   const [pendingEmail, setPendingEmail] = useState('')
 
@@ -184,6 +187,14 @@ export function ChangeEmailDialog() {
     defaultValues: { oldEmailOtp: '', newEmailOtp: '' }
   })
 
+  useEffect(() => {
+    if (open) return
+
+    setStep('form')
+    requestForm.reset()
+    otpForm.reset()
+  }, [open, otpForm, requestForm])
+
   const onRequestSubmit = async (values: ChangeEmailRequestValues) => {
     try {
       await requestChange(values).unwrap()
@@ -205,7 +216,7 @@ export function ChangeEmailDialog() {
         message: 'Email updated successfully. Please sign in again',
         type: 'success'
       })
-      setOpen(false)
+      updateOpen(false)
       dispatch(logout())
       dispatch(apiClient.util.resetApiState())
       localStorage.removeItem('persist:root')
@@ -231,12 +242,7 @@ export function ChangeEmailDialog() {
   }
 
   const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen)
-    if (!newOpen) {
-      setStep('form')
-      requestForm.reset()
-      otpForm.reset()
-    }
+    updateOpen(newOpen)
   }
 
   return (

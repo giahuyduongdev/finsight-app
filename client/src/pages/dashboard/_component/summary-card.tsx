@@ -6,7 +6,10 @@ import { formatCurrency } from '@/lib/format-currency'
 import { formatPercentage } from '@/lib/format-percentage'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { DateRangeEnum, DateRangeType } from '@/components/date-range-select'
+import {
+  DateRangeEnum,
+  DateRangeType
+} from '@/components/date-range-select/date-range-options'
 
 type CardType = 'balance' | 'income' | 'expenses' | 'savings'
 type CardStatus = {

@@ -56,10 +56,13 @@ export interface SingleSelectorRef {
 }
 
 export function useDebounce<T>(value: T, delay?: number): T {
-  const [debouncedValue, setDebouncedValue] = React.useState<T>(value)
+  const [debouncedValue, updateDebouncedValue] = React.useReducer(
+    (_current: T, nextValue: T) => nextValue,
+    value
+  )
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay || 500)
+    const timer = setTimeout(() => updateDebouncedValue(value), delay || 500)
 
     return () => {
       clearTimeout(timer)
@@ -141,11 +144,19 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
     const [isLoading, setIsLoading] = React.useState(false)
     const dropdownRef = React.useRef<HTMLDivElement>(null)
 
-    const [selected, setSelected] = React.useState<Option | undefined>(value)
-    const [options, setOptions] = React.useState<GroupOption>(() =>
+    const [selected, updateSelected] = React.useReducer(
+      (_current: Option | undefined, nextSelected: Option | undefined) =>
+        nextSelected,
+      value
+    )
+    const [options, updateOptions] = React.useReducer(
+      (_current: GroupOption, nextOptions: GroupOption) => nextOptions,
       transToGroupOption(defaultOptions, groupBy)
     )
-    const [inputValue, setInputValue] = React.useState('')
+    const [inputValue, updateInputValue] = React.useReducer(
+      (_current: string, nextInputValue: string) => nextInputValue,
+      ''
+    )
     const [commandValue, setCommandValue] = React.useState('')
     const [showAllOptions, setShowAllOptions] = React.useState(true)
     const debouncedSearchTerm = useDebounce(inputValue, delay || 500)
@@ -156,7 +167,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
         selectedValue: selected,
         input: inputRef.current as HTMLInputElement,
         focus: () => inputRef?.current?.focus(),
-        reset: () => setSelected(undefined)
+        reset: () => updateSelected(undefined)
       }),
       [selected]
     )
@@ -175,15 +186,15 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
 
     const handleUnselect = React.useCallback(() => {
       // Clear selected value
-      setSelected(undefined)
+      updateSelected(undefined)
       onChange?.(undefined)
 
       // Clear input to ensure no filtering is applied
-      setInputValue('')
+      updateInputValue('')
 
       // Refresh options to show all options
       if (arrayOptions) {
-        setOptions(transToGroupOption(arrayOptions, groupBy))
+        updateOptions(transToGroupOption(arrayOptions, groupBy))
       }
     }, [arrayOptions, groupBy, onChange])
 
@@ -191,7 +202,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
       // When dropdown opens, ensure all options are shown
       if (open && arrayOptions && !inputValue) {
         const fullOptions = transToGroupOption([...arrayOptions], groupBy)
-        setOptions(fullOptions)
+        updateOptions(fullOptions)
       }
     }, [open, arrayOptions, groupBy, inputValue])
 
@@ -211,7 +222,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
     }, [open])
 
     useEffect(() => {
-      setSelected(value)
+      updateSelected(value)
     }, [value])
 
     useEffect(() => {
@@ -220,14 +231,14 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
       }
       const newOption = transToGroupOption(arrayOptions || [], groupBy)
       if (JSON.stringify(newOption) !== JSON.stringify(options)) {
-        setOptions(newOption)
+        updateOptions(newOption)
       }
     }, [defaultOptions, arrayOptions, groupBy, onSearch, options])
 
     useEffect(() => {
       const doSearchSync = () => {
         const res = onSearchSync?.(debouncedSearchTerm)
-        setOptions(transToGroupOption(res || [], groupBy))
+        updateOptions(transToGroupOption(res || [], groupBy))
       }
 
       const exec = async () => {
@@ -249,7 +260,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
       const doSearch = async () => {
         setIsLoading(true)
         const res = await onSearch?.(debouncedSearchTerm)
-        setOptions(transToGroupOption(res || [], groupBy))
+        updateOptions(transToGroupOption(res || [], groupBy))
         setIsLoading(false)
       }
 
@@ -304,11 +315,11 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
             const newOption = { value, label: value }
 
             // Update selected state and trigger onChange
-            setSelected(newOption)
+            updateSelected(newOption)
             onChange?.(newOption)
 
             // Clear input
-            setInputValue('')
+            updateInputValue('')
 
             // Close dropdown
             setOpen(false)
@@ -361,11 +372,11 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
 
       setOpen(true)
       setShowAllOptions(true)
-      setInputValue('')
+      updateInputValue('')
       setCommandValue(Math.random().toString())
 
       if (arrayOptions) {
-        setOptions(transToGroupOption(arrayOptions, groupBy))
+        updateOptions(transToGroupOption(arrayOptions, groupBy))
       }
 
       inputRef?.current?.focus()
@@ -375,7 +386,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
           onSearch('')
         } else if (onSearchSync) {
           const res = onSearchSync('')
-          setOptions(transToGroupOption(res || [], groupBy))
+          updateOptions(transToGroupOption(res || [], groupBy))
         }
       }
     }, [
@@ -439,7 +450,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
               value={inputValue}
               disabled={disabled}
               onValueChange={(value) => {
-                setInputValue(value)
+                updateInputValue(value)
                 setShowAllOptions(value.length === 0)
                 inputProps?.onValueChange?.(value)
               }}
@@ -454,7 +465,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
 
                 // Always refresh options when opening
                 if (arrayOptions) {
-                  setOptions(transToGroupOption(arrayOptions, groupBy))
+                  updateOptions(transToGroupOption(arrayOptions, groupBy))
                 }
 
                 // Also trigger search if configured
@@ -463,7 +474,7 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
                     onSearch('')
                   } else if (onSearchSync) {
                     const res = onSearchSync('')
-                    setOptions(transToGroupOption(res || [], groupBy))
+                    updateOptions(transToGroupOption(res || [], groupBy))
                   }
                 }
 
@@ -529,10 +540,10 @@ const SingleSelector = React.forwardRef<SingleSelectorRef, SingleSelectorProps>(
                               }}
                               onSelect={() => {
                                 // Clear input to ensure no filtering is applied next time
-                                setInputValue('')
+                                updateInputValue('')
 
                                 // Set selected option
-                                setSelected(option)
+                                updateSelected(option)
                                 onChange?.(option)
 
                                 // Close dropdown

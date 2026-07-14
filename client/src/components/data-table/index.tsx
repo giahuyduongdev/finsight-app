@@ -47,16 +47,20 @@ interface DataTableProps<TData> {
   data: TData[]
   columns: ColumnDef<TData, any>[]
   searchPlaceholder?: string
-  showSearch?: boolean
   filters?: FilterOption[]
   className?: string
   onSearch?: (term: string) => void
   onFilterChange?: (filters: Record<string, string>) => void
   onBulkDelete?: (selectedIds: string[]) => void
-  selection?: boolean
-  isLoading?: boolean
-  isBulkDeleting?: boolean
-  isShowPagination?: boolean
+  features?: {
+    search?: boolean
+    selection?: boolean
+    pagination?: boolean
+  }
+  loadingState?: {
+    table?: boolean
+    bulkDelete?: boolean
+  }
   pagination?: {
     totalItems?: number
     totalPages?: number
@@ -97,16 +101,13 @@ export function DataTable<TData>({
   data,
   columns,
   searchPlaceholder = 'Search...',
-  showSearch = true,
   filters = [],
   className,
   onSearch,
   onFilterChange,
   onBulkDelete,
-  selection = true,
-  isLoading = false,
-  isBulkDeleting = false,
-  isShowPagination = true,
+  features,
+  loadingState,
   pagination,
   onPageChange,
   onPageSizeChange,
@@ -116,7 +117,16 @@ export function DataTable<TData>({
   onExpandedChange,
   renderExtraFilters
 }: DataTableProps<TData>) {
-  const [searchTerm, setSearchTerm] = React.useState('')
+  const showSearch = features?.search ?? true
+  const selection = features?.selection ?? true
+  const isShowPagination = features?.pagination ?? true
+  const isLoading = loadingState?.table ?? false
+  const isBulkDeleting = loadingState?.bulkDelete ?? false
+
+  const [searchTerm, updateSearchTerm] = React.useReducer(
+    (_current: string, nextSearchTerm: string) => nextSearchTerm,
+    ''
+  )
   const [filterValues, setFilterValues] = React.useState<
     Record<string, string>
   >({})
@@ -157,7 +167,7 @@ export function DataTable<TData>({
   const hasSelections = selectedRows.length > 0
 
   const handleSearch = (value: string) => {
-    setSearchTerm(value)
+    updateSearchTerm(value)
     onSearch?.(value)
   }
 
@@ -175,7 +185,7 @@ export function DataTable<TData>({
   }
 
   const handleClear = () => {
-    setSearchTerm('')
+    updateSearchTerm('')
     setFilterValues({})
     onSearch?.('')
     onFilterChange?.({})

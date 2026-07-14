@@ -14,7 +14,7 @@ import {
   ChartTooltip,
   ChartTooltipContent
 } from '@/components/ui/chart'
-import { DateRangeType } from '@/components/date-range-select'
+import { DateRangeType } from '@/components/date-range-select/date-range-options'
 import { formatCurrency } from '@/lib/format-currency'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatPercentage } from '@/lib/format-percentage'

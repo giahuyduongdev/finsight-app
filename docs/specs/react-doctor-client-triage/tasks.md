@@ -68,8 +68,20 @@ Build note:
 ### Batch 3 - Maintainability Refactors
 
 - [ ] Plan separate refactors for the 8 `no-giant-component` files.
-- [ ] Review `no-many-boolean-props` in `DataTable`.
+- [x] Review `no-many-boolean-props` in `DataTable`.
 - [ ] Avoid mixing giant-component refactors with small cleanup PRs.
+
+## Remaining Cleanup Branch
+
+- [x] Implement `fix/react-doctor-client-remaining`.
+- [x] Clear remaining `no-impure-state-updater` errors.
+- [x] Fix `DataTable` boolean prop API warning.
+- [x] Fix low-risk `DateRangeSelect` parent data flow warning.
+- [x] Validate with type-check, lint, build, full tests, and full React Doctor scan.
+- [x] Final React Doctor result: `0 errors`, `12 warnings`, `11 affected files`, score `84/100`.
+- [ ] Follow-up: split `no-giant-component` refactors into smaller branches.
+- [ ] Follow-up: revisit receipt scanner data flow with notification UX.
+- [ ] Follow-up: revisit deeper Recharts dynamic import only if future bundle work needs it.
 
 ## Deferred By Design
 
