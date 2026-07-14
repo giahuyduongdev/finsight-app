@@ -48,10 +48,11 @@ Build note:
 
 ### Batch 1 - State And Effect Bugs
 
-- [ ] Review `prefer-use-effect-event` occurrences trong receipt scanner.
+- [x] Review `prefer-use-effect-event` occurrences trong receipt scanner.
+- [x] Implement receipt scanner effect-event cleanup in `fix/receipt-scanner-effects`.
 - [ ] Review `no-chain-state-updates` in date range select and single select.
 - [ ] Review parent synchronization warnings before changing callback timing.
-- [ ] Validate with type-check, lint, build, and full React Doctor scan.
+- [x] Validate receipt scanner branch with type-check, lint, build, Vitest, and full React Doctor scan.
 
 ### Batch 2 - Performance And Bundle
 
