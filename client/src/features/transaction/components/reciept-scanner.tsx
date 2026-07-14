@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useEffectEvent } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { ScanText } from 'lucide-react'
@@ -45,16 +45,6 @@ const ReceiptScanner = ({
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const setPendingJobId = useCallback((jobId: string | null) => {
-    pendingJobIdRef.current = jobId
-    setPendingJobIdState(jobId)
-    if (jobId) {
-      sessionStorage.setItem(PENDING_RECEIPT_JOB_KEY, jobId)
-    } else {
-      sessionStorage.removeItem(PENDING_RECEIPT_JOB_KEY)
-    }
-  }, [])
-
   const stopProgressSimulation = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
@@ -85,7 +75,9 @@ const ReceiptScanner = ({
       URL.revokeObjectURL(receipt)
     }
     setReceipt(null)
-    setPendingJobId(null)
+    pendingJobIdRef.current = null
+    setPendingJobIdState(null)
+    sessionStorage.removeItem(PENDING_RECEIPT_JOB_KEY)
     onLoadingChange(false)
   }, [
     receipt,
@@ -93,15 +85,16 @@ const ReceiptScanner = ({
     onLoadingChange,
     stopProgressSimulation,
     stopSafetyTimeout,
-    stopCompletionTimeout,
-    setPendingJobId
+    stopCompletionTimeout
   ])
 
   const completeSuccess = useCallback(() => {
     stopProgressSimulation()
     stopSafetyTimeout()
     stopCompletionTimeout()
-    setPendingJobId(null)
+    pendingJobIdRef.current = null
+    setPendingJobIdState(null)
+    sessionStorage.removeItem(PENDING_RECEIPT_JOB_KEY)
     updateProgress(100)
     // Settle for a bit before clearing UI
     completionTimeoutRef.current = setTimeout(() => {
@@ -119,9 +112,30 @@ const ReceiptScanner = ({
     onLoadingChange,
     stopProgressSimulation,
     stopSafetyTimeout,
-    stopCompletionTimeout,
-    setPendingJobId
+    stopCompletionTimeout
   ])
+
+  const notifyLoadingChange = useEffectEvent((isLoading: boolean) => {
+    onLoadingChange(isLoading)
+  })
+
+  const completeScan = useEffectEvent((data: AIScanReceiptData) => {
+    onScanComplete(data)
+  })
+
+  const clearPendingJob = useEffectEvent(() => {
+    pendingJobIdRef.current = null
+    setPendingJobIdState(null)
+    sessionStorage.removeItem(PENDING_RECEIPT_JOB_KEY)
+  })
+
+  const resetScanState = useEffectEvent(() => {
+    resetState()
+  })
+
+  const completeScanSuccess = useEffectEvent(() => {
+    completeSuccess()
+  })
 
   useEffect(() => {
     const storedJobId = sessionStorage.getItem(PENDING_RECEIPT_JOB_KEY)
@@ -129,9 +143,10 @@ const ReceiptScanner = ({
 
     pendingJobIdRef.current = storedJobId
     setPendingJobIdState(storedJobId)
-    onLoadingChange(true)
+    notifyLoadingChange(true)
     startProgress(10)
-  }, [onLoadingChange, startProgress])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- useEffectEvent keeps latest onLoadingChange without resubscribing restore logic.
+  }, [startProgress])
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -163,16 +178,16 @@ const ReceiptScanner = ({
       if (!pendingJobIdRef.current || payload.jobId !== pendingJobIdRef.current)
         return
 
-      setPendingJobId(null) // Clear immediately for idempotency
+      clearPendingJob()
       try {
         markNotificationHandledInForeground(payload.jobId)
-        onScanComplete(payload.data)
+        completeScan(payload.data)
         toast.success('Receipt scanned successfully')
-        completeSuccess()
+        completeScanSuccess()
       } catch (error) {
         console.error('❌ [Scanner] Failed to complete scan', error)
         toast.error('Scan completed but UI update failed')
-        completeSuccess()
+        completeScanSuccess()
       }
     }
 
@@ -182,7 +197,7 @@ const ReceiptScanner = ({
 
       markNotificationHandledInForeground(payload.jobId)
       toast.error(payload.error || 'Failed to scan receipt')
-      resetState()
+      resetScanState()
     }
 
     socket.on('receipt:scan-completed', handleSuccess)
@@ -192,7 +207,8 @@ const ReceiptScanner = ({
       socket.off('receipt:scan-completed', handleSuccess)
       socket.off('receipt:scan-failed', handleFailure)
     }
-  }, [socket, onScanComplete, completeSuccess, resetState, setPendingJobId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- effect events keep latest handlers while the socket subscription depends only on socket.
+  }, [socket])
 
   useEffect(() => {
     if (!pendingJobId) return
@@ -203,7 +219,7 @@ const ReceiptScanner = ({
       toast.error(
         'Processing timed out. Please check your internet or try again'
       )
-      resetState()
+      resetScanState()
     }, 60000)
 
     const checkStatus = async () => {
@@ -212,22 +228,22 @@ const ReceiptScanner = ({
         if (cancelled || pendingJobIdRef.current !== pendingJobId) return
 
         if (response.data.status === 'completed' && response.data.receipt) {
-          setPendingJobId(null)
+          clearPendingJob()
           markNotificationHandledInForeground(pendingJobId)
-          onScanComplete(response.data.receipt)
+          completeScan(response.data.receipt)
           toast.success('Receipt scanned successfully')
-          completeSuccess()
+          completeScanSuccess()
         } else if (response.data.status === 'completed') {
           toast.error(
             'Receipt result is no longer available. Please scan again'
           )
-          resetState()
+          resetScanState()
         } else if (response.data.status === 'failed') {
           markNotificationHandledInForeground(pendingJobId)
           toast.error(
             response.data.error || 'Receipt processing failed. Please try again'
           )
-          resetState()
+          resetScanState()
         }
       } catch {
         // Socket may still deliver the result. Keep polling until safety timeout.
@@ -245,15 +261,8 @@ const ReceiptScanner = ({
         timeoutRef.current = null
       }
     }
-  }, [
-    pendingJobId,
-    getReceiptScanStatus,
-    onScanComplete,
-    completeSuccess,
-    resetState,
-    setPendingJobId,
-    stopSafetyTimeout
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- effect events keep latest completion/reset callbacks without restarting polling.
+  }, [pendingJobId, getReceiptScanStatus, stopSafetyTimeout])
 
   const handleReceiptUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -301,7 +310,9 @@ const ReceiptScanner = ({
           toast.success('Receipt scanned successfully')
           completeSuccess()
         } else if (res.data?.jobId) {
-          setPendingJobId(res.data.jobId)
+          pendingJobIdRef.current = res.data.jobId
+          setPendingJobIdState(res.data.jobId)
+          sessionStorage.setItem(PENDING_RECEIPT_JOB_KEY, res.data.jobId)
           toast.info('Receipt is being processed in background')
         } else {
           toast.error('Unexpected scan response')
