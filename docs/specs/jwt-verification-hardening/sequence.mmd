@@ -1,0 +1,45 @@
+sequenceDiagram
+  autonumber
+  participant Client
+  participant API as Auth API
+  participant Blacklist as Redis Blacklist
+  participant JWT as JWT Helpers
+  participant Mongo as MongoDB
+
+  rect rgb(245, 248, 255)
+    Client->>API: Protected API request with Bearer access token
+    API->>Blacklist: Check blacklist:{accessTokenDigest}
+    Blacklist-->>API: Not blacklisted
+    API->>JWT: Verify access JWT issuer, audience user, HS256, expiry
+    JWT-->>API: Access payload userId + tokenVersion
+    API->>Mongo: Load user tokenVersion
+    Mongo-->>API: Current tokenVersion
+    API-->>Client: Protected response
+  end
+
+  rect rgb(248, 255, 245)
+    Client->>API: POST /auth/refresh-token with refresh cookie
+    alt request also carries blacklisted access token
+      API->>Blacklist: Check blacklist:{accessTokenDigest}
+      Blacklist-->>API: Blacklisted
+      API-->>Client: 401 session must sign in again
+    else no blacklisted access token is attached
+      API->>JWT: Verify refresh JWT issuer, audience refresh, HS256, expiry
+      JWT-->>API: Refresh payload userId
+      API->>Mongo: Find active refresh-token digest
+      Mongo-->>API: Active refresh token + user tokenVersion
+      API-->>Client: New access token
+    end
+  end
+
+  rect rgb(255, 248, 245)
+    Client->>API: POST /auth/logout with refresh cookie and access token
+    API->>Mongo: Revoke active refresh-token digest
+    API->>JWT: Try verify access JWT for expiry
+    alt access token verifies and has exp
+      API->>Blacklist: SET blacklist:{accessTokenDigest} EX ttl
+    else access token invalid or expired
+      API->>API: Skip blacklist write
+    end
+    API-->>Client: Clear refresh cookie and return logout success
+  end

@@ -33,13 +33,13 @@ import { calculateNextReportDate } from '../utils/dates/index'
 import {
   signAccessToken,
   signRefreshToken,
+  verifyAccessToken,
   verifyRefreshToken
 } from '../utils/jwt.util'
 import { revokeAllUserSessions } from './session-revocation.service'
 import RefreshTokenModel from '../models/refresh-token.model'
 import ms from 'ms'
 import { Env } from '../config/env.config'
-import jwt, { JwtPayload } from 'jsonwebtoken'
 import {
   OTP_CONFIG,
   redis,
@@ -78,6 +78,25 @@ const DUMMY_PASSWORD_HASH =
 
 const REGISTER_OTP_REQUEST_MESSAGE =
   'If this email can be registered, you will receive an OTP shortly'
+
+const blacklistAccessTokenIfVerifiable = async (accessToken: string) => {
+  try {
+    const decoded = verifyAccessToken(accessToken)
+    if (typeof decoded.exp !== 'number') return
+
+    const ttl = decoded.exp - Math.floor(Date.now() / 1000)
+    if (ttl <= 0) return
+
+    await redis.set(
+      `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`,
+      'revoked',
+      'EX',
+      ttl
+    )
+  } catch {
+    return
+  }
+}
 
 const findUserByEmailWithLookup = async (
   email: string
@@ -791,20 +810,7 @@ export const logoutService = async (
     throw new NotFoundException('Refresh token not found or already revoked')
   }
   // 2. Blacklist access token trong Redis
-  const decoded = jwt.decode(accessToken) as JwtPayload | null
-
-  if (decoded && typeof decoded.exp === 'number') {
-    const ttl = decoded.exp - Math.floor(Date.now() / 1000) // giây còn lại
-
-    if (ttl > 0) {
-      await redis.set(
-        `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`,
-        'revoked',
-        'EX',
-        ttl
-      )
-    }
-  }
+  await blacklistAccessTokenIfVerifiable(accessToken)
 
   return { message: 'Logged out successfully' }
 }
@@ -814,20 +820,7 @@ export const logoutAllService = async (userId: string, accessToken: string) => {
   await revokeAllUserSessions(userId)
 
   // 2. Blacklist access token hiện tại
-  const decoded = jwt.decode(accessToken) as JwtPayload | null
-
-  if (decoded && typeof decoded.exp === 'number') {
-    const ttl = decoded.exp - Math.floor(Date.now() / 1000)
-
-    if (ttl > 0) {
-      await redis.set(
-        `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`,
-        'revoked',
-        'EX',
-        ttl
-      )
-    }
-  }
+  await blacklistAccessTokenIfVerifiable(accessToken)
 
   return { message: 'Logged out from all devices successfully' }
 }

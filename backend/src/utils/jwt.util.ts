@@ -83,7 +83,8 @@ export const verifyAccessToken = (
 ): JwtPayload & AccessTokenPayload => {
   return jwt.verify(token, Env.JWT_SECRET, {
     audience: 'user',
-    issuer: Env.JWT_ISSUER
+    issuer: Env.JWT_ISSUER,
+    algorithms: ['HS256']
   }) as unknown as JwtPayload & AccessTokenPayload
 }
 
@@ -95,6 +96,8 @@ export const verifyRefreshToken = (
   token: string
 ): JwtPayload & RefreshTokenPayload => {
   return jwt.verify(token, Env.JWT_REFRESH_SECRET, {
-    issuer: Env.JWT_ISSUER
+    issuer: Env.JWT_ISSUER,
+    audience: 'refresh',
+    algorithms: ['HS256']
   }) as unknown as JwtPayload & RefreshTokenPayload
 }

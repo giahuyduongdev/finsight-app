@@ -110,4 +110,32 @@ describe('auth token digest persistence', () => {
     )
     expect(redis.get).not.toHaveBeenCalledWith(`blacklist:${accessToken}`)
   })
+
+  it('rejects refresh requests carrying a blacklisted access token before the route handler', async () => {
+    const accessToken = 'blacklisted-refresh-route-access-token'
+    const refreshHandler = jest.fn((_req, res) =>
+      res.json({ accessToken: 'new-access-token' })
+    )
+    const app = express()
+    app.use(checkBlacklist)
+    app.post('/api/v1/auth/refresh-token', refreshHandler)
+    app.use(errorHandler)
+
+    ;(redis.get as jest.Mock).mockImplementationOnce(async (key: string) =>
+      key === `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`
+        ? 'revoked'
+        : null
+    )
+
+    const response = await request(app)
+      .post('/api/v1/auth/refresh-token')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', 'refreshToken=valid-refresh-cookie')
+
+    expect(response.status).toBe(401)
+    expect(refreshHandler).not.toHaveBeenCalled()
+    expect(redis.get).toHaveBeenCalledWith(
+      `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`
+    )
+  })
 })
