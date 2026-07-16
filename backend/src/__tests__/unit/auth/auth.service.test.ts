@@ -144,6 +144,8 @@ import {
   resendRegisterVerifyOTPService,
   verifyRegisterOTPService
 } from '../../../services/auth.service'
+import jwt from 'jsonwebtoken'
+import { Env } from '../../../config/env.config'
 import {
   hashAccessTokenBlacklistKey,
   hashOtp,
@@ -463,6 +465,35 @@ describe('auth service hardening', () => {
       expect.anything(),
       expect.anything()
     )
+  })
+
+  it('does not blacklist a forged access token during logout cleanup', async () => {
+    const forgedAccessToken = jwt.sign(
+      {
+        userId: 'user-id',
+        tokenVersion: 0
+      },
+      'wrong-secret',
+      {
+        algorithm: 'HS256',
+        audience: 'user',
+        issuer: Env.JWT_ISSUER,
+        expiresIn: '15m'
+      }
+    )
+    const refreshToken = 'raw-refresh-token'
+
+    await expect(
+      logoutService(refreshToken, forgedAccessToken)
+    ).resolves.toEqual({
+      message: 'Logged out successfully'
+    })
+
+    expect(refreshTokenFindOneAndUpdate).toHaveBeenCalledWith(
+      { token: hashRefreshToken(refreshToken), isRevoked: false },
+      { isRevoked: true }
+    )
+    expect(redisSet).not.toHaveBeenCalled()
   })
 
   it('translates a duplicate email race into the existing conflict response', async () => {
