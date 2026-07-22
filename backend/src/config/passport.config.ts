@@ -6,6 +6,7 @@ import {
 import passport from 'passport'
 import { Env } from '../config/env.config'
 import { authenticateAccessToken } from '../services/access-token-auth.service'
+import { resolveAccessVerifySecret } from '../utils/jwt-key-ring.util'
 
 interface JwtPayload {
   userId?: string
@@ -14,7 +15,13 @@ interface JwtPayload {
 
 const options: StrategyOptions = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey: Env.JWT_SECRET,
+  secretOrKeyProvider: (_req, rawJwtToken, done) => {
+    try {
+      done(null, resolveAccessVerifySecret(rawJwtToken))
+    } catch {
+      done(null, '')
+    }
+  },
   audience: ['user'],
   algorithms: ['HS256'],
   issuer: Env.JWT_ISSUER
