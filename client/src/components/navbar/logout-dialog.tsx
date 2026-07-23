@@ -22,6 +22,19 @@ interface LogoutDialogProps {
   setIsOpen: (value: boolean) => void
 }
 
+const getLogoutErrorMessage = (error: unknown) => {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    error.status === 401
+  ) {
+    return 'Session expired, cleaning up session'
+  }
+
+  return 'Server error, but cleaning up session'
+}
+
 const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
   const [isPending] = useTransition()
   const dispatch = useAppDispatch()
@@ -35,9 +48,9 @@ const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
       // Dùng .unwrap() để bắt lỗi nếu có
       await logoutApi({}).unwrap()
       toast.success('Logged out successfully')
-    } catch {
+    } catch (error) {
       // Dù API lỗi vẫn nên cho logout ở máy khách để đảm bảo an toàn
-      toast.error('Server error, but cleaning up session')
+      toast.error(getLogoutErrorMessage(error))
     } finally {
       // 4. Dọn dẹp Redux và chuyển trang
       dispatch(logout())

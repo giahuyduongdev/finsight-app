@@ -1,0 +1,60 @@
+sequenceDiagram
+  autonumber
+  participant AuthAPI
+  participant JWT as JWT Util
+  participant Keys as JWT Key Resolver
+  participant Client
+  participant Passport
+
+  rect rgb(245, 248, 255)
+    AuthAPI->>JWT: signAccessToken(payload)
+    JWT->>Keys: getCurrentAccessSigningKey()
+    Keys-->>JWT: current access kid + secret
+    JWT-->>AuthAPI: access JWT with header kid
+    AuthAPI-->>Client: accessToken
+  end
+
+  rect rgb(248, 255, 245)
+    AuthAPI->>JWT: signRefreshToken(payload)
+    JWT->>Keys: getCurrentRefreshSigningKey()
+    Keys-->>JWT: current refresh kid + secret
+    JWT-->>AuthAPI: refresh JWT with header kid
+    AuthAPI-->>Client: refresh cookie
+  end
+
+  rect rgb(255, 248, 245)
+    Client->>Passport: Protected request with access JWT
+    Passport->>Keys: resolveAccessVerifyKey(raw token)
+    alt token has current or previous access kid
+      Keys-->>Passport: matching access secret
+      Passport->>Passport: Verify HS256, issuer, audience user, expiry
+      Passport-->>Client: Protected response
+    else token has no kid and access legacy fallback enabled
+      Keys-->>Passport: legacy JWT_SECRET
+      Passport->>Passport: Verify legacy token
+      Passport-->>Client: Protected response
+    else unknown or wrong-family kid
+      Keys-->>Passport: reject
+      Passport-->>Client: 401 Unauthorized
+    end
+  end
+
+  rect rgb(255, 252, 242)
+    Client->>AuthAPI: POST /auth/refresh-token with refresh JWT
+    AuthAPI->>JWT: verifyRefreshToken(refresh JWT)
+    JWT->>Keys: resolveRefreshVerifyKey(raw token)
+    alt token has current or previous refresh kid
+      Keys-->>JWT: matching refresh secret
+      JWT->>JWT: Verify HS256, issuer, audience refresh, expiry
+      JWT-->>AuthAPI: refresh payload
+      AuthAPI-->>Client: new access token
+    else token has no kid and refresh legacy fallback enabled
+      Keys-->>JWT: legacy JWT_REFRESH_SECRET
+      JWT->>JWT: Verify legacy refresh token
+      JWT-->>AuthAPI: refresh payload
+      AuthAPI-->>Client: new access token
+    else unknown or wrong-family kid
+      Keys-->>JWT: reject
+      AuthAPI-->>Client: 401 Unauthorized
+    end
+  end

@@ -1,6 +1,10 @@
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken'
 import ms from 'ms'
 import { Env } from '../config/env.config'
+import {
+  getCurrentJwtSigningKey,
+  resolveJwtVerifySecret
+} from './jwt-key-ring.util'
 
 export type AccessTokenPayload = {
   userId: string
@@ -14,8 +18,7 @@ export type RefreshTokenPayload = {
 type TimeUnit = 's' | 'm' | 'h' | 'd' | 'w' | 'y'
 type TimeString = `${number}${TimeUnit}`
 
-type SignOptsAndSecret = SignOptions & {
-  secret: string
+type JwtSignOptions = SignOptions & {
   expiresIn?: TimeString | number
 }
 
@@ -27,14 +30,12 @@ const JWT_DEFAULTS: SignOptions = {
   issuer: Env.JWT_ISSUER
 }
 
-const accessTokenSignOptions: SignOptsAndSecret = {
-  expiresIn: Env.JWT_EXPIRES_IN as TimeString,
-  secret: Env.JWT_SECRET
+const accessTokenSignOptions: JwtSignOptions = {
+  expiresIn: Env.JWT_EXPIRES_IN as TimeString
 }
 
-const refreshTokenSignOptions: SignOptsAndSecret = {
+const refreshTokenSignOptions: JwtSignOptions = {
   expiresIn: Env.JWT_REFRESH_EXPIRES_IN as TimeString,
-  secret: Env.JWT_REFRESH_SECRET,
   audience: 'refresh',
   issuer: Env.JWT_ISSUER // ← must match verifyRefreshToken's issuer check
 }
@@ -45,12 +46,14 @@ const refreshTokenSignOptions: SignOptsAndSecret = {
  * Sign an access token. Returns the token and its expiration timestamp (ms).
  */
 export const signAccessToken = (payload: AccessTokenPayload) => {
-  const { secret, expiresIn, ...opts } = accessTokenSignOptions
+  const { expiresIn, ...opts } = accessTokenSignOptions
+  const { kid, secret } = getCurrentJwtSigningKey('access')
 
   const token = jwt.sign(payload, secret, {
     ...JWT_DEFAULTS,
     ...opts,
-    expiresIn
+    expiresIn,
+    keyid: kid
   })
 
   const expiresAt = Date.now() + ms(Env.JWT_EXPIRES_IN as ms.StringValue)
@@ -62,11 +65,13 @@ export const signAccessToken = (payload: AccessTokenPayload) => {
  * Sign a refresh token. Does not expose expiresAt (managed via DB).
  */
 export const signRefreshToken = (payload: RefreshTokenPayload) => {
-  const { secret, expiresIn, ...opts } = refreshTokenSignOptions
+  const { expiresIn, ...opts } = refreshTokenSignOptions
+  const { kid, secret } = getCurrentJwtSigningKey('refresh')
 
   const token = jwt.sign(payload, secret, {
     ...opts,
-    expiresIn
+    expiresIn,
+    keyid: kid
   })
 
   return { token }
@@ -81,7 +86,7 @@ export const signRefreshToken = (payload: RefreshTokenPayload) => {
 export const verifyAccessToken = (
   token: string
 ): JwtPayload & AccessTokenPayload => {
-  return jwt.verify(token, Env.JWT_SECRET, {
+  return jwt.verify(token, resolveJwtVerifySecret(token, 'access'), {
     audience: 'user',
     issuer: Env.JWT_ISSUER,
     algorithms: ['HS256']
@@ -95,7 +100,7 @@ export const verifyAccessToken = (
 export const verifyRefreshToken = (
   token: string
 ): JwtPayload & RefreshTokenPayload => {
-  return jwt.verify(token, Env.JWT_REFRESH_SECRET, {
+  return jwt.verify(token, resolveJwtVerifySecret(token, 'refresh'), {
     issuer: Env.JWT_ISSUER,
     audience: 'refresh',
     algorithms: ['HS256']

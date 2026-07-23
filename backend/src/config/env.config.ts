@@ -1,6 +1,8 @@
 import { getEnv } from '../utils/get-env.util'
 
 const encryptionSecret: string = getEnv('ENCRYPTION_SECRET')
+const jwtSecret: string = getEnv('JWT_SECRET')
+const jwtRefreshSecret: string = getEnv('JWT_REFRESH_SECRET')
 
 const envConfig = () => ({
   NODE_ENV: getEnv('NODE_ENV', 'development'),
@@ -19,12 +21,31 @@ const envConfig = () => ({
   MONGO_MAX_POOL_SIZE_PER_CORE: getEnv('MONGO_MAX_POOL_SIZE_PER_CORE', '5'),
   MEMORY_THRESHOLD_MB: getEnv('MEMORY_THRESHOLD_MB', '500'),
 
-  JWT_SECRET: getEnv('JWT_SECRET'),
+  JWT_SECRET: jwtSecret,
   JWT_EXPIRES_IN: getEnv('JWT_EXPIRES_IN', '15m') as string,
   JWT_ISSUER: getEnv('JWT_ISSUER', 'finsight-api'),
 
-  JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET'),
+  JWT_REFRESH_SECRET: jwtRefreshSecret,
   JWT_REFRESH_EXPIRES_IN: getEnv('JWT_REFRESH_EXPIRES_IN', '7d') as string,
+  JWT_ACCESS_CURRENT_KID: getEnv('JWT_ACCESS_CURRENT_KID', 'access-current'),
+  JWT_ACCESS_CURRENT_SECRET: getEnv('JWT_ACCESS_CURRENT_SECRET', jwtSecret),
+  JWT_ACCESS_PREVIOUS_KID: getEnv('JWT_ACCESS_PREVIOUS_KID', ''),
+  JWT_ACCESS_PREVIOUS_SECRET: getEnv('JWT_ACCESS_PREVIOUS_SECRET', ''),
+  JWT_REFRESH_CURRENT_KID: getEnv('JWT_REFRESH_CURRENT_KID', 'refresh-current'),
+  JWT_REFRESH_CURRENT_SECRET: getEnv(
+    'JWT_REFRESH_CURRENT_SECRET',
+    jwtRefreshSecret
+  ),
+  JWT_REFRESH_PREVIOUS_KID: getEnv('JWT_REFRESH_PREVIOUS_KID', ''),
+  JWT_REFRESH_PREVIOUS_SECRET: getEnv('JWT_REFRESH_PREVIOUS_SECRET', ''),
+  JWT_ACCESS_LEGACY_FALLBACK_ENABLED: getEnv(
+    'JWT_ACCESS_LEGACY_FALLBACK_ENABLED',
+    'true'
+  ),
+  JWT_REFRESH_LEGACY_FALLBACK_ENABLED: getEnv(
+    'JWT_REFRESH_LEGACY_FALLBACK_ENABLED',
+    'true'
+  ),
   ENCRYPTION_SECRET: encryptionSecret,
   TOKEN_HASH_SECRET: getEnv('TOKEN_HASH_SECRET'),
 

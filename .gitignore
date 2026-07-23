@@ -53,5 +53,9 @@ client/.env
 # Local Git worktrees
 .worktrees/
 
+# Local agent/tool state
+.superpowers/
+.superpowers
+
 
 

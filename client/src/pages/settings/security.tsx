@@ -20,6 +20,18 @@ import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { AUTH_ROUTES } from '@/routes/common/routePath'
 
+const isLogoutAllAuthError = (error: unknown) =>
+  typeof error === 'object' &&
+  error !== null &&
+  'status' in error &&
+  error.status === 401
+
+const isSuccessfulLogoutAllFallback = (error: unknown) =>
+  typeof error === 'object' &&
+  error !== null &&
+  'originalStatus' in error &&
+  error.originalStatus === 200
+
 const Security = () => {
   const [isLogoutAllOpen, setIsLogoutAllOpen] = useState(false)
   const [logoutAll, { isLoading }] = useLogoutAllMutation()
@@ -30,8 +42,12 @@ const Security = () => {
     try {
       await logoutAll({}).unwrap()
       toast.success('Logged out from all devices')
-    } catch {
-      toast.error('Server error, but cleaning up this session')
+    } catch (error) {
+      toast.success(
+        isSuccessfulLogoutAllFallback(error) || isLogoutAllAuthError(error)
+          ? 'Logged out from all devices'
+          : 'Logged out from this browser'
+      )
     } finally {
       dispatch(logout())
       dispatch(apiClient.util.resetApiState())
