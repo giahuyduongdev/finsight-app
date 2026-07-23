@@ -221,8 +221,11 @@ export function ChangePasswordDialog() {
       localStorage.removeItem('persist:root')
       redirectTo('/')
     } catch (error) {
-      const err = error as { data?: { message?: string } }
-      toast.error(err.data?.message || 'Invalid verification code')
+      const err = error as { data?: { message?: string }; name?: string }
+      const message = err.data?.message
+      if (!message && err.name === 'AbortError') return
+
+      toast.error(message || 'Could not verify the code. Please try again')
       otpForm.reset()
     }
   }

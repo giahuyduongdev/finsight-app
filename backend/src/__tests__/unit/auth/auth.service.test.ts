@@ -17,6 +17,7 @@ const refreshTokenDeleteMany = jest.fn()
 const refreshTokenFindOneAndUpdate = jest.fn()
 const reportSettingSave = jest.fn()
 const reportSettingConstructor = jest.fn()
+const reportSettingFindOne = jest.fn()
 const sessionEnd = jest.fn()
 const sessionWithTransaction = jest.fn()
 const encryptPassword = jest.fn()
@@ -24,6 +25,10 @@ const decryptPassword = jest.fn()
 const compareDummyPassword = jest.fn()
 const sendVerificationEmail = jest.fn()
 const sendPasswordResetEmail = jest.fn()
+const sendPasswordChangedEmail = jest.fn()
+const sendPasswordResetSuccessEmail = jest.fn()
+const sendEmailChangedOldAddressEmail = jest.fn()
+const sendEmailChangedNewAddressEmail = jest.fn()
 
 const pipeline = {
   setex: redisPipelineSetex,
@@ -38,6 +43,7 @@ redisPipelineSetex.mockReturnValue(pipeline)
 redisPipelineDel.mockReturnValue(pipeline)
 
 jest.mock('../../../config/redis.config', () => ({
+  LOGIN_ATTEMPT_CONFIG: { MAX_ATTEMPTS: 5 },
   OTP_CONFIG: { MAX_ATTEMPTS: 5 },
   REDIS_KEYS: {
     registerOtp: (email: string) => `otp:register:${mockAuthEmailKey(email)}`,
@@ -52,7 +58,9 @@ jest.mock('../../../config/redis.config', () => ({
     forgotAttempts: (email: string) =>
       `attempts:forgot:${mockAuthEmailKey(email)}`,
     resetToken: (email: string) =>
-      `reset:forgot:token:${mockAuthEmailKey(email)}`
+      `reset:forgot:token:${mockAuthEmailKey(email)}`,
+    loginAttempts: (email: string) =>
+      `attempts:login:${mockAuthEmailKey(email)}`
   },
   REDIS_TTL: {
     OTP: 300,
@@ -60,7 +68,8 @@ jest.mock('../../../config/redis.config', () => ({
     RESEND: 60,
     OTP_ATTEMPTS: 900,
     FORGOT_OTP: 300,
-    FORGOT_RESEND: 60
+    FORGOT_RESEND: 60,
+    LOGIN_ATTEMPTS: 900
   },
   redis: {
     exists: redisExists,
@@ -84,7 +93,9 @@ jest.mock('../../../models/user.model', () => ({
 
 jest.mock('../../../models/report-setting.model', () => ({
   __esModule: true,
-  default: reportSettingConstructor
+  default: Object.assign(reportSettingConstructor, {
+    findOne: reportSettingFindOne
+  })
 }))
 
 jest.mock('../../../utils/dates/index', () => ({
@@ -128,7 +139,11 @@ jest.mock('../../../mailers/auth.mailer', () => ({
   sendPasswordResetEmail,
   sendChangePasswordEmail: jest.fn(),
   sendChangeEmailOldOTP: jest.fn(),
-  sendChangeEmailNewOTP: jest.fn()
+  sendChangeEmailNewOTP: jest.fn(),
+  sendPasswordChangedEmail,
+  sendPasswordResetSuccessEmail,
+  sendEmailChangedOldAddressEmail,
+  sendEmailChangedNewAddressEmail
 }))
 
 jest.mock('../../../utils/generate-otp.util', () => ({
@@ -159,10 +174,12 @@ describe('auth service hardening', () => {
     redisPipelineSetex.mockReturnValue(pipeline)
     redisPipelineDel.mockReturnValue(pipeline)
     redisExists.mockResolvedValue(0)
+    redisGet.mockResolvedValue(null)
     redisSet.mockResolvedValue('OK')
     redisDel.mockResolvedValue(1)
     redisGetBit.mockResolvedValue(0)
     redisSetBit.mockResolvedValue(0)
+    redisIncr.mockResolvedValue(1)
     redisPipelineExec.mockResolvedValue([])
     userFindOne.mockResolvedValue(null)
     encryptPassword.mockResolvedValue('encrypted-password')
@@ -170,6 +187,10 @@ describe('auth service hardening', () => {
     compareDummyPassword.mockResolvedValue(false)
     sendVerificationEmail.mockResolvedValue(undefined)
     sendPasswordResetEmail.mockResolvedValue(undefined)
+    sendPasswordChangedEmail.mockResolvedValue(undefined)
+    sendPasswordResetSuccessEmail.mockResolvedValue(undefined)
+    sendEmailChangedOldAddressEmail.mockResolvedValue(undefined)
+    sendEmailChangedNewAddressEmail.mockResolvedValue(undefined)
     userSave.mockResolvedValue(undefined)
     userOmitPassword.mockReturnValue({
       _id: 'user-id',
@@ -190,6 +211,9 @@ describe('auth service hardening', () => {
       ...data,
       save: reportSettingSave
     }))
+    reportSettingFindOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue(null)
+    })
     sessionWithTransaction.mockImplementation(async (callback) => callback())
     sessionEnd.mockResolvedValue(undefined)
   })
@@ -417,6 +441,69 @@ describe('auth service hardening', () => {
     })
     expect(missingUserError.statusCode).toBe(401)
     expect(missingUserError.message).toBe('Invalid email or password')
+    expect(redisIncr).toHaveBeenCalledWith(
+      'attempts:login:email-key:missing@example.com'
+    )
+    expect(redisIncr).toHaveBeenCalledWith(
+      'attempts:login:email-key:user@example.com'
+    )
+    expect(redisExpire).toHaveBeenCalledWith(
+      'attempts:login:email-key:missing@example.com',
+      900
+    )
+    expect(redisExpire).toHaveBeenCalledWith(
+      'attempts:login:email-key:user@example.com',
+      900
+    )
+  })
+
+  it('rejects login when the canonical email is locked', async () => {
+    redisGet.mockImplementation(async (key: string) => {
+      if (key === 'attempts:login:email-key:user@example.com') return '5'
+      return null
+    })
+
+    await expect(
+      loginService(
+        {
+          email: ' User@Example.com ',
+          password: 'submitted-password'
+        },
+        'test-agent'
+      )
+    ).rejects.toThrow('Invalid email or password')
+
+    expect(userFindOne).not.toHaveBeenCalled()
+    expect(redisIncr).not.toHaveBeenCalled()
+  })
+
+  it('clears failed login attempts after a successful login', async () => {
+    const loginUser = {
+      id: 'user-id',
+      email: 'user@example.com',
+      name: 'Test User',
+      timezone: 'UTC',
+      tokenVersion: 0,
+      comparePassword: jest.fn().mockResolvedValue(true),
+      save: userSave,
+      omitPassword: userOmitPassword
+    }
+    const userSelect = jest.fn().mockResolvedValue(loginUser)
+    userFindOne.mockReturnValueOnce({ select: userSelect })
+
+    const result = await loginService(
+      {
+        email: 'user@example.com',
+        password: 'submitted-password'
+      },
+      'test-agent'
+    )
+
+    expect(result.accessToken).toEqual(expect.any(String))
+    expect(redisDel).toHaveBeenCalledWith(
+      'attempts:login:email-key:user@example.com'
+    )
+    expect(redisIncr).not.toHaveBeenCalled()
   })
 
   it('stores a refresh token digest when creating a refresh token', async () => {

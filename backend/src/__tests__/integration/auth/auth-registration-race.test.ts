@@ -65,7 +65,11 @@ jest.mock('../../../mailers/auth.mailer', () => ({
   sendPasswordResetEmail: jest.fn(),
   sendChangePasswordEmail: jest.fn(),
   sendChangeEmailOldOTP: jest.fn(),
-  sendChangeEmailNewOTP: jest.fn()
+  sendChangeEmailNewOTP: jest.fn(),
+  sendPasswordChangedEmail: jest.fn(),
+  sendPasswordResetSuccessEmail: jest.fn(),
+  sendEmailChangedOldAddressEmail: jest.fn(),
+  sendEmailChangedNewAddressEmail: jest.fn()
 }))
 
 import UserModel from '../../../models/user.model'
