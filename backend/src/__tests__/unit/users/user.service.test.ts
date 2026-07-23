@@ -11,9 +11,14 @@ import {
   UnauthorizedException
 } from '../../../utils/errors/index'
 import { revokeAllUserSessions } from '../../../services/session-revocation.service'
+import { sendPasswordChangedEmail } from '../../../mailers/auth.mailer'
 
 jest.mock('../../../services/session-revocation.service', () => ({
   revokeAllUserSessions: jest.fn().mockResolvedValue(1)
+}))
+
+jest.mock('../../../mailers/auth.mailer', () => ({
+  sendPasswordChangedEmail: jest.fn().mockResolvedValue(undefined)
 }))
 
 // Mock bcrypt utilities
@@ -234,6 +239,43 @@ describe('UserService', () => {
       )
       expect(updatedUser?.password).toBe('hashed-newpassword123')
 
+      expect(revokeAllUserSessions).toHaveBeenCalledWith(
+        mockUser._id as unknown as string
+      )
+      expect(sendPasswordChangedEmail).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        username: 'User'
+      })
+    })
+
+    it('should keep password change successful when notification email fails', async () => {
+      ;(sendPasswordChangedEmail as jest.Mock).mockRejectedValueOnce(
+        new Error('mail unavailable')
+      )
+      const mockUser = await mockUserRepository.create({
+        name: 'User',
+        email: 'user@example.com',
+        password: 'hashed-oldpassword',
+        timezone: 'UTC',
+        preferredCurrency: 'USD'
+      })
+
+      const result = await userService.changePassword(
+        mockUser._id as unknown as string,
+        {
+          currentPassword: 'oldpassword',
+          newPassword: 'newpassword123',
+          confirmPassword: 'newpassword123'
+        }
+      )
+
+      const updatedUser = await mockUserRepository.findById(
+        mockUser._id as unknown as string
+      )
+      expect(result.message).toBe(
+        'Password changed successfully. Please login again'
+      )
+      expect(updatedUser?.password).toBe('hashed-newpassword123')
       expect(revokeAllUserSessions).toHaveBeenCalledWith(
         mockUser._id as unknown as string
       )

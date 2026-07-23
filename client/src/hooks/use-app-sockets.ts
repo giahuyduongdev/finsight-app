@@ -51,8 +51,12 @@ interface ReportListUpdatedPayload {
   status?: 'SENT' | 'FAILED' | 'NO_ACTIVITY' | 'PENDING'
 }
 
+type AuthSessionRevokedReason =
+  'logout-all' | 'password-changed' | 'email-changed' | 'password-reset'
+
 interface AuthSessionRevokedPayload {
   message?: string
+  reason?: AuthSessionRevokedReason
   redirectTo?: string
 }
 
@@ -191,14 +195,19 @@ export const useAppSockets = () => {
 
     const handleAuthSessionRevoked = ({
       message,
+      reason,
       redirectTo: redirectUrl
     }: AuthSessionRevokedPayload = {}) => {
       if (logoutHandledRef.current) return
       logoutHandledRef.current = true
+      const isCompletedSecurityChange =
+        reason === 'password-changed' ||
+        reason === 'password-reset' ||
+        reason === 'email-changed'
 
       saveFlashMessage({
         message: message || 'Your session ended. Please sign in again',
-        type: 'info'
+        type: isCompletedSecurityChange ? 'success' : 'info'
       })
       dispatch(logout())
       dispatch(apiClient.util.resetApiState())

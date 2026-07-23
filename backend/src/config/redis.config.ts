@@ -23,6 +23,10 @@ export const OTP_CONFIG = {
   MAX_ATTEMPTS: 5 // Tối đa 5 lần nhập sai
 } as const
 
+export const LOGIN_ATTEMPT_CONFIG = {
+  MAX_ATTEMPTS: 5
+} as const
+
 export const REDIS_KEYS = {
   // ─── REGISTER FLOW ──────────────────────────────────────────
   registerOtp: (email: string) => `otp:register:${hashAuthEmailKey(email)}`,
@@ -58,6 +62,9 @@ export const REDIS_KEYS = {
   changeEmailResend: (userId: string) => `resend:change-email:${userId}`,
   changeEmailAttempts: (userId: string) => `attempts:change-email:${userId}`,
 
+  // Login flow
+  loginAttempts: (email: string) => `attempts:login:${hashAuthEmailKey(email)}`,
+
   // Currency rates
   currencyManualRefreshLock: 'rate:manual-refresh-lock',
   currencyRatesUpdatedAt: 'rate:updated-at'
@@ -81,6 +88,9 @@ export const REDIS_TTL = {
   // Change email
   CHANGE_EMAIL_OTP: 5 * 60, // 5 phút
   CHANGE_EMAIL_RESEND: 60, // 1 phút
+
+  // Login
+  LOGIN_ATTEMPTS: 15 * 60,
 
   // Currency rates
   CURRENCY_MANUAL_REFRESH_LOCK: 60 // 1 phút

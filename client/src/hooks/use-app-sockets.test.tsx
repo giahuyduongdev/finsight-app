@@ -344,6 +344,20 @@ describe('useAppSockets', () => {
     expect(mocks.redirectTo).toHaveBeenCalledTimes(1)
   })
 
+  it('stores completed auth security changes as success flash messages', () => {
+    render(<HookHost />)
+
+    mocks.handlers['auth:session-revoked']?.({
+      reason: 'password-changed',
+      message: 'Your password changed. Please sign in again'
+    })
+
+    expect(mocks.saveFlashMessage).toHaveBeenCalledWith({
+      message: 'Your password changed. Please sign in again',
+      type: 'success'
+    })
+  })
+
   it('stores a flash message, clears auth data, and redirects on local logout', () => {
     render(<HookHost />)
 

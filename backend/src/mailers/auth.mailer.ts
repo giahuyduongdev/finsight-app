@@ -4,6 +4,7 @@ import { getResetPasswordTemplate } from './templates/reset-password.template'
 import { getChangePasswordTemplate } from './templates/change-password.template'
 import { getChangeEmailOldTemplate } from './templates/change-email-old.template'
 import { getChangeEmailNewTemplate } from './templates/change-email-new.template'
+import { getSecurityNotificationTemplate } from './templates/security-notification.template'
 import { REDIS_TTL } from '../config/redis.config'
 
 export type SendAuthEmailParams = {
@@ -11,6 +12,17 @@ export type SendAuthEmailParams = {
   username: string
   otpCode: string
 }
+
+export type SendSecurityNotificationParams = {
+  email: string
+  username: string
+}
+
+export type SendEmailChangedNotificationParams =
+  SendSecurityNotificationParams & {
+    oldEmail: string
+    newEmail: string
+  }
 
 /**
  * Sends an OTP email to verify a new account (Registration)
@@ -110,6 +122,96 @@ export const sendChangeEmailNewOTP = async (params: SendAuthEmailParams) => {
   return sendEmail({
     to: email,
     subject: 'Verify Your New Email - Finsight',
+    text,
+    html
+  })
+}
+
+export const sendPasswordChangedEmail = async ({
+  email,
+  username
+}: SendSecurityNotificationParams) => {
+  const html = getSecurityNotificationTemplate({
+    username,
+    title: 'Password Changed - Finsight',
+    heading: 'Password Changed',
+    message: 'The password for your Finsight account was changed successfully.',
+    warning:
+      'If you did not make this change, contact support immediately and secure your account.'
+  })
+  const text = `Hi ${username || 'there'}, the password for your Finsight account was changed successfully. If you did not make this change, contact support immediately.`
+
+  return sendEmail({
+    to: email,
+    subject: 'Password Changed - Finsight',
+    text,
+    html
+  })
+}
+
+export const sendPasswordResetSuccessEmail = async ({
+  email,
+  username
+}: SendSecurityNotificationParams) => {
+  const html = getSecurityNotificationTemplate({
+    username,
+    title: 'Password Reset Complete - Finsight',
+    heading: 'Password Reset Complete',
+    message: 'The password for your Finsight account was reset successfully.',
+    warning:
+      'If you did not reset your password, contact support immediately and secure your account.'
+  })
+  const text = `Hi ${username || 'there'}, the password for your Finsight account was reset successfully. If you did not reset your password, contact support immediately.`
+
+  return sendEmail({
+    to: email,
+    subject: 'Password Reset Complete - Finsight',
+    text,
+    html
+  })
+}
+
+export const sendEmailChangedOldAddressEmail = async ({
+  email,
+  username,
+  newEmail
+}: SendEmailChangedNotificationParams) => {
+  const html = getSecurityNotificationTemplate({
+    username,
+    title: 'Email Changed - Finsight',
+    heading: 'Email Changed',
+    message: `Your Finsight account email was changed to ${newEmail}.`,
+    warning:
+      'If you did not make this change, contact support immediately and secure your account.'
+  })
+  const text = `Hi ${username || 'there'}, your Finsight account email was changed to ${newEmail}. If you did not make this change, contact support immediately.`
+
+  return sendEmail({
+    to: email,
+    subject: 'Email Changed - Finsight',
+    text,
+    html
+  })
+}
+
+export const sendEmailChangedNewAddressEmail = async ({
+  email,
+  username,
+  oldEmail
+}: SendEmailChangedNotificationParams) => {
+  const html = getSecurityNotificationTemplate({
+    username,
+    title: 'Email Added - Finsight',
+    heading: 'Email Added',
+    message: `This email address is now attached to the Finsight account previously using ${oldEmail}.`,
+    warning:
+      'If you did not make this change, contact support immediately and secure your account.'
+  })
+  const text = `Hi ${username || 'there'}, this email address is now attached to the Finsight account previously using ${oldEmail}. If you did not make this change, contact support immediately.`
+
+  return sendEmail({
+    to: email,
+    subject: 'Email Added - Finsight',
     text,
     html
   })

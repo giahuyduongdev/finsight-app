@@ -15,6 +15,7 @@ node_modules
 dist
 dist-ssr
 *.local
+*.bak
 
 # Environment variables
 .env
@@ -56,6 +57,9 @@ client/.env
 # Local agent/tool state
 .superpowers/
 .superpowers
+
+# Local documentation/spec drafts
+docs/
 
 
 

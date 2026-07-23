@@ -5,6 +5,7 @@ import {
   ConflictException,
   InternalServerException,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException
 } from '../utils/errors/index'
 import {
@@ -42,6 +43,7 @@ import ms from 'ms'
 import { Env } from '../config/env.config'
 import { logger } from '../config/logger.config'
 import {
+  LOGIN_ATTEMPT_CONFIG,
   OTP_CONFIG,
   redis,
   REDIS_KEYS,
@@ -54,7 +56,11 @@ import {
   sendVerificationEmail,
   sendChangePasswordEmail,
   sendChangeEmailOldOTP,
-  sendChangeEmailNewOTP
+  sendChangeEmailNewOTP,
+  sendPasswordChangedEmail,
+  sendPasswordResetSuccessEmail,
+  sendEmailChangedOldAddressEmail,
+  sendEmailChangedNewAddressEmail
 } from '../mailers/auth.mailer'
 import crypto from 'crypto'
 import { encrypt, decrypt } from '../utils/encryption.util'
@@ -80,6 +86,7 @@ const DUMMY_PASSWORD_HASH =
 const REGISTER_OTP_REQUEST_MESSAGE =
   'If this email can be registered, you will receive an OTP shortly'
 const REFRESH_ROTATION_GRACE_MAX_SECONDS = 60
+const LOGIN_LOCKED_MESSAGE = 'Invalid email or password'
 
 const getRefreshRotationGraceMs = () => {
   const rawGraceSeconds = Number(Env.REFRESH_TOKEN_ROTATION_GRACE_SECONDS)
@@ -175,6 +182,69 @@ const blacklistAccessTokenIfVerifiable = async (accessToken: string) => {
     )
   } catch {
     return
+  }
+}
+
+const getLoginAttemptsKey = (email: string) => REDIS_KEYS.loginAttempts(email)
+
+const assertLoginNotLocked = async (email: string) => {
+  try {
+    const attempts = Number(
+      (await redis.get(getLoginAttemptsKey(email))) || '0'
+    )
+    if (attempts >= LOGIN_ATTEMPT_CONFIG.MAX_ATTEMPTS) {
+      throw new UnauthorizedException(LOGIN_LOCKED_MESSAGE)
+    }
+  } catch (error) {
+    if (error instanceof UnauthorizedException) throw error
+
+    logger.error('[APP:Auth] Failed to check login attempt lockout', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+    throw new ServiceUnavailableException(
+      'Authentication temporarily unavailable'
+    )
+  }
+}
+
+const recordFailedLogin = async (email: string) => {
+  try {
+    const key = getLoginAttemptsKey(email)
+    const attempts = await redis.incr(key)
+    if (attempts === 1) {
+      await redis.expire(key, REDIS_TTL.LOGIN_ATTEMPTS)
+    }
+  } catch (error) {
+    logger.error('[APP:Auth] Failed to record login attempt', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+    throw new ServiceUnavailableException(
+      'Authentication temporarily unavailable'
+    )
+  }
+}
+
+const clearFailedLogin = async (email: string) => {
+  try {
+    await redis.del(getLoginAttemptsKey(email))
+  } catch (error) {
+    logger.warn('[APP:Auth] Failed to clear login attempts', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+const notifySecurityEvent = async (
+  operation: string,
+  notify: () => Promise<unknown>
+) => {
+  try {
+    await notify()
+  } catch (error) {
+    logger.warn('[APP:Auth] Failed to send security notification email', {
+      operation,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
 }
 
@@ -744,6 +814,13 @@ export const resetPasswordService = async (body: ResetPasswordSchemaType) => {
     syncExistingUserEmailLookup(email, user.id)
   ])
 
+  await notifySecurityEvent('password-reset-success', () =>
+    sendPasswordResetSuccessEmail({
+      email: user.email,
+      username: user.name
+    })
+  )
+
   return {
     userId: user._id.toString(),
     message: 'Password reset successfully. Please login again'
@@ -755,17 +832,22 @@ export const loginService = async (
   userAgent: string
 ): Promise<LoginResponse> => {
   const { email, password, timezone } = body
+  await assertLoginNotLocked(email)
+
   const user = await UserModel.findOne({ email }).select('+tokenVersion')
   if (!user) {
     await compareValue(password, DUMMY_PASSWORD_HASH)
+    await recordFailedLogin(email)
     throw new UnauthorizedException('Invalid email or password')
   }
 
   const isValidPassword = await user.comparePassword(password)
   if (!isValidPassword) {
+    await recordFailedLogin(email)
     throw new UnauthorizedException('Invalid email or password')
   }
 
+  await clearFailedLogin(email)
   await syncExistingUserEmailLookup(email, user.id)
 
   user.timezone = timezone || user.timezone || 'UTC'
@@ -1297,6 +1379,13 @@ export const verifyChangePasswordOTPService = async (
     revokeAllUserSessions(user.id)
   ])
 
+  await notifySecurityEvent('password-changed', () =>
+    sendPasswordChangedEmail({
+      email: user.email,
+      username: user.name
+    })
+  )
+
   return {
     message: 'Password changed successfully. Please login again'
   }
@@ -1553,6 +1642,25 @@ export const verifyChangeEmailOTPService = async (
   ])
 
   await syncChangedUserEmailLookup(oldEmail, newEmail, user.id)
+
+  await Promise.all([
+    notifySecurityEvent('email-changed-old-address', () =>
+      sendEmailChangedOldAddressEmail({
+        email: oldEmail,
+        username: user.name,
+        oldEmail,
+        newEmail
+      })
+    ),
+    notifySecurityEvent('email-changed-new-address', () =>
+      sendEmailChangedNewAddressEmail({
+        email: newEmail,
+        username: user.name,
+        oldEmail,
+        newEmail
+      })
+    )
+  ])
 
   return {
     message: 'Email updated successfully'

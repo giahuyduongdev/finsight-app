@@ -8,6 +8,8 @@ import { IUserRepository } from '../repositories/interfaces/user-repository.inte
 import { UserDocument } from '../models/user.model'
 import { UserWithoutPassword } from '../types/user.type'
 import { revokeAllUserSessions } from './session-revocation.service'
+import { sendPasswordChangedEmail } from '../mailers/auth.mailer'
+import { logger } from '../config/logger.config'
 
 // ─── UserService Class (New - DI-based) ──────────────────────────────────────
 
@@ -104,6 +106,18 @@ export class UserService {
     await this.userRepository.updatePassword(userId, hashedPassword)
 
     await revokeAllUserSessions(userId)
+
+    try {
+      await sendPasswordChangedEmail({
+        email: user.email,
+        username: user.name
+      })
+    } catch (error) {
+      logger.warn('[APP:User] Failed to send password changed notification', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
 
     return {
       message: 'Password changed successfully. Please login again'
