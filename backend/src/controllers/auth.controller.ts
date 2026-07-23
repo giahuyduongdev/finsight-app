@@ -164,6 +164,17 @@ export const refreshTokenController = asyncHandler(
 
     const result = await refreshTokenService(refreshToken)
 
+    if (result.refreshToken) {
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        maxAge: ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue),
+        path: '/',
+        domain: process.env.NODE_ENV === 'production' ? undefined : 'localhost'
+      })
+    }
+
     const response = toTokenRefreshResponse(result)
     const { message, ...data } = response
 

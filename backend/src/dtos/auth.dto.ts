@@ -156,11 +156,13 @@ export const toOTPResponse = (message: string): OTPResponse => {
  */
 export const toTokenRefreshResponse = (data: {
   accessToken: string
+  refreshToken?: string
   expiresAt: number | undefined
 }): TokenRefreshResponse => {
   return {
     message: 'Token refreshed successfully',
     accessToken: data.accessToken,
+    ...(data.refreshToken ? { refreshToken: data.refreshToken } : {}),
     expiresAt: data.expiresAt
   }
 }

@@ -46,6 +46,10 @@ const envConfig = () => ({
     'JWT_REFRESH_LEGACY_FALLBACK_ENABLED',
     'true'
   ),
+  REFRESH_TOKEN_ROTATION_GRACE_SECONDS: getEnv(
+    'REFRESH_TOKEN_ROTATION_GRACE_SECONDS',
+    '10'
+  ),
   ENCRYPTION_SECRET: encryptionSecret,
   TOKEN_HASH_SECRET: getEnv('TOKEN_HASH_SECRET'),
 

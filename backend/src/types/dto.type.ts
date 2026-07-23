@@ -153,11 +153,13 @@ export interface OTPResponse {
  *
  * @property message - Success message confirming token refresh
  * @property accessToken - New JWT access token for API requests
+ * @property refreshToken - New JWT refresh token for future refresh requests, omitted for grace duplicate responses
  * @property expiresAt - New token expiration timestamp (Unix epoch in seconds), or undefined if not set
  */
 export interface TokenRefreshResponse {
   message: string
   accessToken: string
+  refreshToken?: string
   expiresAt: number | undefined
 }
 
