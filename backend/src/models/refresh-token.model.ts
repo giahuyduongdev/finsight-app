@@ -6,6 +6,13 @@ export interface RefreshTokenDocument extends Document {
   expiresAt: Date
   isRevoked: boolean
   userAgent: string
+  tokenFamilyId?: string
+  rotatedFromToken?: string
+  replacedByToken?: string
+  rotatedAt?: Date
+  reuseGraceUntil?: Date
+  replayDetectedAt?: Date
+  revocationReason?: 'logout' | 'logout-all' | 'rotated' | 'replay' | 'expired'
   createdAt: Date
   updatedAt: Date
 }
@@ -33,12 +40,39 @@ const refreshTokenSchema = new Schema<RefreshTokenDocument>(
     userAgent: {
       type: String,
       default: ''
+    },
+    tokenFamilyId: {
+      type: String,
+      index: true
+    },
+    rotatedFromToken: {
+      type: String
+    },
+    replacedByToken: {
+      type: String
+    },
+    rotatedAt: {
+      type: Date
+    },
+    reuseGraceUntil: {
+      type: Date
+    },
+    replayDetectedAt: {
+      type: Date
+    },
+    revocationReason: {
+      type: String,
+      enum: ['logout', 'logout-all', 'rotated', 'replay', 'expired']
     }
   },
   {
     timestamps: true
   }
 )
+
+refreshTokenSchema.index({ userId: 1, tokenFamilyId: 1, isRevoked: 1 })
+refreshTokenSchema.index({ tokenFamilyId: 1, isRevoked: 1 })
+refreshTokenSchema.index({ expiresAt: 1 })
 
 const RefreshTokenModel = mongoose.model<RefreshTokenDocument>(
   'RefreshToken',

@@ -13,6 +13,7 @@ export type AccessTokenPayload = {
 
 export type RefreshTokenPayload = {
   userId: string
+  jti?: string
 }
 
 type TimeUnit = 's' | 'm' | 'h' | 'd' | 'w' | 'y'

@@ -451,7 +451,7 @@ describe('auth service hardening', () => {
 
     expect(refreshTokenFindOneAndUpdate).toHaveBeenCalledWith(
       { token: hashRefreshToken(refreshToken), isRevoked: false },
-      { isRevoked: true }
+      { isRevoked: true, revocationReason: 'logout' }
     )
     expect(redisSet).toHaveBeenCalledWith(
       `blacklist:${hashAccessTokenBlacklistKey(accessToken)}`,
@@ -491,7 +491,7 @@ describe('auth service hardening', () => {
 
     expect(refreshTokenFindOneAndUpdate).toHaveBeenCalledWith(
       { token: hashRefreshToken(refreshToken), isRevoked: false },
-      { isRevoked: true }
+      { isRevoked: true, revocationReason: 'logout' }
     )
     expect(redisSet).not.toHaveBeenCalled()
   })

@@ -1,0 +1,48 @@
+sequenceDiagram
+  autonumber
+  participant Client
+  participant AuthAPI as Auth API
+  participant JWT as JWT Utility
+  participant Mongo as RefreshToken MongoDB
+
+  rect rgb(235, 248, 255)
+    note over Client,Mongo: Normal refresh rotation
+    Client->>AuthAPI: POST /api/v1/auth/refresh-token with refreshToken_1
+    AuthAPI->>JWT: verifyRefreshToken(refreshToken_1)
+    JWT-->>AuthAPI: userId
+    AuthAPI->>Mongo: Find active digest(refreshToken_1)
+    Mongo-->>AuthAPI: active token family F
+    AuthAPI->>JWT: signRefreshToken(userId)
+    JWT-->>AuthAPI: refreshToken_2
+    AuthAPI->>Mongo: Transaction: revoke token_1, create active token_2 in F
+    Mongo-->>AuthAPI: committed
+    AuthAPI->>JWT: signAccessToken(userId, tokenVersion)
+    JWT-->>AuthAPI: accessToken_2
+    AuthAPI-->>Client: 200 + accessToken_2 + Set-Cookie refreshToken_2
+  end
+
+  rect rgb(255, 250, 235)
+    note over Client,Mongo: Duplicate previous token inside grace
+    Client->>AuthAPI: POST /api/v1/auth/refresh-token with refreshToken_1
+    AuthAPI->>JWT: verifyRefreshToken(refreshToken_1)
+    JWT-->>AuthAPI: userId
+    AuthAPI->>Mongo: Find revoked digest(refreshToken_1)
+    Mongo-->>AuthAPI: token_1 replacedBy token_2, grace still valid
+    AuthAPI->>Mongo: Confirm token_2 is current active in family F
+    Mongo-->>AuthAPI: token_2 active
+    AuthAPI->>JWT: signAccessToken(userId, tokenVersion)
+    JWT-->>AuthAPI: accessToken_3
+    AuthAPI-->>Client: 200 + accessToken_3 only; no Set-Cookie
+  end
+
+  rect rgb(255, 235, 238)
+    note over Client,Mongo: Replay outside grace or older token reuse
+    Client->>AuthAPI: POST /api/v1/auth/refresh-token with old refresh token
+    AuthAPI->>JWT: verifyRefreshToken(old refresh token)
+    JWT-->>AuthAPI: userId
+    AuthAPI->>Mongo: Find revoked digest(old refresh token)
+    Mongo-->>AuthAPI: revoked token in family F, not grace-eligible
+    AuthAPI->>Mongo: Revoke all active tokens in family F; mark replay
+    Mongo-->>AuthAPI: family revoked
+    AuthAPI-->>Client: 401 Unauthorized
+  end

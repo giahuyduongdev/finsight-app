@@ -40,7 +40,6 @@ import { revokeAllUserSessions } from './session-revocation.service'
 import RefreshTokenModel from '../models/refresh-token.model'
 import ms from 'ms'
 import { Env } from '../config/env.config'
-import { logger } from '../config/logger.config'
 import {
   OTP_CONFIG,
   redis,
@@ -79,85 +78,6 @@ const DUMMY_PASSWORD_HASH =
 
 const REGISTER_OTP_REQUEST_MESSAGE =
   'If this email can be registered, you will receive an OTP shortly'
-const REFRESH_ROTATION_GRACE_MAX_SECONDS = 60
-
-const getRefreshRotationGraceMs = () => {
-  const rawGraceSeconds = Number(Env.REFRESH_TOKEN_ROTATION_GRACE_SECONDS)
-  if (
-    !Number.isInteger(rawGraceSeconds) ||
-    rawGraceSeconds < 0 ||
-    rawGraceSeconds > REFRESH_ROTATION_GRACE_MAX_SECONDS
-  ) {
-    return 10 * 1000
-  }
-
-  return rawGraceSeconds * 1000
-}
-
-const createRefreshTokenExpiresAt = () =>
-  new Date(Date.now() + ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue))
-
-const createRefreshTokenRecord = async ({
-  userId,
-  userAgent = '',
-  tokenFamilyId = crypto.randomUUID(),
-  rotatedFromToken,
-  session
-}: {
-  userId: string
-  userAgent?: string
-  tokenFamilyId?: string
-  rotatedFromToken?: string
-  session?: mongoose.ClientSession
-}) => {
-  const { token: refreshToken } = signRefreshToken({
-    userId,
-    jti: crypto.randomUUID()
-  })
-  const refreshTokenHash = hashRefreshToken(refreshToken)
-
-  await RefreshTokenModel.findOneAndUpdate(
-    { token: refreshTokenHash },
-    {
-      userId,
-      token: refreshTokenHash,
-      expiresAt: createRefreshTokenExpiresAt(),
-      userAgent,
-      isRevoked: false,
-      tokenFamilyId,
-      ...(rotatedFromToken ? { rotatedFromToken } : {})
-    },
-    { upsert: true, new: true, session }
-  )
-
-  return { refreshToken, refreshTokenHash, tokenFamilyId }
-}
-
-const revokeRefreshTokenFamilyForReplay = async (
-  tokenFamilyId: string,
-  tokenHash: string
-) => {
-  const replayDetectedAt = new Date()
-  await RefreshTokenModel.updateMany(
-    { tokenFamilyId, isRevoked: false },
-    {
-      isRevoked: true,
-      revocationReason: 'replay',
-      replayDetectedAt
-    }
-  )
-  await RefreshTokenModel.updateOne(
-    { token: tokenHash },
-    {
-      revocationReason: 'replay',
-      replayDetectedAt
-    }
-  )
-  logger.warn('[APP:Auth] Refresh token replay detected', {
-    tokenFamilyId,
-    tokenDigestPreview: tokenHash.slice(0, 12)
-  })
-}
 
 const blacklistAccessTokenIfVerifiable = async (accessToken: string) => {
   try {
@@ -776,15 +696,27 @@ export const loginService = async (
     tokenVersion: user.tokenVersion ?? 0
   })
 
+  const { token: refreshToken } = signRefreshToken({ userId: user.id })
+  const refreshTokenHash = hashRefreshToken(refreshToken)
+
   await RefreshTokenModel.deleteMany({
     userId: user.id,
     $or: [{ isRevoked: true }, { expiresAt: { $lt: new Date() } }]
   })
 
-  const { refreshToken } = await createRefreshTokenRecord({
-    userId: user.id,
-    userAgent: userAgent || ''
-  })
+  await RefreshTokenModel.findOneAndUpdate(
+    { token: refreshTokenHash },
+    {
+      userId: user.id,
+      token: refreshTokenHash,
+      expiresAt: new Date(
+        Date.now() + ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+      ),
+      userAgent: userAgent || '',
+      isRevoked: false
+    },
+    { upsert: true, new: true }
+  )
 
   const reportSetting = await ReportSettingModel.findOne(
     {
@@ -812,13 +744,7 @@ export const loginService = async (
   }
 }
 
-export const refreshTokenService = async (
-  token: string
-): Promise<{
-  accessToken: string
-  refreshToken?: string
-  expiresAt: number
-}> => {
+export const refreshTokenService = async (token: string) => {
   // 1. Verify refresh token
   let decoded
   try {
@@ -835,6 +761,7 @@ export const refreshTokenService = async (
   const tokenHash = hashRefreshToken(token)
   const refreshToken = await RefreshTokenModel.findOne({
     token: tokenHash,
+    isRevoked: false,
     expiresAt: { $gt: new Date() } // chưa hết hạn
   })
 
@@ -846,94 +773,13 @@ export const refreshTokenService = async (
   const user = await UserModel.findById(decoded.userId).select('+tokenVersion')
   if (!user) throw new NotFoundException('User not found')
 
-  if (refreshToken.isRevoked) {
-    const now = new Date()
-    const isGraceEligible =
-      refreshToken.revocationReason === 'rotated' &&
-      !!refreshToken.tokenFamilyId &&
-      !!refreshToken.replacedByToken &&
-      !!refreshToken.reuseGraceUntil &&
-      refreshToken.reuseGraceUntil >= now
-
-    if (isGraceEligible) {
-      const activeReplacement = await RefreshTokenModel.findOne({
-        token: refreshToken.replacedByToken,
-        tokenFamilyId: refreshToken.tokenFamilyId,
-        rotatedFromToken: tokenHash,
-        isRevoked: false,
-        expiresAt: { $gt: now }
-      })
-
-      if (activeReplacement) {
-        const { token: accessToken, expiresAt } = signAccessToken({
-          userId: user.id,
-          tokenVersion: user.tokenVersion ?? 0
-        })
-
-        return {
-          accessToken,
-          expiresAt
-        }
-      }
-    }
-
-    if (
-      refreshToken.revocationReason === 'rotated' &&
-      refreshToken.tokenFamilyId
-    ) {
-      await revokeRefreshTokenFamilyForReplay(
-        refreshToken.tokenFamilyId,
-        tokenHash
-      )
-    }
-
-    throw new UnauthorizedException('Refresh token is invalid or expired')
-  }
-
-  const session = await mongoose.startSession()
-  let nextRefreshToken: string | null = null
-
-  try {
-    await session.withTransaction(async () => {
-      const replacement = await createRefreshTokenRecord({
-        userId: user.id,
-        userAgent: refreshToken.userAgent,
-        tokenFamilyId: refreshToken.tokenFamilyId || crypto.randomUUID(),
-        rotatedFromToken: tokenHash,
-        session
-      })
-      const now = new Date()
-      const reuseGraceUntil = new Date(
-        now.getTime() + getRefreshRotationGraceMs()
-      )
-      const rotatedToken = await RefreshTokenModel.findOneAndUpdate(
-        {
-          _id: refreshToken._id,
-          isRevoked: false,
-          expiresAt: { $gt: now }
-        },
-        {
-          isRevoked: true,
-          revocationReason: 'rotated',
-          rotatedAt: now,
-          reuseGraceUntil,
-          replacedByToken: replacement.refreshTokenHash,
-          tokenFamilyId: replacement.tokenFamilyId
-        },
-        { new: true, session }
-      )
-
-      if (!rotatedToken) {
-        throw new UnauthorizedException('Refresh token is invalid or expired')
-      }
-
-      nextRefreshToken = replacement.refreshToken
-    })
-  } finally {
-    await session.endSession()
-  }
-
-  if (!nextRefreshToken) {
+  // Re-check after loading the version to close the refresh-vs-revocation race.
+  const refreshTokenStillActive = await RefreshTokenModel.exists({
+    _id: refreshToken._id,
+    isRevoked: false,
+    expiresAt: { $gt: new Date() }
+  })
+  if (!refreshTokenStillActive) {
     throw new UnauthorizedException('Refresh token is invalid or expired')
   }
 
@@ -945,7 +791,6 @@ export const refreshTokenService = async (
 
   return {
     accessToken,
-    refreshToken: nextRefreshToken,
     expiresAt
   }
 }
@@ -958,7 +803,7 @@ export const logoutService = async (
   const refreshTokenHash = hashRefreshToken(refreshToken)
   const token = await RefreshTokenModel.findOneAndUpdate(
     { token: refreshTokenHash, isRevoked: false },
-    { isRevoked: true, revocationReason: 'logout' }
+    { isRevoked: true }
   )
 
   if (!token) {
@@ -984,6 +829,15 @@ export const createRefreshToken = async (
   userId: string,
   userAgent: string = ''
 ): Promise<string> => {
+  // 1. Tạo Refresh Token bằng hàm JWT có sẵn của bạn
+  const { token: refreshToken } = signRefreshToken({ userId })
+  const refreshTokenHash = hashRefreshToken(refreshToken)
+
+  // 2. Tính toán thời gian hết hạn để lưu DB (khớp với thời hạn của token)
+  const expiresAt = new Date(
+    Date.now() + ms(Env.JWT_REFRESH_EXPIRES_IN as ms.StringValue)
+  )
+
   // 3. Dọn dẹp token rác của user này
   await RefreshTokenModel.deleteMany({
     userId,
@@ -991,7 +845,17 @@ export const createRefreshToken = async (
   })
 
   // 4. Lưu DB với cơ chế phòng thủ Upsert
-  const { refreshToken } = await createRefreshTokenRecord({ userId, userAgent })
+  await RefreshTokenModel.findOneAndUpdate(
+    { token: refreshTokenHash },
+    {
+      userId,
+      token: refreshTokenHash,
+      expiresAt,
+      userAgent,
+      isRevoked: false
+    },
+    { upsert: true, new: true }
+  )
 
   // 5. Trả về token
   return refreshToken

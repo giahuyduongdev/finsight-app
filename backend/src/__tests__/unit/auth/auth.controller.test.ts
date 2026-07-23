@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 import { HTTPSTATUS } from '../../../config/http.config'
 
 const mockLogoutAllService = jest.fn()
+const mockRefreshTokenService = jest.fn()
 const mockResetPasswordService = jest.fn()
 const mockVerifyChangePasswordOTPService = jest.fn()
 const mockVerifyChangeEmailOTPService = jest.fn()
@@ -12,6 +13,7 @@ const mockLoggerWarn = jest.fn()
 
 jest.mock('../../../services/auth.service', () => ({
   logoutAllService: (...args: unknown[]) => mockLogoutAllService(...args),
+  refreshTokenService: (...args: unknown[]) => mockRefreshTokenService(...args),
   resetPasswordService: (...args: unknown[]) =>
     mockResetPasswordService(...args),
   verifyChangePasswordOTPService: (...args: unknown[]) =>
@@ -39,6 +41,7 @@ jest.mock('../../../utils/getUserId.util', () => ({
 
 import {
   logoutAllController,
+  refreshTokenController,
   resetPasswordController,
   verifyChangeEmailOTPController,
   verifyChangePasswordOTPController
@@ -50,13 +53,16 @@ describe('auth.controller', () => {
   let statusMock: jest.Mock
   let jsonMock: jest.Mock
   let clearCookieMock: jest.Mock
+  let cookieMock: jest.Mock
 
   beforeEach(() => {
     jest.clearAllMocks()
 
     jsonMock = jest.fn()
     clearCookieMock = jest.fn()
+    cookieMock = jest.fn()
     mockResponse = {
+      cookie: cookieMock,
       clearCookie: clearCookieMock,
       json: jsonMock
     }
@@ -100,6 +106,47 @@ describe('auth.controller', () => {
     expect(jsonMock).toHaveBeenCalledWith({
       data: null,
       meta: { message: 'Logged out from all devices successfully' }
+    })
+    expect(nextMock).not.toHaveBeenCalled()
+  })
+
+  it('sets replacement refresh cookie after refresh token rotation', async () => {
+    mockRefreshTokenService.mockResolvedValue({
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+      expiresAt: 1784800000000
+    })
+
+    const mockRequest = {
+      cookies: {
+        refreshToken: 'old-refresh-token'
+      },
+      body: {}
+    } as unknown as Request
+
+    await refreshTokenController(
+      mockRequest,
+      mockResponse as Response,
+      nextMock
+    )
+
+    expect(mockRefreshTokenService).toHaveBeenCalledWith('old-refresh-token')
+    expect(cookieMock).toHaveBeenCalledWith(
+      'refreshToken',
+      'new-refresh-token',
+      expect.objectContaining({
+        httpOnly: true,
+        path: '/'
+      })
+    )
+    expect(statusMock).toHaveBeenCalledWith(HTTPSTATUS.OK)
+    expect(jsonMock).toHaveBeenCalledWith({
+      data: {
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        expiresAt: 1784800000000
+      },
+      meta: { message: 'Token refreshed successfully' }
     })
     expect(nextMock).not.toHaveBeenCalled()
   })
